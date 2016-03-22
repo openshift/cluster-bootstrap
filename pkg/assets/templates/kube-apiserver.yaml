@@ -1,0 +1,57 @@
+apiVersion: "extensions/v1beta1"
+kind: DaemonSet
+metadata:
+  name: kube-apiserver
+  namespace: kube-system
+  labels:
+    app: kube-apiserver
+    version: v1.2.0
+spec:
+  template:
+    metadata:
+      labels:
+        app: kube-apiserver
+        version: v1.2.0
+    spec:
+      nodeSelector:
+        master: "true"
+      hostNetwork: true
+      containers:
+      - name: kube-apiserver
+        image: quay.io/peanutbutter/hyperkube:v1.2.0_coreos.0
+        command:
+        - /hyperkube
+        - apiserver
+        - --bind-address=0.0.0.0
+        - --etcd-servers=http://127.0.0.1:2379
+        - --allow-privileged=true
+        - --service-cluster-ip-range=10.3.0.0/24
+        - --secure-port=6443
+        - --insecure-port=8080
+        - --admission-control=NamespaceLifecycle,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota
+        - --tls-cert-file=/etc/kubernetes/secrets/apiserver.crt
+        - --tls-private-key-file=/etc/kubernetes/secrets/apiserver.key
+        - --service-account-key-file=/etc/kubernetes/secrets/service-account.pub
+        - --token-auth-file=/etc/kubernetes/secrets/token-auth.csv
+        - --runtime-config=extensions/v1beta1/deployments=true,extensions/v1beta1/daemonsets=true
+        ports:
+        - containerPort: 6443
+          hostPort: 6443
+          name: https
+        - containerPort: 8080
+          hostPort: 8080
+          name: local
+        volumeMounts:
+        - mountPath: /etc/ssl/certs
+          name: ssl-certs-host
+          readOnly: true
+        - mountPath: /etc/kubernetes/secrets
+          name: secrets
+          readOnly: true
+      volumes:
+      - name: ssl-certs-host
+        hostPath:
+          path: /usr/share/ca-certificates
+      - name: secrets
+        secret:
+          secretName: kube-apiserver
