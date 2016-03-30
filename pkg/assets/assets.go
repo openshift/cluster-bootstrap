@@ -20,6 +20,7 @@ const (
 	AssetPathTokenAuth             = "auth/token-auth.csv"
 	AssetPathAPIServerSecret       = "manifests/apiserver-secret.yaml"
 	AssetPathAPIServer             = "manifests/apiserver.yaml"
+	AssetPathKubelet               = "manifests/kubelet.yaml"
 )
 
 //go:generate go run templates_gen.go
@@ -61,5 +62,6 @@ func (a Assets) WriteFiles(path string) error {
 func StaticAssets() []Asset {
 	return []Asset{
 		{Name: AssetPathAPIServer, Data: internal.APIServerTemplate},
+		{Name: AssetPathKubelet, Data: internal.KubeletTemplate},
 	}
 }
