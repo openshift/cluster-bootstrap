@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/spf13/pflag"
@@ -23,17 +24,23 @@ import (
 )
 
 const (
-	localAPIServerAddr  = "127.0.0.1:8080"
-	remoteAPIServerAddr = "127.0.0.1:8080"
-	localEtcdServerAddr = "127.0.0.1:2379"
+	localAPIServerAddr         = "127.0.0.1:6443"
+	localAPIServerInsecureAddr = "127.0.0.1:8080"
+	remoteAPIServerAddr        = "0.0.0.0:6443"
+	localEtcdServerAddr        = "127.0.0.1:2379"
 )
 
-type Opts struct {
-	SSHUser        string
-	SSHKeyFile     string
-	RemoteAddr     string
-	RemoteEtcdAddr string
-	AssetDir       string
+type Config struct {
+	SSHUser           string
+	SSHKeyFile        string
+	APIServerKey      string
+	APIServerCert     string
+	CACert            string
+	ServiceAccountKey string
+	TokenAuth         string
+	RemoteAddr        string
+	RemoteEtcdAddr    string
+	ManifestDir       string
 }
 
 type bootkube struct {
@@ -44,40 +51,49 @@ type bootkube struct {
 	sshConfig      *ssh.ClientConfig
 	remoteAddr     string
 	remoteEtcdAddr string
-	assetDir       string
+	manifestDir    string
 }
 
-func NewBootkube(opts Opts) (*bootkube, error) {
+func NewBootkube(config Config) (*bootkube, error) {
 	apiServer := apiserver.NewAPIServer()
 	fs := pflag.NewFlagSet("apiserver", pflag.ExitOnError)
 	apiServer.AddFlags(fs)
 	fs.Parse([]string{
+		"--allow-privileged=true",
+		"--secure-port=6443",
+		"--tls-private-key-file=" + config.APIServerKey,
+		"--tls-cert-file=" + config.APIServerCert,
 		"--etcd-servers=http://" + localEtcdServerAddr,
 		"--service-cluster-ip-range=10.3.0.0/24",
+		"--service-account-key-file=" + config.ServiceAccountKey,
+		"--token-auth-file=" + config.TokenAuth,
+		"--runtime-config=extensions/v1beta1/deployments=true,extensions/v1beta1/daemonsets=true",
 	})
 
 	cmServer := controller.NewCMServer()
 	fs = pflag.NewFlagSet("controllermanager", pflag.ExitOnError)
 	cmServer.AddFlags(fs)
 	fs.Parse([]string{
-		"--master=" + localAPIServerAddr,
+		"--master=" + localAPIServerInsecureAddr,
+		"--service-account-private-key-file=" + config.ServiceAccountKey,
+		"--root-ca-file=" + config.CACert,
 	})
 
 	schedServer := scheduler.NewSchedulerServer()
 	fs = pflag.NewFlagSet("scheduler", pflag.ExitOnError)
 	schedServer.AddFlags(fs)
 	fs.Parse([]string{
-		"--master=http://" + localAPIServerAddr,
+		"--master=" + localAPIServerInsecureAddr,
 	})
 
-	sshConfig, err := newSSHConfig(opts.SSHUser, opts.SSHKeyFile)
+	sshConfig, err := newSSHConfig(config.SSHUser, config.SSHKeyFile)
 	if err != nil {
 		return nil, err
 	}
 
 	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		&clientcmd.ClientConfigLoadingRules{},
-		&clientcmd.ConfigOverrides{ClusterInfo: clientcmdapi.Cluster{Server: localAPIServerAddr}},
+		&clientcmd.ConfigOverrides{ClusterInfo: clientcmdapi.Cluster{Server: localAPIServerInsecureAddr}},
 	)
 
 	return &bootkube{
@@ -86,9 +102,9 @@ func NewBootkube(opts Opts) (*bootkube, error) {
 		scheduler:      schedServer,
 		clientConfig:   clientConfig,
 		sshConfig:      sshConfig,
-		remoteAddr:     opts.RemoteAddr,
-		remoteEtcdAddr: opts.RemoteEtcdAddr,
-		assetDir:       opts.AssetDir,
+		remoteAddr:     config.RemoteAddr,
+		remoteEtcdAddr: config.RemoteEtcdAddr,
+		manifestDir:    config.ManifestDir,
 	}, nil
 }
 
@@ -101,9 +117,9 @@ func (b *bootkube) Run() error {
 
 	// Proxy connections from remote end of ssh tunnel to local apiserver
 	apiProxy := &Proxy{
-		listenAddr: localAPIServerAddr,
+		listenAddr: remoteAPIServerAddr,
 		listenFunc: tunnel.Listen,
-		dialAddr:   remoteAPIServerAddr,
+		dialAddr:   localAPIServerAddr,
 		dialFunc:   net.Dial,
 	}
 
@@ -122,8 +138,9 @@ func (b *bootkube) Run() error {
 	go func() { errch <- cmapp.Run(b.controller) }()
 	go func() { errch <- schedapp.Run(b.scheduler) }()
 	go func() {
-		if err := b.createAssets(); err != nil {
-			//TODO(aaron): we should allow "already exists" errors
+		// Ignore "already exists" object errors
+		// TODO(aaron): we should keep retrying on 'already exists' errors
+		if err := b.createAssets(); err != nil && !strings.Contains(err.Error(), "already exists") {
 			errch <- err
 		}
 	}()
@@ -152,7 +169,7 @@ func (b *bootkube) createAssets() error {
 		Schema(schema).
 		ContinueOnError().
 		NamespaceParam(cmdNamespace).DefaultNamespace().
-		FilenameParam(enforceNamespace, b.assetDir).
+		FilenameParam(enforceNamespace, b.manifestDir).
 		Flatten().
 		Do()
 	err = r.Err()
@@ -193,6 +210,7 @@ func (b *bootkube) isUp() (bool, error) {
 		return false, fmt.Errorf("failed to create kube client: %v", err)
 	}
 
+	// TODO(aaron): we want wait.Poll to retry on failures here (maybe just log err and return false)
 	_, err = client.Discovery().ServerVersion()
 	return err == nil, err
 }
