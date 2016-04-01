@@ -4,14 +4,14 @@ metadata:
   name: kube-apiserver
   namespace: kube-system
   labels:
-    app: kube-apiserver
-    version: v1.2.0
+    component: kube-apiserver
+    version: v1.2.0_coreos.0
 spec:
   template:
     metadata:
       labels:
-        app: kube-apiserver
-        version: v1.2.0
+        component: kube-apiserver
+        version: v1.2.0_coreos.0
     spec:
       nodeSelector:
         master: "true"

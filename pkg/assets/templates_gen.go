@@ -34,6 +34,7 @@ var files = []struct {
 	VarName  string
 }{
 	{"kubeconfig.yaml", "KubeConfigTemplate"},
+	{"kubelet.json", "KubeletTemplate"},
 	{"kube-apiserver.yaml", "APIServerTemplate"},
 }
 
