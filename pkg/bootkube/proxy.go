@@ -3,6 +3,7 @@ package bootkube
 import (
 	"io"
 	"net"
+	"strings"
 	"sync"
 
 	"github.com/golang/glog"
@@ -44,14 +45,19 @@ func proxy(src, dst net.Conn) {
 	go copyBytes(src, dst, &wg)
 	go copyBytes(dst, src, &wg)
 	wg.Wait()
-
-	src.Close()
-	dst.Close()
 }
 
-func copyBytes(dst io.Writer, src io.Reader, wg *sync.WaitGroup) {
+func copyBytes(dst, src net.Conn, wg *sync.WaitGroup) {
 	defer wg.Done()
 	if _, err := io.Copy(dst, src); err != nil {
-		glog.Errorf("Tunnel i/o error: %v", err)
+		if !isClosedErr(err) {
+			glog.Errorf("Tunnel i/o error: %v", err)
+		}
 	}
+	dst.Close()
+	src.Close()
+}
+
+func isClosedErr(err error) bool {
+	return strings.HasSuffix(err.Error(), "use of closed network connection")
 }
