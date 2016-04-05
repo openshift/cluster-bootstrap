@@ -1,0 +1,36 @@
+apiVersion: "extensions/v1beta1"
+kind: DaemonSet
+metadata:
+  name: kube-proxy
+  namespace: kube-system
+  labels:
+    k8s_app: kube-proxy
+    version: v1.2.0_coreos.1
+spec:
+  template:
+    metadata:
+      labels:
+        k8s_app: kube-proxy
+        version: v1.2.0_coreos.1
+    spec:
+      nodeSelector:
+        master: "true"
+      hostNetwork: true
+      containers:
+      - name: kube-proxy
+        image: quay.io/coreos/hyperkube:v1.2.0_coreos.1
+        command:
+        - /hyperkube
+        - proxy
+        - --master=http://127.0.0.1:8080
+        - --proxy-mode=iptables
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /etc/ssl/certs
+          name: ssl-certs-host
+          readOnly: true
+      volumes:
+      - hostPath:
+          path: /usr/share/ca-certificates
+        name: ssl-certs-host

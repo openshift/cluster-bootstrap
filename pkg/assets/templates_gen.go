@@ -38,6 +38,7 @@ var files = []struct {
 	{"kube-apiserver.yaml", "APIServerTemplate"},
 	{"kube-controllermanager.yaml", "ControllerManagerTemplate"},
 	{"kube-scheduler.yaml", "SchedulerTemplate"},
+	{"kube-proxy.yaml", "ProxyTemplate"},
 }
 
 type Data struct {

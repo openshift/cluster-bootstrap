@@ -19,6 +19,7 @@ const (
 	AssetPathKubeConfig              = "auth/kubeconfig.yaml"
 	AssetPathTokenAuth               = "auth/token-auth.csv"
 	AssetPathKubelet                 = "manifests/kubelet.yaml"
+	AssetPathProxy                   = "manifests/kube-proxy.yaml"
 	AssetPathAPIServerSecret         = "manifests/kube-apiserver-secret.yaml"
 	AssetPathAPIServer               = "manifests/kube-apiserver.yaml"
 	AssetPathControllerManager       = "manifests/kube-controllermanager.yaml"
@@ -68,5 +69,6 @@ func StaticAssets() []Asset {
 		{Name: AssetPathAPIServer, Data: internal.APIServerTemplate},
 		{Name: AssetPathControllerManager, Data: internal.ControllerManagerTemplate},
 		{Name: AssetPathScheduler, Data: internal.SchedulerTemplate},
+		{Name: AssetPathProxy, Data: internal.ProxyTemplate},
 	}
 }
