@@ -39,6 +39,9 @@ var files = []struct {
 	{"kube-controllermanager.yaml", "ControllerManagerTemplate"},
 	{"kube-scheduler.yaml", "SchedulerTemplate"},
 	{"kube-proxy.yaml", "ProxyTemplate"},
+	{"kube-dns-rc.yaml", "DNSRcTemplate"},
+	{"kube-dns-svc.yaml", "DNSSvcTemplate"},
+	{"kube-system-ns.yaml", "SystemNSTemplate"},
 }
 
 type Data struct {
