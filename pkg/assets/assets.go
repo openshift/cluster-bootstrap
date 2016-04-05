@@ -19,11 +19,15 @@ const (
 	AssetPathKubeConfig              = "auth/kubeconfig.yaml"
 	AssetPathTokenAuth               = "auth/token-auth.csv"
 	AssetPathKubelet                 = "manifests/kubelet.yaml"
+	AssetPathProxy                   = "manifests/kube-proxy.yaml"
 	AssetPathAPIServerSecret         = "manifests/kube-apiserver-secret.yaml"
 	AssetPathAPIServer               = "manifests/kube-apiserver.yaml"
 	AssetPathControllerManager       = "manifests/kube-controllermanager.yaml"
 	AssetPathControllerManagerSecret = "manifests/kube-controllermanager-secret.yaml"
 	AssetPathScheduler               = "manifests/kube-scheduler.yaml"
+	AssetPathKubeDNSRc               = "manifests/kube-dns-rc.yaml"
+	AssetPathKubeDNSSvc              = "manifests/kube-dns-svc.yaml"
+	AssetPathSystemNamespace         = "manifests/kube-system-ns.yaml"
 )
 
 //go:generate go run templates_gen.go
@@ -68,5 +72,9 @@ func StaticAssets() []Asset {
 		{Name: AssetPathAPIServer, Data: internal.APIServerTemplate},
 		{Name: AssetPathControllerManager, Data: internal.ControllerManagerTemplate},
 		{Name: AssetPathScheduler, Data: internal.SchedulerTemplate},
+		{Name: AssetPathProxy, Data: internal.ProxyTemplate},
+		{Name: AssetPathKubeDNSRc, Data: internal.DNSRcTemplate},
+		{Name: AssetPathKubeDNSSvc, Data: internal.DNSSvcTemplate},
+		{Name: AssetPathSystemNamespace, Data: internal.SystemNSTemplate},
 	}
 }
