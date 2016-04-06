@@ -29,6 +29,9 @@ var (
 )
 `))
 
+//go:generate go run templates_gen.go
+//go:generate gofmt -w internal/templates.go
+
 var files = []struct {
 	Filename string
 	VarName  string

@@ -7,7 +7,7 @@ GOPACKAGES:=$(shell go list ./... | grep -v '/vendor/')
 all: bin/bootkube
 
 fmt:
-	@find . -name vendor -prune -o -name '*.go' -exec gofmt -d {} +
+	@find . -name vendor -prune -o -name '*.go' -exec gofmt -s -d {} +
 
 vet:
 	@go vet $(GOPACKAGES)
@@ -17,13 +17,13 @@ vet:
 VENDOR_VERSION = v1.2.1
 vendor: vendor-$(VENDOR_VERSION)
 
-bin/bootkube: $(GOFILES) pkg/assets/internal/templates.go
+bin/bootkube: $(GOFILES) pkg/asset/internal/templates.go
 	mkdir -p bin
 	go build -o bin/bootkube github.com/coreos/bootkube/cmd/bootkube
 
-pkg/assets/internal/templates.go: $(GOFILES)
+pkg/asset/internal/templates.go: $(GOFILES)
 	mkdir -p $(dir $@)
-	go generate pkg/assets/assets.go
+	go generate pkg/asset/templates_gen.go
 
 vendor-$(VENDOR_VERSION):
 	@echo "Creating k8s vendor dir: $@"
@@ -37,7 +37,7 @@ vendor-$(VENDOR_VERSION):
 
 clean:
 	rm -f bin/bootkube
-	rm -rf pkg/assets/internal
+	rm -rf pkg/asset/internal
 
 .PHONY: all clean fmt vet
 
