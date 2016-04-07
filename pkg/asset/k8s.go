@@ -14,7 +14,7 @@ import (
 const (
 	secretNamespace     = "kube-system"
 	secretAPIServerName = "kube-apiserver"
-	secretCMName        = "kube-controllermanager"
+	secretCMName        = "kube-controller-manager"
 )
 
 func newStaticAssets() Assets {
