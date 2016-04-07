@@ -1,4 +1,4 @@
-package assets
+package asset
 
 import (
 	"crypto/rsa"
@@ -7,7 +7,7 @@ import (
 	"github.com/coreos/bootkube/pkg/tlsutil"
 )
 
-func NewTLSAssets() ([]Asset, error) {
+func newTLSAssets() ([]Asset, error) {
 	var assets []Asset
 
 	caKey, caCert, err := newCACert()
@@ -31,12 +31,12 @@ func NewTLSAssets() ([]Asset, error) {
 	}
 
 	assets = append(assets, []Asset{
-		{Name: AssetPathCAKey, Data: tlsutil.EncodePrivateKeyPEM(caKey)},
-		{Name: AssetPathCACert, Data: tlsutil.EncodeCertificatePEM(caCert)},
-		{Name: AssetPathAPIServerKey, Data: tlsutil.EncodePrivateKeyPEM(apiKey)},
-		{Name: AssetPathAPIServerCert, Data: tlsutil.EncodeCertificatePEM(apiCert)},
-		{Name: AssetPathServiceAccountPrivKey, Data: tlsutil.EncodePrivateKeyPEM(saPrivKey)},
-		{Name: AssetPathServiceAccountPubKey, Data: saPubKey},
+		{Name: assetPathCAKey, Data: tlsutil.EncodePrivateKeyPEM(caKey)},
+		{Name: assetPathCACert, Data: tlsutil.EncodeCertificatePEM(caCert)},
+		{Name: assetPathAPIServerKey, Data: tlsutil.EncodePrivateKeyPEM(apiKey)},
+		{Name: assetPathAPIServerCert, Data: tlsutil.EncodeCertificatePEM(apiCert)},
+		{Name: assetPathServiceAccountPrivKey, Data: tlsutil.EncodePrivateKeyPEM(saPrivKey)},
+		{Name: assetPathServiceAccountPubKey, Data: saPubKey},
 	}...)
 	return assets, nil
 }
