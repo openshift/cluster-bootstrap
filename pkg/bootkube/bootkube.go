@@ -1,10 +1,8 @@
 package bootkube
 
 import (
-	"fmt"
 	"io/ioutil"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/spf13/pflag"
@@ -13,12 +11,6 @@ import (
 	apiserver "k8s.io/kubernetes/cmd/kube-apiserver/app/options"
 	cmapp "k8s.io/kubernetes/cmd/kube-controller-manager/app"
 	controller "k8s.io/kubernetes/cmd/kube-controller-manager/app/options"
-	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
-	clientcmdapi "k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api"
-	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
-	"k8s.io/kubernetes/pkg/kubectl/resource"
-	"k8s.io/kubernetes/pkg/util"
-	"k8s.io/kubernetes/pkg/util/wait"
 	schedapp "k8s.io/kubernetes/plugin/cmd/kube-scheduler/app"
 	scheduler "k8s.io/kubernetes/plugin/cmd/kube-scheduler/app/options"
 )
@@ -28,7 +20,15 @@ const (
 	localAPIServerInsecureAddr = "127.0.0.1:8080"
 	remoteAPIServerAddr        = "0.0.0.0:6443"
 	localEtcdServerAddr        = "127.0.0.1:2379"
+	assetTimeout               = 5 * time.Minute
 )
+
+var requiredPods = []string{
+	"kubelet",
+	"kube-apiserver",
+	"kube-scheduler",
+	"kube-controller-manager",
+}
 
 type Config struct {
 	SSHUser           string
@@ -47,7 +47,6 @@ type bootkube struct {
 	apiServer      *apiserver.APIServer
 	controller     *controller.CMServer
 	scheduler      *scheduler.SchedulerServer
-	clientConfig   clientcmd.ClientConfig
 	sshConfig      *ssh.ClientConfig
 	remoteAddr     string
 	remoteEtcdAddr string
@@ -94,16 +93,10 @@ func NewBootkube(config Config) (*bootkube, error) {
 		return nil, err
 	}
 
-	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		&clientcmd.ClientConfigLoadingRules{},
-		&clientcmd.ConfigOverrides{ClusterInfo: clientcmdapi.Cluster{Server: localAPIServerInsecureAddr}},
-	)
-
 	return &bootkube{
 		apiServer:      apiServer,
 		controller:     cmServer,
 		scheduler:      schedServer,
-		clientConfig:   clientConfig,
 		sshConfig:      sshConfig,
 		remoteAddr:     config.RemoteAddr,
 		remoteEtcdAddr: config.RemoteEtcdAddr,
@@ -141,81 +134,14 @@ func (b *bootkube) Run() error {
 	go func() { errch <- cmapp.Run(b.controller) }()
 	go func() { errch <- schedapp.Run(b.scheduler) }()
 	go func() {
-		// Ignore "already exists" object errors
-		// TODO(aaron): we should keep retrying on 'already exists' errors
-		if err := b.createAssets(); err != nil && !strings.Contains(err.Error(), "already exists") {
+		if err := CreateAssets(b.manifestDir, assetTimeout); err != nil {
 			errch <- err
 		}
 	}()
+	go func() { errch <- WaitUntilPodsRunning(requiredPods, assetTimeout) }()
 
-	// If any of the bootkube services exit, it means they can't initialize and we should exit.
+	// If any of the bootkube services exit, it means it is unrecoverable and we should exit.
 	return <-errch
-}
-
-func (b *bootkube) createAssets() error {
-	if err := wait.Poll(5*time.Second, 60*time.Second, b.isUp); err != nil {
-		return fmt.Errorf("API Server unavailable: %v", err)
-	}
-
-	f := cmdutil.NewFactory(b.clientConfig)
-	schema, err := f.Validator(true, fmt.Sprintf("~/%s/%s", clientcmd.RecommendedHomeDir, clientcmd.RecommendedSchemaName))
-	if err != nil {
-		return err
-	}
-	cmdNamespace, enforceNamespace, err := f.DefaultNamespace()
-	if err != nil {
-		return err
-	}
-
-	mapper, typer := f.Object()
-	r := resource.NewBuilder(mapper, typer, resource.ClientMapperFunc(f.ClientForMapping), f.Decoder(true)).
-		Schema(schema).
-		ContinueOnError().
-		NamespaceParam(cmdNamespace).DefaultNamespace().
-		FilenameParam(enforceNamespace, b.manifestDir).
-		Flatten().
-		Do()
-	err = r.Err()
-	if err != nil {
-		return err
-	}
-
-	count := 0
-	err = r.Visit(func(info *resource.Info, err error) error {
-		if err != nil {
-			return err
-		}
-
-		obj, err := resource.NewHelper(info.Client, info.Mapping).Create(info.Namespace, true, info.Object)
-		if err != nil {
-			return cmdutil.AddSourceToErr("creating", info.Source, err)
-		}
-		info.Refresh(obj, true)
-
-		count++
-		cmdutil.PrintSuccess(mapper, false, util.GlogWriter{}, info.Mapping.Resource, info.Name, "created")
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	if count == 0 {
-		return fmt.Errorf("no objects passed to create")
-	}
-	return nil
-
-}
-
-func (b *bootkube) isUp() (bool, error) {
-	f := cmdutil.NewFactory(b.clientConfig)
-	client, err := f.Client()
-	if err != nil {
-		return false, fmt.Errorf("failed to create kube client: %v", err)
-	}
-
-	// TODO(aaron): we want wait.Poll to retry on failures here (maybe just log err and return false)
-	_, err = client.Discovery().ServerVersion()
-	return err == nil, err
 }
 
 func newSSHConfig(user, keyfile string) (*ssh.ClientConfig, error) {
