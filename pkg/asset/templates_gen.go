@@ -39,7 +39,7 @@ var files = []struct {
 	{"kubeconfig.yaml", "KubeConfigTemplate"},
 	{"kubelet.yaml", "KubeletTemplate"},
 	{"kube-apiserver.yaml", "APIServerTemplate"},
-	{"kube-controllermanager.yaml", "ControllerManagerTemplate"},
+	{"kube-controller-manager.yaml", "ControllerManagerTemplate"},
 	{"kube-scheduler.yaml", "SchedulerTemplate"},
 	{"kube-proxy.yaml", "ProxyTemplate"},
 	{"kube-dns-rc.yaml", "DNSRcTemplate"},

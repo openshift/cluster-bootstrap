@@ -17,7 +17,7 @@ spec:
         master: "true"
       hostNetwork: true
       containers:
-      - name: scheduler
+      - name: kube-scheduler
         image: quay.io/coreos/hyperkube:v1.2.0_coreos.1
         command:
         - ./hyperkube

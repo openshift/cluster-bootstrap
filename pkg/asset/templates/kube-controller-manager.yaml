@@ -1,23 +1,23 @@
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
-  name: kube-controllermanager
+  name: kube-controller-manager
   namespace: kube-system
   labels:
-    k8s-app: kube-controllermanager
+    k8s-app: kube-controller-manager
     version: 1.2.0_coreos.1
 spec:
   template:
     metadata:
       labels:
-        k8s-app: kube-controllermanager
+        k8s-app: kube-controller-manager
         version: 1.2.0_coreos.1
     spec:
       nodeSelector:
         master: "true"
       hostNetwork: true
       containers:
-      - name: controllermanager
+      - name: kube-controller-manager
         image: quay.io/coreos/hyperkube:v1.2.0_coreos.1
         command:
         - ./hyperkube
@@ -36,7 +36,7 @@ spec:
       volumes:
       - name: secrets
         secret:
-          secretName: kube-controllermanager
+          secretName: kube-controller-manager
       - name: ssl-host
         hostPath:
           path: /usr/share/ca-certificates
