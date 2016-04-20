@@ -57,7 +57,7 @@ func NewDefaultAssets(conf Config) (Assets, error) {
 	as = append(as, newTokenAuthAsset())
 
 	// K8S kubeconfig
-	kubeConfig, err := newKubeConfigAsset(as)
+	kubeConfig, err := newKubeConfigAsset(as, conf)
 	if err != nil {
 		return Assets{}, err
 	}
