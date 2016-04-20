@@ -35,7 +35,8 @@ When you start bootkube, you must also give it the addresses of your etcd server
 First, clone the repo into the proper location in your $GOPATH:
 
 ```
-git clone git@github.com:coreos/bootkube.git && cd bootkube
+go get -u github.com/coreos/bootkube
+cd $GOPATH/github.com/coreos/bootkube
 ```
 
 Then, to build:
