@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"path/filepath"
+	"strings"
 	"text/template"
 
 	"github.com/ghodss/yaml"
@@ -36,7 +37,7 @@ func newDynamicAssets(conf Config) Assets {
 	}
 }
 
-func newKubeConfigAsset(assets Assets) (Asset, error) {
+func newKubeConfigAsset(assets Assets, conf Config) (Asset, error) {
 	caCert, err := assets.Get(assetPathCACert)
 	if err != nil {
 		return Asset{}, err
@@ -47,9 +48,8 @@ func newKubeConfigAsset(assets Assets) (Asset, error) {
 		Token  string
 		CACert string
 	}{
-		//TODO(aaron): temporary hack. Get token info from generated asset & server from cli opt
-		"https://172.17.4.100:6443",
-		"token",
+		strings.Split(conf.APIServers, ",")[0],
+		"token", //TODO(aaron): temporary hack. Get token from generated asset
 		base64.StdEncoding.EncodeToString(caCert.Data),
 	}
 
