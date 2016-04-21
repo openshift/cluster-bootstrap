@@ -21,7 +21,7 @@ vagrant up
 ./bootkube-up
 ```
 
-Once kube-apiserver pod started, you can manually kill bootkube. After that, you will have a fully functional single-node self-hosted cluster with cluster DNS.
+Once all components are running, bootkube will shut itself down. After that, you will have a fully functional single-node self-hosted cluster with cluster DNS.
 
 ## Cleaning up
 
