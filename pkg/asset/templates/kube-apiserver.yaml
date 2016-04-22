@@ -5,24 +5,25 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kube-apiserver
-    version: v1.2.0_coreos.1
+    version: v1.2.2_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s-app: kube-apiserver
-        version: v1.2.0_coreos.1
+        version: v1.2.2_coreos.0
     spec:
       nodeSelector:
         master: "true"
       hostNetwork: true
       containers:
       - name: kube-apiserver
-        image: quay.io/coreos/hyperkube:v1.2.0_coreos.1
+        image: quay.io/aaron_levy/hyperkube:v1.2.2_runonce.0
         command:
         - /hyperkube
         - apiserver
         - --bind-address=0.0.0.0
+        - --advertise-address=$(MY_POD_IP)
         - --etcd-servers={{ .ETCDServers }}
         - --allow-privileged=true
         - --service-cluster-ip-range=10.3.0.0/24
@@ -34,6 +35,11 @@ spec:
         - --service-account-key-file=/etc/kubernetes/secrets/service-account.pub
         - --token-auth-file=/etc/kubernetes/secrets/token-auth.csv
         - --runtime-config=extensions/v1beta1/deployments=true,extensions/v1beta1/daemonsets=true
+        env:
+          - name: MY_POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
         ports:
         - containerPort: 6443
           hostPort: 6443
