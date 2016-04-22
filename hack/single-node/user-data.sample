@@ -28,7 +28,7 @@ coreos:
       content: |
         [Service]
         Environment=KUBELET_ACI=quay.io/aaron_levy/hyperkube
-        Environment=KUBELET_VERSION=v1.2.0_runonce.1
+        Environment=KUBELET_VERSION=v1.2.2_runonce.0
         ExecStart=/usr/lib/coreos/kubelet-wrapper \
           --runonce \
           --runonce-timeout=60s \
