@@ -16,11 +16,6 @@ $worker_vm_memory = 1024
 $etcd_count = 1
 $etcd_vm_memory = 512
 
-CONFIG = File.expand_path("config.rb")
-if File.exist?(CONFIG)
-  require CONFIG
-end
-
 if $worker_vm_memory < 1024
   puts "Workers should have at least 1024 MB of memory"
 end
@@ -129,6 +124,7 @@ Vagrant.configure("2") do |config|
 
       controllerIP = controllerIP(i)
       controller.vm.network :private_network, ip: controllerIP
+
       controller.vm.provision :file, source: CONTROLLER_USER_DATA_PATH, destination: "/tmp/vagrantfile-user-data"
       controller.vm.provision :shell, inline: "mv /tmp/vagrantfile-user-data /var/lib/coreos-vagrant/", privileged: true
     end
