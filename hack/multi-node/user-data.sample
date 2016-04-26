@@ -1,7 +1,5 @@
 #cloud-config
 
-hostname: $public_ipv4
-
 coreos:
   flannel:
     interface: $public_ipv4
@@ -28,6 +26,7 @@ coreos:
       command: start
       content: |
         [Service]
+        EnvironmentFile=/etc/environment
         Environment=KUBELET_ACI=quay.io/aaron_levy/hyperkube
         Environment=KUBELET_VERSION=v1.2.2_runonce.0
         ExecStart=/usr/lib/coreos/kubelet-wrapper \
@@ -37,6 +36,7 @@ coreos:
           --kubeconfig=/etc/kubernetes/kubeconfig.yaml \
           --lock-file=/var/run/lock/kubelet.lock \
           --allow-privileged \
+          --hostname-override=${COREOS_PUBLIC_IPV4} \
           --node-labels=master=true \
           --cluster_dns=10.3.0.10 \
           --cluster_domain=cluster.local
