@@ -34,10 +34,15 @@ When you start bootkube, you must also give it the addresses of your etcd server
 
 ## Hack
 
-There are currently two reference implementations to demonstrate bootstrapping a cluster. These use Vagrant to launch VM(s) and then bootkube to render assets / launch a self-hosted cluster:
+There are currently a few reference implementations to demonstrate bootstrapping a cluster.
+
+The ./hack directory in this repository contains Vagrant examples which launch VM(s), then use bootkube to render assets and launch a self-hosted cluster.
+
+The coreos-baremetal repository contains a reference implementation using bootkube with bootcfg and a baremetal cluster.
 
 * [hack/single-node](hack/single-node/README.md)
 * [hack/multi-node](hack/multi-node/README.md)
+* [coreos-baremetal](https://github.com/coreos/coreos-baremetal/blob/master/Documentation/bootkube.md)
 
 ## Build
 
