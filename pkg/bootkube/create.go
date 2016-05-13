@@ -59,7 +59,7 @@ func shouldRetry(err error) bool {
 func createAssets(manifestDir string) error {
 	config := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		&clientcmd.ClientConfigLoadingRules{},
-		&clientcmd.ConfigOverrides{ClusterInfo: clientcmdapi.Cluster{Server: localAPIServerInsecureAddr}},
+		&clientcmd.ConfigOverrides{ClusterInfo: clientcmdapi.Cluster{Server: insecureAPIAddr}},
 	)
 	f := cmdutil.NewFactory(config)
 	schema, err := f.Validator(true, fmt.Sprintf("~/%s/%s", clientcmd.RecommendedHomeDir, clientcmd.RecommendedSchemaName))
@@ -113,7 +113,7 @@ func createAssets(manifestDir string) error {
 }
 
 func apiTest() error {
-	client, err := clientset.NewForConfig(&restclient.Config{Host: localAPIServerInsecureAddr})
+	client, err := clientset.NewForConfig(&restclient.Config{Host: insecureAPIAddr})
 	if err != nil {
 		return err
 	}

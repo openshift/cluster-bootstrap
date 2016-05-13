@@ -3,58 +3,57 @@ package asset
 import (
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
+
+	"github.com/coreos/bootkube/pkg/tlsutil"
 )
 
 const (
-	assetPathCAKey                   = "tls/ca.key"
-	assetPathCACert                  = "tls/ca.crt"
-	assetPathAPIServerKey            = "tls/apiserver.key"
-	assetPathAPIServerCert           = "tls/apiserver.crt"
-	assetPathServiceAccountPrivKey   = "tls/service-account.key"
-	assetPathServiceAccountPubKey    = "tls/service-account.pub"
-	assetPathKubeConfig              = "auth/kubeconfig.yaml"
-	assetPathTokenAuth               = "auth/token-auth.csv"
-	assetPathKubelet                 = "manifests/kubelet.yaml"
-	assetPathProxy                   = "manifests/kube-proxy.yaml"
-	assetPathAPIServerSecret         = "manifests/kube-apiserver-secret.yaml"
-	assetPathAPIServer               = "manifests/kube-apiserver.yaml"
-	assetPathControllerManager       = "manifests/kube-controller-manager.yaml"
-	assetPathControllerManagerSecret = "manifests/kube-controller-manager-secret.yaml"
-	assetPathScheduler               = "manifests/kube-scheduler.yaml"
-	assetPathKubeDNSRc               = "manifests/kube-dns-rc.yaml"
-	assetPathKubeDNSSvc              = "manifests/kube-dns-svc.yaml"
-	assetPathSystemNamespace         = "manifests/kube-system-ns.yaml"
+	AssetPathCAKey                   = "tls/ca.key"
+	AssetPathCACert                  = "tls/ca.crt"
+	AssetPathAPIServerKey            = "tls/apiserver.key"
+	AssetPathAPIServerCert           = "tls/apiserver.crt"
+	AssetPathServiceAccountPrivKey   = "tls/service-account.key"
+	AssetPathServiceAccountPubKey    = "tls/service-account.pub"
+	AssetPathKubeletKey              = "tls/kubelet.key"
+	AssetPathKubeletCert             = "tls/kubelet.crt"
+	AssetPathKubeConfig              = "auth/kubeconfig"
+	AssetPathManifests               = "manifests"
+	AssetPathKubelet                 = "manifests/kubelet.yaml"
+	AssetPathProxy                   = "manifests/kube-proxy.yaml"
+	AssetPathAPIServerSecret         = "manifests/kube-apiserver-secret.yaml"
+	AssetPathAPIServer               = "manifests/kube-apiserver.yaml"
+	AssetPathControllerManager       = "manifests/kube-controller-manager.yaml"
+	AssetPathControllerManagerSecret = "manifests/kube-controller-manager-secret.yaml"
+	AssetPathScheduler               = "manifests/kube-scheduler.yaml"
+	AssetPathKubeDNSRc               = "manifests/kube-dns-rc.yaml"
+	AssetPathKubeDNSSvc              = "manifests/kube-dns-svc.yaml"
+	AssetPathSystemNamespace         = "manifests/kube-system-ns.yaml"
 )
 
 // AssetConfig holds all configuration needed when generating
 // the default set of assets.
 type Config struct {
-	APIServerCertIPAddrs string
-	ETCDServers          string
-	APIServers           string
+	EtcdServers []*url.URL
+	APIServers  []*url.URL
+	AltNames    *tlsutil.AltNames
 }
 
 // NewDefaultAssets returns a list of default assets, optionally
 // configured via a user provided AssetConfig. Default assets include
-// TLS assets (certs, keys and secrets), token authentication assets,
-// and k8s component manifests.
+// TLS assets (certs, keys and secrets), and k8s component manifests.
 func NewDefaultAssets(conf Config) (Assets, error) {
-	// Static Assets
 	as := newStaticAssets()
 	as = append(as, newDynamicAssets(conf)...)
 
 	// TLS assets
-	tlsAssets, err := newTLSAssets(strings.Split(conf.APIServerCertIPAddrs, ","))
+	tlsAssets, err := newTLSAssets(*conf.AltNames)
 	if err != nil {
 		return Assets{}, err
 	}
 	as = append(as, tlsAssets...)
-
-	// Token Auth
-	as = append(as, newTokenAuthAsset())
 
 	// K8S kubeconfig
 	kubeConfig, err := newKubeConfigAsset(as, conf)

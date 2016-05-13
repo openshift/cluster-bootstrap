@@ -17,6 +17,20 @@ const (
 	Duration365d = time.Hour * 24 * 365
 )
 
+type CertConfig struct {
+	CommonName   string
+	Organization []string
+	AltNames     AltNames
+}
+
+// AltNames contains the domain names and IP addresses that will be added
+// to the API Server's x509 certificate SubAltNames field. The values will
+// be passed directly to the x509.Certificate object.
+type AltNames struct {
+	DNSNames []string
+	IPs      []net.IP
+}
+
 func NewPrivateKey() (*rsa.PrivateKey, error) {
 	return rsa.GenerateKey(rand.Reader, RSAKeySize)
 }
@@ -49,13 +63,6 @@ func EncodeCertificatePEM(cert *x509.Certificate) []byte {
 	return pem.EncodeToMemory(&block)
 }
 
-type CertConfig struct {
-	CommonName   string
-	Organization []string
-	DNSNames     []string
-	IPAddresses  []string
-}
-
 func NewSelfSignedCACertificate(cfg CertConfig, key *rsa.PrivateKey) (*x509.Certificate, error) {
 	now := time.Now()
 	tmpl := x509.Certificate{
@@ -79,12 +86,6 @@ func NewSelfSignedCACertificate(cfg CertConfig, key *rsa.PrivateKey) (*x509.Cert
 }
 
 func NewSignedCertificate(cfg CertConfig, key *rsa.PrivateKey, caCert *x509.Certificate, caKey *rsa.PrivateKey) (*x509.Certificate, error) {
-	ips := make([]net.IP, len(cfg.IPAddresses))
-	for i, ipStr := range cfg.IPAddresses {
-		//TODO(aaron): could return nil on invalid IP. Return error or log warnings.
-		ips[i] = net.ParseIP(ipStr)
-	}
-
 	serial, err := rand.Int(rand.Reader, new(big.Int).SetInt64(math.MaxInt64))
 	if err != nil {
 		return nil, err
@@ -95,13 +96,13 @@ func NewSignedCertificate(cfg CertConfig, key *rsa.PrivateKey, caCert *x509.Cert
 			CommonName:   cfg.CommonName,
 			Organization: caCert.Subject.Organization,
 		},
-		DNSNames:     cfg.DNSNames,
-		IPAddresses:  ips,
+		DNSNames:     cfg.AltNames.DNSNames,
+		IPAddresses:  cfg.AltNames.IPs,
 		SerialNumber: serial,
 		NotBefore:    caCert.NotBefore,
 		NotAfter:     time.Now().Add(Duration365d).UTC(),
 		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
 	}
 	certDERBytes, err := x509.CreateCertificate(rand.Reader, &certTmpl, caCert, key.Public(), caKey)
 	if err != nil {
