@@ -5,8 +5,6 @@ coreos:
     interface: $public_ipv4
     etcd_endpoints: http://172.17.4.51:2379
   units:
-    - name: etcd2.service
-      command: start
     - name: flanneld.service
       command: start
       drop-ins:
@@ -32,15 +30,15 @@ coreos:
         ExecStart=/usr/lib/coreos/kubelet-wrapper \
           --runonce \
           --runonce-timeout=60s \
-          --api-servers=https://172.17.4.101:6443 \
-          --kubeconfig=/etc/kubernetes/kubeconfig.yaml \
+          --api-servers=https://172.17.4.101:443 \
+          --kubeconfig=/etc/kubernetes/kubeconfig \
           --lock-file=/var/run/lock/kubelet.lock \
           --allow-privileged \
           --hostname-override=${COREOS_PUBLIC_IPV4} \
           --node-labels=master=true \
+          --minimum-container-ttl-duration=3m0s \
           --cluster_dns=10.3.0.10 \
           --cluster_domain=cluster.local
-
         Restart=always
         RestartSec=5
 
@@ -48,20 +46,7 @@ coreos:
         WantedBy=multi-user.target
 
 write_files:
-  - path: /etc/ssh/sshd_config
-    permissions: 0600
-    owner: root:root
-    content: |
-      # Use most defaults for sshd configuration.
-      UsePrivilegeSeparation sandbox
-      Subsystem sftp internal-sftp
-
-      PermitRootLogin no
-      AllowUsers core
-      PasswordAuthentication no
-      ChallengeResponseAuthentication no
-      GatewayPorts clientspecified
-  - path: "/etc/kubernetes/kubeconfig.yaml"
+  - path: "/etc/kubernetes/kubeconfig"
     permissions: "0644"
     owner: core
     content: |

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"path/filepath"
-	"strings"
 	"text/template"
 
 	"github.com/ghodss/yaml"
@@ -21,47 +20,59 @@ const (
 func newStaticAssets() Assets {
 	var noData interface{}
 	return Assets{
-		mustCreateAssetFromTemplate(assetPathControllerManager, internal.ControllerManagerTemplate, noData),
-		mustCreateAssetFromTemplate(assetPathScheduler, internal.SchedulerTemplate, noData),
-		mustCreateAssetFromTemplate(assetPathKubeDNSRc, internal.DNSRcTemplate, noData),
-		mustCreateAssetFromTemplate(assetPathKubeDNSSvc, internal.DNSSvcTemplate, noData),
-		mustCreateAssetFromTemplate(assetPathSystemNamespace, internal.SystemNSTemplate, noData),
+		mustCreateAssetFromTemplate(AssetPathControllerManager, internal.ControllerManagerTemplate, noData),
+		mustCreateAssetFromTemplate(AssetPathScheduler, internal.SchedulerTemplate, noData),
+		mustCreateAssetFromTemplate(AssetPathKubeDNSRc, internal.DNSRcTemplate, noData),
+		mustCreateAssetFromTemplate(AssetPathKubeDNSSvc, internal.DNSSvcTemplate, noData),
+		mustCreateAssetFromTemplate(AssetPathSystemNamespace, internal.SystemNSTemplate, noData),
 	}
 }
 
 func newDynamicAssets(conf Config) Assets {
 	return Assets{
-		mustCreateAssetFromTemplate(assetPathKubelet, internal.KubeletTemplate, conf),
-		mustCreateAssetFromTemplate(assetPathAPIServer, internal.APIServerTemplate, conf),
-		mustCreateAssetFromTemplate(assetPathProxy, internal.ProxyTemplate, conf),
+		mustCreateAssetFromTemplate(AssetPathKubelet, internal.KubeletTemplate, conf),
+		mustCreateAssetFromTemplate(AssetPathAPIServer, internal.APIServerTemplate, conf),
+		mustCreateAssetFromTemplate(AssetPathProxy, internal.ProxyTemplate, conf),
 	}
 }
 
 func newKubeConfigAsset(assets Assets, conf Config) (Asset, error) {
-	caCert, err := assets.Get(assetPathCACert)
+	caCert, err := assets.Get(AssetPathCACert)
 	if err != nil {
 		return Asset{}, err
 	}
 
-	data := struct {
-		Server string
-		Token  string
-		CACert string
-	}{
-		strings.Split(conf.APIServers, ",")[0],
-		"token", //TODO(aaron): temporary hack. Get token from generated asset
-		base64.StdEncoding.EncodeToString(caCert.Data),
+	kubeletCert, err := assets.Get(AssetPathKubeletCert)
+	if err != nil {
+		return Asset{}, err
 	}
 
-	return assetFromTemplate(assetPathKubeConfig, internal.KubeConfigTemplate, data)
+	kubeletKey, err := assets.Get(AssetPathKubeletKey)
+	if err != nil {
+		return Asset{}, err
+	}
+
+	type templateCfg struct {
+		Server      string
+		CACert      string
+		KubeletCert string
+		KubeletKey  string
+	}
+
+	return assetFromTemplate(AssetPathKubeConfig, internal.KubeConfigTemplate, templateCfg{
+		Server:      conf.APIServers[0].String(),
+		CACert:      base64.StdEncoding.EncodeToString(caCert.Data),
+		KubeletCert: base64.StdEncoding.EncodeToString(kubeletCert.Data),
+		KubeletKey:  base64.StdEncoding.EncodeToString(kubeletKey.Data),
+	})
 }
 
 func newAPIServerSecretAsset(assets Assets) (Asset, error) {
 	secretAssets := []string{
-		assetPathAPIServerKey,
-		assetPathAPIServerCert,
-		assetPathServiceAccountPubKey,
-		assetPathTokenAuth,
+		AssetPathAPIServerKey,
+		AssetPathAPIServerCert,
+		AssetPathServiceAccountPubKey,
+		AssetPathCACert,
 	}
 
 	secretYAML, err := secretFromAssets(secretAPIServerName, secretNamespace, secretAssets, assets)
@@ -69,13 +80,13 @@ func newAPIServerSecretAsset(assets Assets) (Asset, error) {
 		return Asset{}, err
 	}
 
-	return Asset{Name: assetPathAPIServerSecret, Data: secretYAML}, nil
+	return Asset{Name: AssetPathAPIServerSecret, Data: secretYAML}, nil
 }
 
 func newControllerManagerSecretAsset(assets Assets) (Asset, error) {
 	secretAssets := []string{
-		assetPathServiceAccountPrivKey,
-		assetPathCACert, //TODO(aaron): do we want this also distributed as secret? or expect available on host?
+		AssetPathServiceAccountPrivKey,
+		AssetPathCACert, //TODO(aaron): do we want this also distributed as secret? or expect available on host?
 	}
 
 	secretYAML, err := secretFromAssets(secretCMName, secretNamespace, secretAssets, assets)
@@ -83,15 +94,7 @@ func newControllerManagerSecretAsset(assets Assets) (Asset, error) {
 		return Asset{}, err
 	}
 
-	return Asset{Name: assetPathControllerManagerSecret, Data: secretYAML}, nil
-}
-
-func newTokenAuthAsset() Asset {
-	// TODO(aaron): temp hack / should at minimum generate random token
-	return Asset{
-		Name: assetPathTokenAuth,
-		Data: []byte("token,admin,1"),
-	}
+	return Asset{Name: AssetPathControllerManagerSecret, Data: secretYAML}, nil
 }
 
 // TODO(aaron): use actual secret object (need to wrap in apiversion/type)
@@ -124,6 +127,14 @@ func secretFromAssets(name, namespace string, assetNames []string, assets Assets
 	})
 }
 
+func mustCreateAssetFromTemplate(name string, template []byte, data interface{}) Asset {
+	a, err := assetFromTemplate(name, template, data)
+	if err != nil {
+		panic(err)
+	}
+	return a
+}
+
 func assetFromTemplate(name string, tb []byte, data interface{}) (Asset, error) {
 	tmpl, err := template.New(name).Parse(string(tb))
 	if err != nil {
@@ -134,12 +145,4 @@ func assetFromTemplate(name string, tb []byte, data interface{}) (Asset, error) 
 		return Asset{}, err
 	}
 	return Asset{Name: name, Data: buf.Bytes()}, nil
-}
-
-func mustCreateAssetFromTemplate(name string, template []byte, data interface{}) Asset {
-	a, err := assetFromTemplate(name, template, data)
-	if err != nil {
-		panic(err)
-	}
-	return a
 }

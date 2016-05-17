@@ -23,26 +23,25 @@ spec:
         - /hyperkube
         - apiserver
         - --bind-address=0.0.0.0
+        - --secure-port=443
+        - --insecure-port=8080
         - --advertise-address=$(MY_POD_IP)
-        - --etcd-servers={{ .ETCDServers }}
+        - --etcd-servers={{ range $i, $e := .EtcdServers }}{{ if $i }},{{end}}{{ $e }}{{end}}
         - --allow-privileged=true
         - --service-cluster-ip-range=10.3.0.0/24
-        - --secure-port=6443
-        - --insecure-port=8080
         - --admission-control=NamespaceLifecycle,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota
         - --tls-cert-file=/etc/kubernetes/secrets/apiserver.crt
         - --tls-private-key-file=/etc/kubernetes/secrets/apiserver.key
         - --service-account-key-file=/etc/kubernetes/secrets/service-account.pub
-        - --token-auth-file=/etc/kubernetes/secrets/token-auth.csv
-        - --runtime-config=extensions/v1beta1/deployments=true,extensions/v1beta1/daemonsets=true
+        - --client-ca-file=/etc/kubernetes/secrets/ca.crt
         env:
           - name: MY_POD_IP
             valueFrom:
               fieldRef:
                 fieldPath: status.podIP
         ports:
-        - containerPort: 6443
-          hostPort: 6443
+        - containerPort: 443
+          hostPort: 443
           name: https
         - containerPort: 8080
           hostPort: 8080

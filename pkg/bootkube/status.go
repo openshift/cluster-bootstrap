@@ -43,7 +43,7 @@ type statusController struct {
 }
 
 func NewStatusController(pods []string) (*statusController, error) {
-	client, err := clientset.NewForConfig(&restclient.Config{Host: localAPIServerInsecureAddr})
+	client, err := clientset.NewForConfig(&restclient.Config{Host: insecureAPIAddr})
 	if err != nil {
 		return nil, err
 	}

@@ -2,31 +2,19 @@
 
 **Note: All scripts are assumed to be ran from this directory.**
 
-## Generate assets
+## Quickstart
 
-```
-./bootkube-render
-```
-
-This will render all tls assets, manifests, secrets, and user-data files necessary to stand up a local vagrant based development cluster. If you would like to change configuration for any reason, you can tweak parameters found in the `config-env` file.
-
-## Start VM
-
-```
-vagrant up
-```
-## Start Bootkube
+This will generate the default assets in the `cluster` directory and launch multi-node self-hosted cluster.
 
 ```
 ./bootkube-up
 ```
 
-Once all components are running, bootkube will shut itself down. After that, you will have a fully functional self-hosted multi-node cluster with cluster DNS.
-
 ## Cleaning up
 
-To stop the running cluster, run:
+To stop the running cluster and remove generated assets, run:
 
 ```
 vagrant destroy -f
+rm -rf cluster
 ```

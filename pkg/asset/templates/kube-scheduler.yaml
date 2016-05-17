@@ -1,5 +1,5 @@
 apiVersion: extensions/v1beta1
-kind: DaemonSet
+kind: Deployment
 metadata:
   name: kube-scheduler
   namespace: kube-system
@@ -13,14 +13,11 @@ spec:
         k8s-app: kube-scheduler
         version: 1.2.2_coreos.0
     spec:
-      nodeSelector:
-        master: "true"
-      hostNetwork: true
       containers:
       - name: kube-scheduler
         image: quay.io/coreos/hyperkube:v1.2.2_coreos.0
         command:
         - ./hyperkube
         - scheduler
-        - --master=127.0.0.1:8080
+        - --master=https://kubernetes
         - --leader-elect=true

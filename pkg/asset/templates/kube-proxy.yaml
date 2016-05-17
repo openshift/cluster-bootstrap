@@ -20,8 +20,8 @@ spec:
         command:
         - /hyperkube
         - proxy
-        - --master={{ .APIServers }}
-        - --kubeconfig=/etc/kubernetes/kubeconfig.yaml
+        - --master={{ index .APIServers 0 }}
+        - --kubeconfig=/etc/kubernetes/kubeconfig
         - --proxy-mode=iptables
         securityContext:
           privileged: true
