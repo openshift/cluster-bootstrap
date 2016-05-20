@@ -44,5 +44,5 @@ clean:
 	rm -rf bin/
 	rm -rf pkg/asset/internal
 
-.PHONY: all clean fmt vet install
+.PHONY: all clean fmt vet install pkg/asset/internal/templates.go
 
