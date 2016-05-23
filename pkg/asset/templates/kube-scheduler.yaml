@@ -19,5 +19,4 @@ spec:
         command:
         - ./hyperkube
         - scheduler
-        - --master=https://kubernetes
         - --leader-elect=true
