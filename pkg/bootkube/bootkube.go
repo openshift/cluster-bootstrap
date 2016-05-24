@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	assetTimeout    = 10 * time.Minute
+	assetTimeout = 10 * time.Minute
 	// NOTE: using 8081 as the port is a temporary hack when there is a single api-server.
 	// The self-hosted apiserver will immediately die if it cannot bind to the insecure interface.
 	// However, if it can successfully bind to insecure interface, it will continue to retry
