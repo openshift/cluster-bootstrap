@@ -5,26 +5,19 @@ export GOARCH:=amd64
 GOFILES:=$(shell find . -name '*.go' | grep -v -E '(./vendor|internal/templates.go)')
 GOPATH_BIN:=$(shell echo ${GOPATH} | awk 'BEGIN { FS = ":" }; { print $1 }')/bin
 
-all: fmt bin/linux/bootkube bin/darwin/bootkube vet
+all: bin/linux/bootkube bin/darwin/bootkube
 
-fmt:
+check: pkg/asset/internal/templates.go
 	@find . -name vendor -prune -o -name '*.go' -exec gofmt -s -d {} +
-
-vet: GOPACKAGES:=$(shell go list ./... | grep -v '/vendor/')
-vet:
-	@go vet $(GOPACKAGES)
-
-# This will naively try and create a vendor dir from a k8s release
-# USE: make vendor VENDOR_VERSION=vX.Y.Z
-VENDOR_VERSION = v1.2.1
-vendor: vendor-$(VENDOR_VERSION)
+	@go vet $(shell go list ./... | grep -v '/vendor/')
+	@go test -v $(shell go list ./... | grep -v '/vendor/')
 
 bin/%/bootkube: $(GOFILES) pkg/asset/internal/templates.go
 	mkdir -p $(dir $@)
 	GOOS=$* go build -o bin/$*/bootkube github.com/coreos/bootkube/cmd/bootkube
 
-install: all
-	cp bin/$(shell uname | tr A-Z a-z)/bootkube $(GOPATH_BIN)
+install: bin/$(shell uname | tr A-Z a-z)/bootkube
+	cp $< $(GOPATH_BIN)
 
 pkg/asset/internal/templates.go: $(GOFILES)
 	mkdir -p $(dir $@)
@@ -37,6 +30,11 @@ conformance-%: clean all
 	@cd hack/$*-node && ./bootkube-up
 	@sleep 30 # Give addons a little time to start
 	@cd hack/$*-node && ./conformance-test.sh
+
+# This will naively try and create a vendor dir from a k8s release
+# USE: make vendor VENDOR_VERSION=vX.Y.Z
+VENDOR_VERSION = v1.2.1
+vendor: vendor-$(VENDOR_VERSION)
 
 vendor-$(VENDOR_VERSION):
 	@echo "Creating k8s vendor dir: $@"
@@ -52,5 +50,5 @@ clean:
 	rm -rf bin/
 	rm -rf pkg/asset/internal
 
-.PHONY: all clean fmt vet install pkg/asset/internal/templates.go
+.PHONY: all check clean install vendor pkg/asset/internal/templates.go
 
