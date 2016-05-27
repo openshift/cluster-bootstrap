@@ -30,6 +30,14 @@ pkg/asset/internal/templates.go: $(GOFILES)
 	mkdir -p $(dir $@)
 	go generate pkg/asset/templates_gen.go
 
+#TODO(aaron): Prompt because this is destructive
+conformance-%: clean all
+	@cd hack/$*-node && vagrant destroy -f
+	@cd hack/$*-node && rm -rf cluster
+	@cd hack/$*-node && ./bootkube-up
+	@sleep 30 # Give addons a little time to start
+	@cd hack/$*-node && ./conformance-test.sh
+
 vendor-$(VENDOR_VERSION):
 	@echo "Creating k8s vendor dir: $@"
 	@mkdir -p $@/k8s.io/kubernetes
