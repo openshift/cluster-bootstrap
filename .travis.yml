@@ -3,4 +3,4 @@ go:
   - 1.6
 script:
   - test -z "$(go generate pkg/asset/templates_gen.go && git diff | tee /dev/stderr)"
-  - make clean check all
+  - make clean release
