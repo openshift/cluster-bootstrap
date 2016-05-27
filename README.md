@@ -65,6 +65,22 @@ And optionally, to install into $GOPATH/bin:
 make install
 ```
 
+## Conformance Tests
+
+This repository includes scripts for running the Kubernetes conformance tests agains the [hack/single-node](hack/single-node) and [hack/multi-node](hack/multi-node) launched clusters.
+
+To run the conformance tests:
+
+```
+make conformance-single
+```
+
+or
+
+```
+make conformance-multi
+```
+
 ## License
 
 bootkube is under the Apache 2.0 license. See the [LICENSE](LICENSE) file for details.

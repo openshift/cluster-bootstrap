@@ -3,14 +3,14 @@ export CGO_ENABLED:=0
 export GOARCH:=amd64
 
 GOFILES:=$(shell find . -name '*.go' | grep -v -E '(./vendor|internal/templates.go)')
-GOPACKAGES:=$(shell go list ./... | grep -v '/vendor/')
 GOPATH_BIN:=$(shell echo ${GOPATH} | awk 'BEGIN { FS = ":" }; { print $1 }')/bin
 
-all: fmt vet bin/linux/bootkube bin/darwin/bootkube
+all: fmt bin/linux/bootkube bin/darwin/bootkube vet
 
 fmt:
 	@find . -name vendor -prune -o -name '*.go' -exec gofmt -s -d {} +
 
+vet: GOPACKAGES:=$(shell go list ./... | grep -v '/vendor/')
 vet:
 	@go vet $(GOPACKAGES)
 
@@ -29,6 +29,14 @@ install: all
 pkg/asset/internal/templates.go: $(GOFILES)
 	mkdir -p $(dir $@)
 	go generate pkg/asset/templates_gen.go
+
+#TODO(aaron): Prompt because this is destructive
+conformance-%: clean all
+	@cd hack/$*-node && vagrant destroy -f
+	@cd hack/$*-node && rm -rf cluster
+	@cd hack/$*-node && ./bootkube-up
+	@sleep 30 # Give addons a little time to start
+	@cd hack/$*-node && ./conformance-test.sh
 
 vendor-$(VENDOR_VERSION):
 	@echo "Creating k8s vendor dir: $@"
