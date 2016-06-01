@@ -2,24 +2,33 @@ export GO15VENDOREXPERIMENT:=1
 export CGO_ENABLED:=0
 export GOARCH:=amd64
 
+LOCAL_OS:=$(shell uname | tr A-Z a-z)
 GOFILES:=$(shell find . -name '*.go' | grep -v -E '(./vendor|internal/templates.go)')
+TEMPLATES:=$(shell find pkg/asset/templates -type f)
 GOPATH_BIN:=$(shell echo ${GOPATH} | awk 'BEGIN { FS = ":" }; { print $1 }')/bin
 
-all: bin/linux/bootkube bin/darwin/bootkube
+all: _output/bin/linux/bootkube _output/bin/darwin/bootkube
+
+release: clean check _output/release/bootkube-linux-amd64.tar.gz _output/release/bootkube-darwin-amd64.tar.gz
 
 check: pkg/asset/internal/templates.go
 	@find . -name vendor -prune -o -name '*.go' -exec gofmt -s -d {} +
 	@go vet $(shell go list ./... | grep -v '/vendor/')
 	@go test -v $(shell go list ./... | grep -v '/vendor/')
 
-bin/%/bootkube: $(GOFILES) pkg/asset/internal/templates.go
+_output/bin/%/bootkube: LDFLAGS=-X github.com/coreos/bootkube/pkg/version.Version=$(shell $(CURDIR)/build/git-version.sh)
+_output/bin/%/bootkube: $(GOFILES) pkg/asset/internal/templates.go
 	mkdir -p $(dir $@)
-	GOOS=$* go build -o bin/$*/bootkube github.com/coreos/bootkube/cmd/bootkube
+	GOOS=$* go build -ldflags "$(LDFLAGS)" -o _output/bin/$*/bootkube github.com/coreos/bootkube/cmd/bootkube
 
-install: bin/$(shell uname | tr A-Z a-z)/bootkube
+_output/release/bootkube-%-amd64.tar.gz: _output/bin/%/bootkube
+	@mkdir -p $(dir $@)
+	tar czf $@ -C $(dir $<) bootkube
+
+install: _output/bin/$(LOCAL_OS)/bootkube
 	cp $< $(GOPATH_BIN)
 
-pkg/asset/internal/templates.go: $(GOFILES)
+pkg/asset/internal/templates.go: $(GOFILES) $(TEMPLATES)
 	mkdir -p $(dir $@)
 	go generate pkg/asset/templates_gen.go
 
@@ -47,8 +56,7 @@ vendor-$(VENDOR_VERSION):
 	@rm -rf $@/k8s.io/kubernetes/Godeps $@/k8s.io/kubernetes/.git
 
 clean:
-	rm -rf bin/
+	rm -rf _output
 	rm -rf pkg/asset/internal
 
-.PHONY: all check clean install vendor pkg/asset/internal/templates.go
-
+.PHONY: all check clean install release vendor
