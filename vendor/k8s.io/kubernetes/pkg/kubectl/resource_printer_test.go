@@ -30,11 +30,12 @@ import (
 	"k8s.io/kubernetes/pkg/api/testapi"
 	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/api/v1"
+	"k8s.io/kubernetes/pkg/apis/batch"
 	"k8s.io/kubernetes/pkg/apis/extensions"
 	kubectltesting "k8s.io/kubernetes/pkg/kubectl/testing"
 	"k8s.io/kubernetes/pkg/runtime"
 	yamlserializer "k8s.io/kubernetes/pkg/runtime/serializer/yaml"
-	"k8s.io/kubernetes/pkg/util"
+	"k8s.io/kubernetes/pkg/util/diff"
 	"k8s.io/kubernetes/pkg/util/intstr"
 	"k8s.io/kubernetes/pkg/util/sets"
 
@@ -104,7 +105,7 @@ func TestPrinter(t *testing.T) {
 		},
 	}
 	emptyListTest := &api.PodList{}
-	testapi, err := api.Scheme.ConvertToVersion(podTest, testapi.Default.GroupVersion().String())
+	testapi, err := api.Scheme.ConvertToVersion(podTest, *testapi.Default.GroupVersion())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -182,7 +183,7 @@ func testPrinter(t *testing.T, printer ResourcePrinter, unmarshalFunc func(data 
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(testData, poutput) {
-		t.Errorf("Test data and unmarshaled data are not equal: %v", util.ObjectDiff(poutput, testData))
+		t.Errorf("Test data and unmarshaled data are not equal: %v", diff.ObjectDiff(poutput, testData))
 	}
 
 	obj := &api.Pod{
@@ -202,7 +203,7 @@ func testPrinter(t *testing.T, printer ResourcePrinter, unmarshalFunc func(data 
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(obj, &objOut) {
-		t.Errorf("Unexpected inequality:\n%v", util.ObjectDiff(obj, &objOut))
+		t.Errorf("Unexpected inequality:\n%v", diff.ObjectDiff(obj, &objOut))
 	}
 }
 
@@ -299,10 +300,10 @@ func TestNamePrinter(t *testing.T) {
 				},
 				Items: []runtime.RawExtension{
 					{
-						RawJSON: []byte(`{"kind": "Pod", "apiVersion": "v1", "metadata": { "name": "foo"}}`),
+						Raw: []byte(`{"kind": "Pod", "apiVersion": "v1", "metadata": { "name": "foo"}}`),
 					},
 					{
-						RawJSON: []byte(`{"kind": "Pod", "apiVersion": "v1", "metadata": { "name": "bar"}}`),
+						Raw: []byte(`{"kind": "Pod", "apiVersion": "v1", "metadata": { "name": "bar"}}`),
 					},
 				},
 			},
@@ -465,7 +466,7 @@ func TestPrinters(t *testing.T) {
 		"template2":            templatePrinter2,
 		"jsonpath":             jsonpathPrinter,
 		"name": &NamePrinter{
-			Typer:   runtime.ObjectTyperToTyper(api.Scheme),
+			Typer:   api.Scheme,
 			Decoder: api.Codecs.UniversalDecoder(),
 		},
 	}
@@ -1341,36 +1342,36 @@ func TestPrintDaemonSet(t *testing.T) {
 }
 
 func TestPrintJob(t *testing.T) {
-	completions := 2
+	completions := int32(2)
 	tests := []struct {
-		job    extensions.Job
+		job    batch.Job
 		expect string
 	}{
 		{
-			extensions.Job{
+			batch.Job{
 				ObjectMeta: api.ObjectMeta{
 					Name:              "job1",
 					CreationTimestamp: unversioned.Time{Time: time.Now().Add(1.9e9)},
 				},
-				Spec: extensions.JobSpec{
+				Spec: batch.JobSpec{
 					Completions: &completions,
 				},
-				Status: extensions.JobStatus{
+				Status: batch.JobStatus{
 					Succeeded: 1,
 				},
 			},
 			"job1\t2\t1\t0s\n",
 		},
 		{
-			extensions.Job{
+			batch.Job{
 				ObjectMeta: api.ObjectMeta{
 					Name:              "job2",
 					CreationTimestamp: unversioned.Time{Time: time.Now().AddDate(-10, 0, 0)},
 				},
-				Spec: extensions.JobSpec{
+				Spec: batch.JobSpec{
 					Completions: nil,
 				},
-				Status: extensions.JobStatus{
+				Status: batch.JobStatus{
 					Succeeded: 0,
 				},
 			},

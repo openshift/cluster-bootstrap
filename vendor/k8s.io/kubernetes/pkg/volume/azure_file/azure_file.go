@@ -23,7 +23,7 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/types"
 	"k8s.io/kubernetes/pkg/util/mount"
-	"k8s.io/kubernetes/pkg/util/strings"
+	kstrings "k8s.io/kubernetes/pkg/util/strings"
 	"k8s.io/kubernetes/pkg/volume"
 
 	"github.com/golang/glog"
@@ -44,6 +44,10 @@ var _ volume.PersistentVolumePlugin = &azureFilePlugin{}
 const (
 	azureFilePluginName = "kubernetes.io/azure-file"
 )
+
+func getPath(uid types.UID, volName string, host volume.VolumeHost) string {
+	return host.GetPodVolumeDir(uid, kstrings.EscapeQualifiedNameForDisk(azureFilePluginName), volName)
+}
 
 func (plugin *azureFilePlugin) Init(host volume.VolumeHost) error {
 	plugin.host = host
@@ -68,11 +72,11 @@ func (plugin *azureFilePlugin) GetAccessModes() []api.PersistentVolumeAccessMode
 	}
 }
 
-func (plugin *azureFilePlugin) NewBuilder(spec *volume.Spec, pod *api.Pod, _ volume.VolumeOptions) (volume.Builder, error) {
-	return plugin.newBuilderInternal(spec, pod, &azureSvc{}, plugin.host.GetMounter())
+func (plugin *azureFilePlugin) NewMounter(spec *volume.Spec, pod *api.Pod, _ volume.VolumeOptions) (volume.Mounter, error) {
+	return plugin.newMounterInternal(spec, pod, &azureSvc{}, plugin.host.GetMounter())
 }
 
-func (plugin *azureFilePlugin) newBuilderInternal(spec *volume.Spec, pod *api.Pod, util azureUtil, mounter mount.Interface) (volume.Builder, error) {
+func (plugin *azureFilePlugin) newMounterInternal(spec *volume.Spec, pod *api.Pod, util azureUtil, mounter mount.Interface) (volume.Mounter, error) {
 	var source *api.AzureFileVolumeSource
 	var readOnly bool
 	if spec.Volume != nil && spec.Volume.AzureFile != nil {
@@ -82,12 +86,13 @@ func (plugin *azureFilePlugin) newBuilderInternal(spec *volume.Spec, pod *api.Po
 		source = spec.PersistentVolume.Spec.AzureFile
 		readOnly = spec.ReadOnly
 	}
-	return &azureFileBuilder{
+	return &azureFileMounter{
 		azureFile: &azureFile{
-			volName: spec.Name(),
-			mounter: mounter,
-			pod:     pod,
-			plugin:  plugin,
+			volName:         spec.Name(),
+			mounter:         mounter,
+			pod:             pod,
+			plugin:          plugin,
+			MetricsProvider: volume.NewMetricsStatFS(getPath(pod.UID, spec.Name(), plugin.host)),
 		},
 		util:       util,
 		secretName: source.SecretName,
@@ -96,16 +101,17 @@ func (plugin *azureFilePlugin) newBuilderInternal(spec *volume.Spec, pod *api.Po
 	}, nil
 }
 
-func (plugin *azureFilePlugin) NewCleaner(volName string, podUID types.UID) (volume.Cleaner, error) {
-	return plugin.newCleanerInternal(volName, podUID, plugin.host.GetMounter())
+func (plugin *azureFilePlugin) NewUnmounter(volName string, podUID types.UID) (volume.Unmounter, error) {
+	return plugin.newUnmounterInternal(volName, podUID, plugin.host.GetMounter())
 }
 
-func (plugin *azureFilePlugin) newCleanerInternal(volName string, podUID types.UID, mounter mount.Interface) (volume.Cleaner, error) {
-	return &azureFileCleaner{&azureFile{
-		volName: volName,
-		mounter: mounter,
-		pod:     &api.Pod{ObjectMeta: api.ObjectMeta{UID: podUID}},
-		plugin:  plugin,
+func (plugin *azureFilePlugin) newUnmounterInternal(volName string, podUID types.UID, mounter mount.Interface) (volume.Unmounter, error) {
+	return &azureFileUnmounter{&azureFile{
+		volName:         volName,
+		mounter:         mounter,
+		pod:             &api.Pod{ObjectMeta: api.ObjectMeta{UID: podUID}},
+		plugin:          plugin,
+		MetricsProvider: volume.NewMetricsStatFS(getPath(podUID, volName, plugin.host)),
 	}}, nil
 }
 
@@ -115,15 +121,14 @@ type azureFile struct {
 	pod     *api.Pod
 	mounter mount.Interface
 	plugin  *azureFilePlugin
-	volume.MetricsNil
+	volume.MetricsProvider
 }
 
 func (azureFileVolume *azureFile) GetPath() string {
-	name := azureFilePluginName
-	return azureFileVolume.plugin.host.GetPodVolumeDir(azureFileVolume.pod.UID, strings.EscapeQualifiedNameForDisk(name), azureFileVolume.volName)
+	return getPath(azureFileVolume.pod.UID, azureFileVolume.volName, azureFileVolume.plugin.host)
 }
 
-type azureFileBuilder struct {
+type azureFileMounter struct {
 	*azureFile
 	util       azureUtil
 	secretName string
@@ -131,9 +136,9 @@ type azureFileBuilder struct {
 	readOnly   bool
 }
 
-var _ volume.Builder = &azureFileBuilder{}
+var _ volume.Mounter = &azureFileMounter{}
 
-func (b *azureFileBuilder) GetAttributes() volume.Attributes {
+func (b *azureFileMounter) GetAttributes() volume.Attributes {
 	return volume.Attributes{
 		ReadOnly:        b.readOnly,
 		Managed:         !b.readOnly,
@@ -142,11 +147,11 @@ func (b *azureFileBuilder) GetAttributes() volume.Attributes {
 }
 
 // SetUp attaches the disk and bind mounts to the volume path.
-func (b *azureFileBuilder) SetUp(fsGroup *int64) error {
+func (b *azureFileMounter) SetUp(fsGroup *int64) error {
 	return b.SetUpAt(b.GetPath(), fsGroup)
 }
 
-func (b *azureFileBuilder) SetUpAt(dir string, fsGroup *int64) error {
+func (b *azureFileMounter) SetUpAt(dir string, fsGroup *int64) error {
 	notMnt, err := b.mounter.IsLikelyNotMountPoint(dir)
 	glog.V(4).Infof("AzureFile mount set up: %s %v %v", dir, !notMnt, err)
 	if err != nil && !os.IsNotExist(err) {
@@ -195,17 +200,17 @@ func (b *azureFileBuilder) SetUpAt(dir string, fsGroup *int64) error {
 	return nil
 }
 
-var _ volume.Cleaner = &azureFileCleaner{}
+var _ volume.Unmounter = &azureFileUnmounter{}
 
-type azureFileCleaner struct {
+type azureFileUnmounter struct {
 	*azureFile
 }
 
-func (c *azureFileCleaner) TearDown() error {
+func (c *azureFileUnmounter) TearDown() error {
 	return c.TearDownAt(c.GetPath())
 }
 
-func (c *azureFileCleaner) TearDownAt(dir string) error {
+func (c *azureFileUnmounter) TearDownAt(dir string) error {
 	notMnt, err := c.mounter.IsLikelyNotMountPoint(dir)
 	if err != nil {
 		glog.Errorf("Error checking IsLikelyNotMountPoint: %v", err)

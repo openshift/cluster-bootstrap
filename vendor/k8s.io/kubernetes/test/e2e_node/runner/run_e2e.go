@@ -15,9 +15,9 @@ limitations under the License.
 */
 
 // To run the e2e tests against one or more hosts on gce:
-// $ godep go run run_e2e.go --logtostderr --v 2 --ssh-env gce --hosts <comma separated hosts>
+// $ go run run_e2e.go --logtostderr --v 2 --ssh-env gce --hosts <comma separated hosts>
 // To run the e2e tests against one or more images on gce and provision them:
-// $ godep go run run_e2e.go --logtostderr --v 2 --project <project> --zone <zone> --ssh-env gce --images <comma separated images>
+// $ go run run_e2e.go --logtostderr --v 2 --project <project> --zone <zone> --ssh-env gce --images <comma separated images>
 package main
 
 import (
@@ -52,6 +52,7 @@ type TestResult struct {
 	output string
 	err    error
 	host   string
+	exitOk bool
 }
 
 func main() {
@@ -114,21 +115,22 @@ func main() {
 		for _, image := range strings.Split(*images, ",") {
 			running++
 			fmt.Printf("Initializing e2e tests using image %s.\n", image)
-			go func(image string) { results <- testImage(image, archive) }(image)
+			go func(image string, junitFileNum int) { results <- testImage(image, archive, junitFileNum) }(image, running)
 		}
 	}
 	if *hosts != "" {
 		for _, host := range strings.Split(*hosts, ",") {
 			fmt.Printf("Initializing e2e tests using host %s.\n", host)
 			running++
-			go func(host string) {
-				results <- testHost(host, archive)
-			}(host)
+			go func(host string, junitFileNum int) {
+				results <- testHost(host, archive, *cleanup, junitFileNum)
+			}(host, running)
 		}
 	}
 
 	// Wait for all tests to complete and emit the results
 	errCount := 0
+	exitOk := true
 	for i := 0; i < running; i++ {
 		tr := <-results
 		host := tr.host
@@ -139,29 +141,31 @@ func main() {
 		} else {
 			fmt.Printf("Success Finished Host %s Test Suite\n%s\n", host, tr.output)
 		}
+		exitOk = exitOk && tr.exitOk
 		fmt.Printf("%s================================================================%s\n", blue, noColour)
 	}
 
 	// Set the exit code if there were failures
-	if errCount > 0 {
+	if !exitOk {
 		fmt.Printf("Failure: %d errors encountered.", errCount)
 		os.Exit(1)
 	}
 }
 
 // Run tests in archive against host
-func testHost(host, archive string) *TestResult {
-	output, err := e2e_node.RunRemote(archive, host, *cleanup)
+func testHost(host, archive string, deleteFiles bool, junitFileNum int) *TestResult {
+	output, exitOk, err := e2e_node.RunRemote(archive, host, deleteFiles, junitFileNum)
 	return &TestResult{
 		output: output,
 		err:    err,
 		host:   host,
+		exitOk: exitOk,
 	}
 }
 
 // Provision a gce instance using image and run the tests in archive against the instance.
 // Delete the instance afterward.
-func testImage(image, archive string) *TestResult {
+func testImage(image, archive string, junitFileNum int) *TestResult {
 	host, err := createInstance(image)
 	if *cleanup {
 		defer deleteInstance(image)
@@ -171,7 +175,7 @@ func testImage(image, archive string) *TestResult {
 			err: fmt.Errorf("Unable to create gce instance with running docker daemon for image %s.  %v", image, err),
 		}
 	}
-	return testHost(host, archive)
+	return testHost(host, archive, false, junitFileNum)
 }
 
 // Provision a gce instance using image

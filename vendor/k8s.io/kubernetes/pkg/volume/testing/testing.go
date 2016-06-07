@@ -18,11 +18,12 @@ package testing
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
 	"strings"
+	"sync"
+	"time"
 
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/resource"
@@ -33,6 +34,7 @@ import (
 	"k8s.io/kubernetes/pkg/util/io"
 	"k8s.io/kubernetes/pkg/util/mount"
 	utilstrings "k8s.io/kubernetes/pkg/util/strings"
+	utiltesting "k8s.io/kubernetes/pkg/util/testing"
 	. "k8s.io/kubernetes/pkg/volume"
 )
 
@@ -82,7 +84,7 @@ func (f *fakeVolumeHost) GetWriter() io.Writer {
 	return f.writer
 }
 
-func (f *fakeVolumeHost) NewWrapperBuilder(volName string, spec Spec, pod *api.Pod, opts VolumeOptions) (Builder, error) {
+func (f *fakeVolumeHost) NewWrapperMounter(volName string, spec Spec, pod *api.Pod, opts VolumeOptions) (Mounter, error) {
 	// The name of wrapper volume is set to "wrapped_{wrapped_volume_name}"
 	wrapperVolumeName := "wrapped_" + volName
 	if spec.Volume != nil {
@@ -92,10 +94,10 @@ func (f *fakeVolumeHost) NewWrapperBuilder(volName string, spec Spec, pod *api.P
 	if err != nil {
 		return nil, err
 	}
-	return plug.NewBuilder(&spec, pod, opts)
+	return plug.NewMounter(&spec, pod, opts)
 }
 
-func (f *fakeVolumeHost) NewWrapperCleaner(volName string, spec Spec, podUID types.UID) (Cleaner, error) {
+func (f *fakeVolumeHost) NewWrapperUnmounter(volName string, spec Spec, podUID types.UID) (Unmounter, error) {
 	// The name of wrapper volume is set to "wrapped_{wrapped_volume_name}"
 	wrapperVolumeName := "wrapped_" + volName
 	if spec.Volume != nil {
@@ -105,7 +107,7 @@ func (f *fakeVolumeHost) NewWrapperCleaner(volName string, spec Spec, podUID typ
 	if err != nil {
 		return nil, err
 	}
-	return plug.NewCleaner(spec.Name(), podUID)
+	return plug.NewUnmounter(spec.Name(), podUID)
 }
 
 // Returns the hostname of the host kubelet is running on
@@ -131,12 +133,18 @@ func ProbeVolumePlugins(config VolumeConfig) []VolumePlugin {
 // Use as:
 //   volume.RegisterPlugin(&FakePlugin{"fake-name"})
 type FakeVolumePlugin struct {
+	sync.RWMutex
 	PluginName             string
 	Host                   VolumeHost
 	Config                 VolumeConfig
 	LastProvisionerOptions VolumeOptions
 	NewAttacherCallCount   int
 	NewDetacherCallCount   int
+
+	Mounters   []*FakeVolume
+	Unmounters []*FakeVolume
+	Attachers  []*FakeVolume
+	Detachers  []*FakeVolume
 }
 
 var _ VolumePlugin = &FakeVolumePlugin{}
@@ -145,12 +153,22 @@ var _ DeletableVolumePlugin = &FakeVolumePlugin{}
 var _ ProvisionableVolumePlugin = &FakeVolumePlugin{}
 var _ AttachableVolumePlugin = &FakeVolumePlugin{}
 
+func (plugin *FakeVolumePlugin) getFakeVolume(list *[]*FakeVolume) *FakeVolume {
+	volume := &FakeVolume{}
+	*list = append(*list, volume)
+	return volume
+}
+
 func (plugin *FakeVolumePlugin) Init(host VolumeHost) error {
+	plugin.Lock()
+	defer plugin.Unlock()
 	plugin.Host = host
 	return nil
 }
 
 func (plugin *FakeVolumePlugin) Name() string {
+	plugin.RLock()
+	defer plugin.RUnlock()
 	return plugin.PluginName
 }
 
@@ -159,25 +177,77 @@ func (plugin *FakeVolumePlugin) CanSupport(spec *Spec) bool {
 	return true
 }
 
-func (plugin *FakeVolumePlugin) NewBuilder(spec *Spec, pod *api.Pod, opts VolumeOptions) (Builder, error) {
-	return &FakeVolume{pod.UID, spec.Name(), plugin, MetricsNil{}}, nil
+func (plugin *FakeVolumePlugin) NewMounter(spec *Spec, pod *api.Pod, opts VolumeOptions) (Mounter, error) {
+	plugin.Lock()
+	defer plugin.Unlock()
+	volume := plugin.getFakeVolume(&plugin.Mounters)
+	volume.PodUID = pod.UID
+	volume.VolName = spec.Name()
+	volume.Plugin = plugin
+	volume.MetricsNil = MetricsNil{}
+	return volume, nil
 }
 
-func (plugin *FakeVolumePlugin) NewCleaner(volName string, podUID types.UID) (Cleaner, error) {
-	return &FakeVolume{podUID, volName, plugin, MetricsNil{}}, nil
+func (plugin *FakeVolumePlugin) NewUnmounter(volName string, podUID types.UID) (Unmounter, error) {
+	plugin.Lock()
+	defer plugin.Unlock()
+	volume := plugin.getFakeVolume(&plugin.Unmounters)
+	volume.PodUID = podUID
+	volume.VolName = volName
+	volume.Plugin = plugin
+	volume.MetricsNil = MetricsNil{}
+	return volume, nil
 }
 
-func (plugin *FakeVolumePlugin) NewAttacher(spec *Spec) (Attacher, error) {
+func (plugin *FakeVolumePlugin) NewAttacher() (Attacher, error) {
+	plugin.Lock()
+	defer plugin.Unlock()
 	plugin.NewAttacherCallCount = plugin.NewAttacherCallCount + 1
-	return &FakeVolume{}, nil
+	return plugin.getFakeVolume(&plugin.Attachers), nil
 }
 
-func (plugin *FakeVolumePlugin) NewDetacher(name string, podUID types.UID) (Detacher, error) {
+func (plugin *FakeVolumePlugin) GetAttachers() (Attachers []*FakeVolume) {
+	plugin.RLock()
+	defer plugin.RUnlock()
+	return plugin.Attachers
+}
+
+func (plugin *FakeVolumePlugin) GetNewAttacherCallCount() int {
+	plugin.RLock()
+	defer plugin.RUnlock()
+	return plugin.NewAttacherCallCount
+}
+
+func (plugin *FakeVolumePlugin) NewDetacher() (Detacher, error) {
+	plugin.Lock()
+	defer plugin.Unlock()
 	plugin.NewDetacherCallCount = plugin.NewDetacherCallCount + 1
-	return &FakeVolume{}, nil
+	return plugin.getFakeVolume(&plugin.Detachers), nil
 }
 
-func (plugin *FakeVolumePlugin) NewRecycler(spec *Spec) (Recycler, error) {
+func (plugin *FakeVolumePlugin) GetDetachers() (Detachers []*FakeVolume) {
+	plugin.RLock()
+	defer plugin.RUnlock()
+	return plugin.Detachers
+}
+
+func (plugin *FakeVolumePlugin) GetNewDetacherCallCount() int {
+	plugin.RLock()
+	defer plugin.RUnlock()
+	return plugin.NewDetacherCallCount
+}
+
+func (plugin *FakeVolumePlugin) GetUniqueVolumeName(spec *Spec) (string, error) {
+	plugin.RLock()
+	defer plugin.RUnlock()
+	return plugin.Name() + "/" + spec.Name(), nil
+}
+
+func (plugin *FakeVolumePlugin) GetDeviceName(spec *Spec) (string, error) {
+	return spec.Name(), nil
+}
+
+func (plugin *FakeVolumePlugin) NewRecycler(pvName string, spec *Spec) (Recycler, error) {
 	return &fakeRecycler{"/attributesTransferredFromSpec", MetricsNil{}}, nil
 }
 
@@ -186,6 +256,8 @@ func (plugin *FakeVolumePlugin) NewDeleter(spec *Spec) (Deleter, error) {
 }
 
 func (plugin *FakeVolumePlugin) NewProvisioner(options VolumeOptions) (Provisioner, error) {
+	plugin.Lock()
+	defer plugin.Unlock()
 	plugin.LastProvisionerOptions = options
 	return &FakeProvisioner{options, plugin.Host}, nil
 }
@@ -195,10 +267,21 @@ func (plugin *FakeVolumePlugin) GetAccessModes() []api.PersistentVolumeAccessMod
 }
 
 type FakeVolume struct {
+	sync.RWMutex
 	PodUID  types.UID
 	VolName string
 	Plugin  *FakeVolumePlugin
 	MetricsNil
+
+	SetUpCallCount              int
+	TearDownCallCount           int
+	AttachCallCount             int
+	DetachCallCount             int
+	WaitForAttachCallCount      int
+	WaitForDetachCallCount      int
+	MountDeviceCallCount        int
+	UnmountDeviceCallCount      int
+	GetDeviceMountPathCallCount int
 }
 
 func (_ *FakeVolume) GetAttributes() Attributes {
@@ -210,7 +293,10 @@ func (_ *FakeVolume) GetAttributes() Attributes {
 }
 
 func (fv *FakeVolume) SetUp(fsGroup *int64) error {
-	return fv.SetUpAt(fv.GetPath(), fsGroup)
+	fv.Lock()
+	defer fv.Unlock()
+	fv.SetUpCallCount++
+	return fv.SetUpAt(fv.getPath(), fsGroup)
 }
 
 func (fv *FakeVolume) SetUpAt(dir string, fsGroup *int64) error {
@@ -218,22 +304,84 @@ func (fv *FakeVolume) SetUpAt(dir string, fsGroup *int64) error {
 }
 
 func (fv *FakeVolume) GetPath() string {
+	fv.RLock()
+	defer fv.RUnlock()
+	return fv.getPath()
+}
+
+func (fv *FakeVolume) getPath() string {
 	return path.Join(fv.Plugin.Host.GetPodVolumeDir(fv.PodUID, utilstrings.EscapeQualifiedNameForDisk(fv.Plugin.PluginName), fv.VolName))
 }
 
 func (fv *FakeVolume) TearDown() error {
-	return fv.TearDownAt(fv.GetPath())
+	fv.Lock()
+	defer fv.Unlock()
+	fv.TearDownCallCount++
+	return fv.TearDownAt(fv.getPath())
 }
 
 func (fv *FakeVolume) TearDownAt(dir string) error {
 	return os.RemoveAll(dir)
 }
 
-func (fv *FakeVolume) Attach() error {
+func (fv *FakeVolume) Attach(spec *Spec, hostName string) error {
+	fv.Lock()
+	defer fv.Unlock()
+	fv.AttachCallCount++
 	return nil
 }
 
-func (fv *FakeVolume) Detach() error {
+func (fv *FakeVolume) GetAttachCallCount() int {
+	fv.RLock()
+	defer fv.RUnlock()
+	return fv.AttachCallCount
+}
+
+func (fv *FakeVolume) WaitForAttach(spec *Spec, spectimeout time.Duration) (string, error) {
+	fv.Lock()
+	defer fv.Unlock()
+	fv.WaitForAttachCallCount++
+	return "", nil
+}
+
+func (fv *FakeVolume) GetDeviceMountPath(spec *Spec) string {
+	fv.Lock()
+	defer fv.Unlock()
+	fv.GetDeviceMountPathCallCount++
+	return ""
+}
+
+func (fv *FakeVolume) MountDevice(spec *Spec, devicePath string, deviceMountPath string, mounter mount.Interface) error {
+	fv.Lock()
+	defer fv.Unlock()
+	fv.MountDeviceCallCount++
+	return nil
+}
+
+func (fv *FakeVolume) Detach(deviceMountPath string, hostName string) error {
+	fv.Lock()
+	defer fv.Unlock()
+	fv.DetachCallCount++
+	return nil
+}
+
+func (fv *FakeVolume) GetDetachCallCount() int {
+	fv.RLock()
+	defer fv.RUnlock()
+	return fv.DetachCallCount
+}
+
+func (fv *FakeVolume) WaitForDetach(devicePath string, timeout time.Duration) error {
+	fv.Lock()
+	defer fv.Unlock()
+	fv.WaitForDetachCallCount++
+	return nil
+}
+
+func (fv *FakeVolume) UnmountDevice(globalMountPath string, mounter mount.Interface) error {
+	fv.Lock()
+	defer fv.Unlock()
+	fv.UnmountDeviceCallCount++
 	return nil
 }
 
@@ -251,7 +399,7 @@ func (fr *fakeRecycler) GetPath() string {
 	return fr.path
 }
 
-func NewFakeRecycler(spec *Spec, host VolumeHost, config VolumeConfig) (Recycler, error) {
+func NewFakeRecycler(pvName string, spec *Spec, host VolumeHost, config VolumeConfig) (Recycler, error) {
 	if spec.PersistentVolume == nil || spec.PersistentVolume.Spec.HostPath == nil {
 		return nil, fmt.Errorf("fakeRecycler only supports spec.PersistentVolume.Spec.HostPath")
 	}
@@ -279,11 +427,12 @@ type FakeProvisioner struct {
 	Host    VolumeHost
 }
 
-func (fc *FakeProvisioner) NewPersistentVolumeTemplate() (*api.PersistentVolume, error) {
+func (fc *FakeProvisioner) Provision() (*api.PersistentVolume, error) {
 	fullpath := fmt.Sprintf("/tmp/hostpath_pv/%s", util.NewUUID())
-	return &api.PersistentVolume{
+
+	pv := &api.PersistentVolume{
 		ObjectMeta: api.ObjectMeta{
-			GenerateName: "pv-fakeplugin-",
+			Name: fc.Options.PVName,
 			Annotations: map[string]string{
 				"kubernetes.io/createdby": "fakeplugin-provisioner",
 			},
@@ -300,17 +449,15 @@ func (fc *FakeProvisioner) NewPersistentVolumeTemplate() (*api.PersistentVolume,
 				},
 			},
 		},
-	}, nil
-}
+	}
 
-func (fc *FakeProvisioner) Provision(pv *api.PersistentVolume) error {
-	return nil
+	return pv, nil
 }
 
 // FindEmptyDirectoryUsageOnTmpfs finds the expected usage of an empty directory existing on
 // a tmpfs filesystem on this system.
 func FindEmptyDirectoryUsageOnTmpfs() (*resource.Quantity, error) {
-	tmpDir, err := ioutil.TempDir(os.TempDir(), "metrics_du_test")
+	tmpDir, err := utiltesting.MkTmpdir("metrics_du_test")
 	if err != nil {
 		return nil, err
 	}
@@ -323,5 +470,5 @@ func FindEmptyDirectoryUsageOnTmpfs() (*resource.Quantity, error) {
 		return nil, fmt.Errorf("failed to parse 'du' output %s due to error %v", out, err)
 	}
 	used.Format = resource.BinarySI
-	return used, nil
+	return &used, nil
 }

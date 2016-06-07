@@ -33,6 +33,8 @@ import (
 	volumetest "k8s.io/kubernetes/pkg/volume/testing"
 )
 
+const downwardAPIDir = "..data"
+
 func formatMap(m map[string]string) (fmtstr string) {
 	for key, value := range m {
 		fmtstr += fmt.Sprintf("%v=%q\n", key, value)
@@ -65,15 +67,15 @@ func TestCanSupport(t *testing.T) {
 }
 
 func CleanEverything(plugin volume.VolumePlugin, testVolumeName, volumePath string, testPodUID types.UID, t *testing.T) {
-	cleaner, err := plugin.NewCleaner(testVolumeName, testPodUID)
+	unmounter, err := plugin.NewUnmounter(testVolumeName, testPodUID)
 	if err != nil {
-		t.Errorf("Failed to make a new Cleaner: %v", err)
+		t.Errorf("Failed to make a new Unmounter: %v", err)
 	}
-	if cleaner == nil {
-		t.Errorf("Got a nil Cleaner")
+	if unmounter == nil {
+		t.Errorf("Got a nil Unmounter")
 	}
 
-	if err := cleaner.TearDown(); err != nil {
+	if err := unmounter.TearDown(); err != nil {
 		t.Errorf("Expected success, got: %v", err)
 	}
 	if _, err := os.Stat(volumePath); err == nil {
@@ -113,7 +115,7 @@ func TestLabels(t *testing.T) {
 		VolumeSource: api.VolumeSource{
 			DownwardAPI: &api.DownwardAPIVolumeSource{
 				Items: []api.DownwardAPIVolumeFile{
-					{Path: "labels", FieldRef: api.ObjectFieldSelector{
+					{Path: "labels", FieldRef: &api.ObjectFieldSelector{
 						FieldPath: "metadata.labels"}}}},
 		},
 	}
@@ -121,18 +123,18 @@ func TestLabels(t *testing.T) {
 		t.Errorf("Can't find the plugin by name")
 	}
 	pod := &api.Pod{ObjectMeta: api.ObjectMeta{UID: testPodUID, Labels: labels}}
-	builder, err := plugin.NewBuilder(volume.NewSpecFromVolume(volumeSpec), pod, volume.VolumeOptions{})
+	mounter, err := plugin.NewMounter(volume.NewSpecFromVolume(volumeSpec), pod, volume.VolumeOptions{})
 
 	if err != nil {
-		t.Errorf("Failed to make a new Builder: %v", err)
+		t.Errorf("Failed to make a new Mounter: %v", err)
 	}
-	if builder == nil {
-		t.Errorf("Got a nil Builder")
+	if mounter == nil {
+		t.Errorf("Got a nil Mounter")
 	}
 
-	volumePath := builder.GetPath()
+	volumePath := mounter.GetPath()
 
-	err = builder.SetUp(nil)
+	err = mounter.SetUp(nil)
 	if err != nil {
 		t.Errorf("Failed to setup volume: %v", err)
 	}
@@ -177,7 +179,7 @@ func TestAnnotations(t *testing.T) {
 		VolumeSource: api.VolumeSource{
 			DownwardAPI: &api.DownwardAPIVolumeSource{
 				Items: []api.DownwardAPIVolumeFile{
-					{Path: "annotations", FieldRef: api.ObjectFieldSelector{
+					{Path: "annotations", FieldRef: &api.ObjectFieldSelector{
 						FieldPath: "metadata.annotations"}}}},
 		},
 	}
@@ -199,17 +201,17 @@ func TestAnnotations(t *testing.T) {
 		t.Errorf("Can't find the plugin by name")
 	}
 	pod := &api.Pod{ObjectMeta: api.ObjectMeta{UID: testPodUID, Annotations: annotations}}
-	builder, err := plugin.NewBuilder(volume.NewSpecFromVolume(volumeSpec), pod, volume.VolumeOptions{})
+	mounter, err := plugin.NewMounter(volume.NewSpecFromVolume(volumeSpec), pod, volume.VolumeOptions{})
 	if err != nil {
-		t.Errorf("Failed to make a new Builder: %v", err)
+		t.Errorf("Failed to make a new Mounter: %v", err)
 	}
-	if builder == nil {
-		t.Errorf("Got a nil Builder")
+	if mounter == nil {
+		t.Errorf("Got a nil Mounter")
 	}
 
-	volumePath := builder.GetPath()
+	volumePath := mounter.GetPath()
 
-	err = builder.SetUp(nil)
+	err = mounter.SetUp(nil)
 	if err != nil {
 		t.Errorf("Failed to setup volume: %v", err)
 	}
@@ -240,7 +242,7 @@ func TestName(t *testing.T) {
 		VolumeSource: api.VolumeSource{
 			DownwardAPI: &api.DownwardAPIVolumeSource{
 				Items: []api.DownwardAPIVolumeFile{
-					{Path: "name_file_name", FieldRef: api.ObjectFieldSelector{
+					{Path: "name_file_name", FieldRef: &api.ObjectFieldSelector{
 						FieldPath: "metadata.name"}}}},
 		},
 	}
@@ -261,17 +263,17 @@ func TestName(t *testing.T) {
 		t.Errorf("Can't find the plugin by name")
 	}
 	pod := &api.Pod{ObjectMeta: api.ObjectMeta{UID: testPodUID, Name: testName}}
-	builder, err := plugin.NewBuilder(volume.NewSpecFromVolume(volumeSpec), pod, volume.VolumeOptions{})
+	mounter, err := plugin.NewMounter(volume.NewSpecFromVolume(volumeSpec), pod, volume.VolumeOptions{})
 	if err != nil {
-		t.Errorf("Failed to make a new Builder: %v", err)
+		t.Errorf("Failed to make a new Mounter: %v", err)
 	}
-	if builder == nil {
-		t.Errorf("Got a nil Builder")
+	if mounter == nil {
+		t.Errorf("Got a nil Mounter")
 	}
 
-	volumePath := builder.GetPath()
+	volumePath := mounter.GetPath()
 
-	err = builder.SetUp(nil)
+	err = mounter.SetUp(nil)
 	if err != nil {
 		t.Errorf("Failed to setup volume: %v", err)
 	}
@@ -303,7 +305,7 @@ func TestNamespace(t *testing.T) {
 		VolumeSource: api.VolumeSource{
 			DownwardAPI: &api.DownwardAPIVolumeSource{
 				Items: []api.DownwardAPIVolumeFile{
-					{Path: "namespace_file_name", FieldRef: api.ObjectFieldSelector{
+					{Path: "namespace_file_name", FieldRef: &api.ObjectFieldSelector{
 						FieldPath: "metadata.namespace"}}}},
 		},
 	}
@@ -324,17 +326,17 @@ func TestNamespace(t *testing.T) {
 		t.Errorf("Can't find the plugin by name")
 	}
 	pod := &api.Pod{ObjectMeta: api.ObjectMeta{UID: testPodUID, Namespace: testNamespace}}
-	builder, err := plugin.NewBuilder(volume.NewSpecFromVolume(volumeSpec), pod, volume.VolumeOptions{})
+	mounter, err := plugin.NewMounter(volume.NewSpecFromVolume(volumeSpec), pod, volume.VolumeOptions{})
 	if err != nil {
-		t.Errorf("Failed to make a new Builder: %v", err)
+		t.Errorf("Failed to make a new Mounter: %v", err)
 	}
-	if builder == nil {
-		t.Errorf("Got a nil Builder")
+	if mounter == nil {
+		t.Errorf("Got a nil Mounter")
 	}
 
-	volumePath := builder.GetPath()
+	volumePath := mounter.GetPath()
 
-	err = builder.SetUp(nil)
+	err = mounter.SetUp(nil)
 	if err != nil {
 		t.Errorf("Failed to setup volume: %v", err)
 	}
@@ -381,7 +383,7 @@ func TestWriteTwiceNoUpdate(t *testing.T) {
 		VolumeSource: api.VolumeSource{
 			DownwardAPI: &api.DownwardAPIVolumeSource{
 				Items: []api.DownwardAPIVolumeFile{
-					{Path: "labels", FieldRef: api.ObjectFieldSelector{
+					{Path: "labels", FieldRef: &api.ObjectFieldSelector{
 						FieldPath: "metadata.labels"}}}},
 		},
 	}
@@ -389,17 +391,17 @@ func TestWriteTwiceNoUpdate(t *testing.T) {
 		t.Errorf("Can't find the plugin by name")
 	}
 	pod := &api.Pod{ObjectMeta: api.ObjectMeta{UID: testPodUID, Labels: labels}}
-	builder, err := plugin.NewBuilder(volume.NewSpecFromVolume(volumeSpec), pod, volume.VolumeOptions{})
+	mounter, err := plugin.NewMounter(volume.NewSpecFromVolume(volumeSpec), pod, volume.VolumeOptions{})
 
 	if err != nil {
-		t.Errorf("Failed to make a new Builder: %v", err)
+		t.Errorf("Failed to make a new Mounter: %v", err)
 	}
-	if builder == nil {
-		t.Errorf("Got a nil Builder")
+	if mounter == nil {
+		t.Errorf("Got a nil Mounter")
 	}
 
-	volumePath := builder.GetPath()
-	err = builder.SetUp(nil)
+	volumePath := mounter.GetPath()
+	err = mounter.SetUp(nil)
 	if err != nil {
 		t.Errorf("Failed to setup volume: %v", err)
 	}
@@ -407,10 +409,10 @@ func TestWriteTwiceNoUpdate(t *testing.T) {
 	// get the link of the link
 	var currentTarget string
 	if currentTarget, err = os.Readlink(path.Join(volumePath, downwardAPIDir)); err != nil {
-		t.Errorf(".current should be a link... %s\n", err.Error())
+		t.Errorf(".data should be a link... %s\n", err.Error())
 	}
 
-	err = builder.SetUp(nil) // now re-run Setup
+	err = mounter.SetUp(nil) // now re-run Setup
 	if err != nil {
 		t.Errorf("Failed to re-setup volume: %v", err)
 	}
@@ -418,7 +420,7 @@ func TestWriteTwiceNoUpdate(t *testing.T) {
 	// get the link of the link
 	var currentTarget2 string
 	if currentTarget2, err = os.Readlink(path.Join(volumePath, downwardAPIDir)); err != nil {
-		t.Errorf(".current should be a link... %s\n", err.Error())
+		t.Errorf(".data should be a link... %s\n", err.Error())
 	}
 
 	if currentTarget2 != currentTarget {
@@ -467,7 +469,7 @@ func TestWriteTwiceWithUpdate(t *testing.T) {
 		VolumeSource: api.VolumeSource{
 			DownwardAPI: &api.DownwardAPIVolumeSource{
 				Items: []api.DownwardAPIVolumeFile{
-					{Path: "labels", FieldRef: api.ObjectFieldSelector{
+					{Path: "labels", FieldRef: &api.ObjectFieldSelector{
 						FieldPath: "metadata.labels"}}}},
 		},
 	}
@@ -475,17 +477,17 @@ func TestWriteTwiceWithUpdate(t *testing.T) {
 		t.Errorf("Can't find the plugin by name")
 	}
 	pod := &api.Pod{ObjectMeta: api.ObjectMeta{UID: testPodUID, Labels: labels}}
-	builder, err := plugin.NewBuilder(volume.NewSpecFromVolume(volumeSpec), pod, volume.VolumeOptions{})
+	mounter, err := plugin.NewMounter(volume.NewSpecFromVolume(volumeSpec), pod, volume.VolumeOptions{})
 
 	if err != nil {
-		t.Errorf("Failed to make a new Builder: %v", err)
+		t.Errorf("Failed to make a new Mounter: %v", err)
 	}
-	if builder == nil {
-		t.Errorf("Got a nil Builder")
+	if mounter == nil {
+		t.Errorf("Got a nil Mounter")
 	}
 
-	volumePath := builder.GetPath()
-	err = builder.SetUp(nil)
+	volumePath := mounter.GetPath()
+	err = mounter.SetUp(nil)
 	if err != nil {
 		t.Errorf("Failed to setup volume: %v", err)
 	}
@@ -512,7 +514,7 @@ func TestWriteTwiceWithUpdate(t *testing.T) {
 
 	// Now update the labels
 	pod.ObjectMeta.Labels = newLabels
-	err = builder.SetUp(nil) // now re-run Setup
+	err = mounter.SetUp(nil) // now re-run Setup
 	if err != nil {
 		t.Errorf("Failed to re-setup volume: %v", err)
 	}
@@ -573,9 +575,9 @@ func TestWriteWithUnixPath(t *testing.T) {
 		VolumeSource: api.VolumeSource{
 			DownwardAPI: &api.DownwardAPIVolumeSource{
 				Items: []api.DownwardAPIVolumeFile{
-					{Path: "this/is/mine/labels", FieldRef: api.ObjectFieldSelector{
+					{Path: "this/is/mine/labels", FieldRef: &api.ObjectFieldSelector{
 						FieldPath: "metadata.labels"}},
-					{Path: "this/is/yours/annotations", FieldRef: api.ObjectFieldSelector{
+					{Path: "this/is/yours/annotations", FieldRef: &api.ObjectFieldSelector{
 						FieldPath: "metadata.annotations"}},
 				}}},
 	}
@@ -583,17 +585,17 @@ func TestWriteWithUnixPath(t *testing.T) {
 		t.Errorf("Can't find the plugin by name")
 	}
 	pod := &api.Pod{ObjectMeta: api.ObjectMeta{UID: testPodUID, Labels: labels, Annotations: annotations}}
-	builder, err := plugin.NewBuilder(volume.NewSpecFromVolume(volumeSpec), pod, volume.VolumeOptions{})
+	mounter, err := plugin.NewMounter(volume.NewSpecFromVolume(volumeSpec), pod, volume.VolumeOptions{})
 
 	if err != nil {
-		t.Errorf("Failed to make a new Builder: %v", err)
+		t.Errorf("Failed to make a new Mounter: %v", err)
 	}
-	if builder == nil {
-		t.Errorf("Got a nil Builder")
+	if mounter == nil {
+		t.Errorf("Got a nil Mounter")
 	}
 
-	volumePath := builder.GetPath()
-	err = builder.SetUp(nil)
+	volumePath := mounter.GetPath()
+	err = mounter.SetUp(nil)
 	if err != nil {
 		t.Errorf("Failed to setup volume: %v", err)
 	}
@@ -655,7 +657,7 @@ func TestWriteWithUnixPathBadPath(t *testing.T) {
 				Items: []api.DownwardAPIVolumeFile{
 					{
 						Path: "this//labels",
-						FieldRef: api.ObjectFieldSelector{
+						FieldRef: &api.ObjectFieldSelector{
 							FieldPath: "metadata.labels",
 						},
 					},
@@ -665,17 +667,17 @@ func TestWriteWithUnixPathBadPath(t *testing.T) {
 	}
 
 	pod := &api.Pod{ObjectMeta: api.ObjectMeta{UID: testPodUID, Labels: labels}}
-	builder, err := plugin.NewBuilder(volume.NewSpecFromVolume(volumeSpec), pod, volume.VolumeOptions{})
+	mounter, err := plugin.NewMounter(volume.NewSpecFromVolume(volumeSpec), pod, volume.VolumeOptions{})
 	if err != nil {
-		t.Fatalf("Failed to make a new Builder: %v", err)
-	} else if builder == nil {
-		t.Fatalf("Got a nil Builder")
+		t.Fatalf("Failed to make a new Mounter: %v", err)
+	} else if mounter == nil {
+		t.Fatalf("Got a nil Mounter")
 	}
 
-	volumePath := builder.GetPath()
+	volumePath := mounter.GetPath()
 	defer CleanEverything(plugin, testVolumeName, volumePath, testPodUID, t)
 
-	err = builder.SetUp(nil)
+	err = mounter.SetUp(nil)
 	if err != nil {
 		t.Fatalf("Failed to setup volume: %v", err)
 	}

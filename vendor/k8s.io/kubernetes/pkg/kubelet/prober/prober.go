@@ -17,6 +17,7 @@ limitations under the License.
 package prober
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"net/http"
@@ -30,6 +31,7 @@ import (
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/prober/results"
 	"k8s.io/kubernetes/pkg/kubelet/util/format"
+	"k8s.io/kubernetes/pkg/kubelet/util/ioutils"
 	"k8s.io/kubernetes/pkg/probe"
 	execprobe "k8s.io/kubernetes/pkg/probe/exec"
 	httprobe "k8s.io/kubernetes/pkg/probe/http"
@@ -198,7 +200,7 @@ func extractPort(param intstr.IntOrString, container api.Container) (int, error)
 func findPortByName(container api.Container, portName string) (int, error) {
 	for _, port := range container.Ports {
 		if port.Name == portName {
-			return port.ContainerPort, nil
+			return int(port.ContainerPort), nil
 		}
 	}
 	return 0, fmt.Errorf("port %s not found", portName)
@@ -219,7 +221,14 @@ type execInContainer struct {
 
 func (p *prober) newExecInContainer(container api.Container, containerID kubecontainer.ContainerID, cmd []string) exec.Cmd {
 	return execInContainer{func() ([]byte, error) {
-		return p.runner.RunInContainer(containerID, cmd)
+		var buffer bytes.Buffer
+		output := ioutils.WriteCloserWrapper(&buffer)
+		err := p.runner.ExecInContainer(containerID, cmd, nil, output, output, false)
+		if err != nil {
+			return nil, err
+		}
+
+		return buffer.Bytes(), nil
 	}}
 }
 
