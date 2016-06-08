@@ -23,13 +23,14 @@ import (
 )
 
 var KnownApiServerMetrics = map[string][]string{
-	"apiserver_request_count":                        {"verb", "resource", "client", "code"},
+	"apiserver_request_count":                        {"verb", "resource", "client", "contentType", "code"},
 	"apiserver_request_latencies_bucket":             {"verb", "resource", "le"},
 	"apiserver_request_latencies_count":              {"verb", "resource"},
 	"apiserver_request_latencies_sum":                {"verb", "resource"},
 	"apiserver_request_latencies_summary":            {"verb", "resource", "quantile"},
 	"apiserver_request_latencies_summary_count":      {"verb", "resource"},
 	"apiserver_request_latencies_summary_sum":        {"verb", "resource"},
+	"authenticated_user_requests":                    {"username"},
 	"etcd_helper_cache_entry_count":                  {},
 	"etcd_helper_cache_hit_count":                    {},
 	"etcd_helper_cache_miss_count":                   {},

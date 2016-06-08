@@ -43,7 +43,7 @@ func NewHollowKubelet(
 	dockerClient dockertools.DockerInterface,
 	kubeletPort, kubeletReadOnlyPort int,
 	containerManager cm.ContainerManager,
-	maxPods int,
+	maxPods int, podsPerCore int,
 ) *HollowKubelet {
 	testRootDir := integration.MakeTempDirOrDie("hollow-kubelet.", "")
 	manifestFilePath := integration.MakeTempDirOrDie("manifest", testRootDir)
@@ -65,14 +65,16 @@ func NewHollowKubelet(
 			cadvisorInterface,
 			manifestFilePath,
 			nil, /* cloud-provider */
-			containertest.FakeOS{}, /* os-interface */
-			20*time.Second,         /* FileCheckFrequency */
-			20*time.Second,         /* HTTPCheckFrequency */
-			1*time.Minute,          /* MinimumGCAge */
-			10*time.Second,         /* NodeStatusUpdateFrequency */
-			10*time.Second,         /* SyncFrequency */
-			5*time.Minute,          /* OutOfDiskTransitionFrequency */
+			&containertest.FakeOS{}, /* os-interface */
+			20*time.Second,          /* FileCheckFrequency */
+			20*time.Second,          /* HTTPCheckFrequency */
+			1*time.Minute,           /* MinimumGCAge */
+			10*time.Second,          /* NodeStatusUpdateFrequency */
+			10*time.Second,          /* SyncFrequency */
+			5*time.Minute,           /* OutOfDiskTransitionFrequency */
+			5*time.Minute,           /* EvictionPressureTransitionPeriod */
 			maxPods,
+			podsPerCore,
 			containerManager,
 			nil,
 		),

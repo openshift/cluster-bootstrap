@@ -62,21 +62,27 @@ func createAssets(manifestDir string) error {
 		&clientcmd.ConfigOverrides{ClusterInfo: clientcmdapi.Cluster{Server: insecureAPIAddr}},
 	)
 	f := cmdutil.NewFactory(config)
-	schema, err := f.Validator(true, fmt.Sprintf("~/%s/%s", clientcmd.RecommendedHomeDir, clientcmd.RecommendedSchemaName))
+
+	shouldValidate := true
+	schema, err := f.Validator(shouldValidate, fmt.Sprintf("~/%s/%s", clientcmd.RecommendedHomeDir, clientcmd.RecommendedSchemaName))
 	if err != nil {
 		return err
 	}
+
 	cmdNamespace, enforceNamespace, err := f.DefaultNamespace()
 	if err != nil {
 		return err
 	}
 
-	mapper, typer := f.Object()
+	includeExtendedAPIs := false
+	mapper, typer := f.Object(includeExtendedAPIs)
+
+	recursive := false
 	r := resource.NewBuilder(mapper, typer, resource.ClientMapperFunc(f.ClientForMapping), f.Decoder(true)).
 		Schema(schema).
 		ContinueOnError().
 		NamespaceParam(cmdNamespace).DefaultNamespace().
-		FilenameParam(enforceNamespace, manifestDir).
+		FilenameParam(enforceNamespace, recursive, manifestDir).
 		Flatten().
 		Do()
 	err = r.Err()
@@ -100,7 +106,11 @@ func createAssets(manifestDir string) error {
 		info.Refresh(obj, true)
 
 		count++
-		cmdutil.PrintSuccess(mapper, false, util.GlogWriter{}, info.Mapping.Resource, info.Name, "created")
+		shortOutput := false
+		if !shortOutput {
+			f.PrintObjectSpecificMessage(info.Object, util.GlogWriter{})
+		}
+		cmdutil.PrintSuccess(mapper, shortOutput, util.GlogWriter{}, info.Mapping.Resource, info.Name, "created")
 		return nil
 	})
 	if err != nil {

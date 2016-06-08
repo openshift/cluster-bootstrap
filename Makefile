@@ -42,7 +42,7 @@ conformance-%: clean all
 
 # This will naively try and create a vendor dir from a k8s release
 # USE: make vendor VENDOR_VERSION=vX.Y.Z
-VENDOR_VERSION = v1.2.1
+VENDOR_VERSION = v1.3.0-alpha.5
 vendor: vendor-$(VENDOR_VERSION)
 
 vendor-$(VENDOR_VERSION):
@@ -50,10 +50,10 @@ vendor-$(VENDOR_VERSION):
 	@mkdir -p $@/k8s.io/kubernetes
 	@git clone --branch=$(VENDOR_VERSION) --depth=1 https://github.com/kubernetes/kubernetes $@/k8s.io/kubernetes > /dev/null 2>&1
 	@cd $@/k8s.io/kubernetes && git checkout $(VENDOR_VERSION) > /dev/null 2>&1
-	@cd $@/k8s.io/kubernetes && rm -rf docs examples hack cluster
-	@cd $@/k8s.io/kubernetes/Godeps/_workspace/src && mv k8s.io/heapster $(abspath $@/k8s.io) && rmdir k8s.io
-	@mv $@/k8s.io/kubernetes/Godeps/_workspace/src/* $(abspath $@)
-	@rm -rf $@/k8s.io/kubernetes/Godeps $@/k8s.io/kubernetes/.git
+	@cd $@/k8s.io/kubernetes && rm -rf docs examples hack cluster Godeps
+	@cd $@/k8s.io/kubernetes/vendor && mv k8s.io/heapster $(abspath $@/k8s.io) && rmdir k8s.io
+	@mv $@/k8s.io/kubernetes/vendor/* $(abspath $@)
+	@rm -rf $@/k8s.io/kubernetes/vendor $@/k8s.io/kubernetes/.git
 
 clean:
 	rm -rf _output

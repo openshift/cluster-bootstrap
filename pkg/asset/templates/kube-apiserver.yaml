@@ -5,20 +5,20 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kube-apiserver
-    version: v1.2.4_inotify.3
+    version: v1.3.0-alpha.5
 spec:
   template:
     metadata:
       labels:
         k8s-app: kube-apiserver
-        version: v1.2.4_inotify.3
+        version: v1.3.0-alpha.5
     spec:
       nodeSelector:
         master: "true"
       hostNetwork: true
       containers:
       - name: kube-apiserver
-        image: quay.io/peanutbutter/hyperkube:v1.2.4_inotify.3
+        image: quay.io/coreos/hyperkube:v1.3.0-alpha.5_coreos.0
         command:
         - /hyperkube
         - apiserver

@@ -54,6 +54,10 @@ const (
 	emptyDirPluginName = "kubernetes.io/empty-dir"
 )
 
+func getPath(uid types.UID, volName string, host volume.VolumeHost) string {
+	return host.GetPodVolumeDir(uid, strings.EscapeQualifiedNameForDisk(emptyDirPluginName), volName)
+}
+
 func (plugin *emptyDirPlugin) Init(host volume.VolumeHost) error {
 	plugin.host = host
 
@@ -71,11 +75,11 @@ func (plugin *emptyDirPlugin) CanSupport(spec *volume.Spec) bool {
 	return false
 }
 
-func (plugin *emptyDirPlugin) NewBuilder(spec *volume.Spec, pod *api.Pod, opts volume.VolumeOptions) (volume.Builder, error) {
-	return plugin.newBuilderInternal(spec, pod, plugin.host.GetMounter(), &realMountDetector{plugin.host.GetMounter()}, opts)
+func (plugin *emptyDirPlugin) NewMounter(spec *volume.Spec, pod *api.Pod, opts volume.VolumeOptions) (volume.Mounter, error) {
+	return plugin.newMounterInternal(spec, pod, plugin.host.GetMounter(), &realMountDetector{plugin.host.GetMounter()}, opts)
 }
 
-func (plugin *emptyDirPlugin) newBuilderInternal(spec *volume.Spec, pod *api.Pod, mounter mount.Interface, mountDetector mountDetector, opts volume.VolumeOptions) (volume.Builder, error) {
+func (plugin *emptyDirPlugin) newMounterInternal(spec *volume.Spec, pod *api.Pod, mounter mount.Interface, mountDetector mountDetector, opts volume.VolumeOptions) (volume.Mounter, error) {
 	medium := api.StorageMediumDefault
 	if spec.Volume.EmptyDir != nil { // Support a non-specified source as EmptyDir.
 		medium = spec.Volume.EmptyDir.Medium
@@ -88,16 +92,16 @@ func (plugin *emptyDirPlugin) newBuilderInternal(spec *volume.Spec, pod *api.Pod
 		mountDetector:   mountDetector,
 		plugin:          plugin,
 		rootContext:     opts.RootContext,
-		MetricsProvider: volume.NewMetricsDu(GetPath(pod.UID, spec.Name(), plugin.host)),
+		MetricsProvider: volume.NewMetricsDu(getPath(pod.UID, spec.Name(), plugin.host)),
 	}, nil
 }
 
-func (plugin *emptyDirPlugin) NewCleaner(volName string, podUID types.UID) (volume.Cleaner, error) {
+func (plugin *emptyDirPlugin) NewUnmounter(volName string, podUID types.UID) (volume.Unmounter, error) {
 	// Inject real implementations here, test through the internal function.
-	return plugin.newCleanerInternal(volName, podUID, plugin.host.GetMounter(), &realMountDetector{plugin.host.GetMounter()})
+	return plugin.newUnmounterInternal(volName, podUID, plugin.host.GetMounter(), &realMountDetector{plugin.host.GetMounter()})
 }
 
-func (plugin *emptyDirPlugin) newCleanerInternal(volName string, podUID types.UID, mounter mount.Interface, mountDetector mountDetector) (volume.Cleaner, error) {
+func (plugin *emptyDirPlugin) newUnmounterInternal(volName string, podUID types.UID, mounter mount.Interface, mountDetector mountDetector) (volume.Unmounter, error) {
 	ed := &emptyDir{
 		pod:             &api.Pod{ObjectMeta: api.ObjectMeta{UID: podUID}},
 		volName:         volName,
@@ -105,7 +109,7 @@ func (plugin *emptyDirPlugin) newCleanerInternal(volName string, podUID types.UI
 		mounter:         mounter,
 		mountDetector:   mountDetector,
 		plugin:          plugin,
-		MetricsProvider: volume.NewMetricsDu(GetPath(podUID, volName, plugin.host)),
+		MetricsProvider: volume.NewMetricsDu(getPath(podUID, volName, plugin.host)),
 	}
 	return ed, nil
 }
@@ -271,12 +275,7 @@ func (ed *emptyDir) setupDir(dir string) error {
 }
 
 func (ed *emptyDir) GetPath() string {
-	return GetPath(ed.pod.UID, ed.volName, ed.plugin.host)
-}
-
-func GetPath(uid types.UID, volName string, host volume.VolumeHost) string {
-	name := emptyDirPluginName
-	return host.GetPodVolumeDir(uid, strings.EscapeQualifiedNameForDisk(name), volName)
+	return getPath(ed.pod.UID, ed.volName, ed.plugin.host)
 }
 
 // TearDown simply discards everything in the directory.

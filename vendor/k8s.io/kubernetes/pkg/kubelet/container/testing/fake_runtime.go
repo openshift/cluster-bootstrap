@@ -26,7 +26,7 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	. "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/types"
-	"k8s.io/kubernetes/pkg/util"
+	"k8s.io/kubernetes/pkg/util/flowcontrol"
 	"k8s.io/kubernetes/pkg/volume"
 )
 
@@ -189,7 +189,7 @@ func (f *FakeRuntime) GetPods(all bool) ([]*Pod, error) {
 	return f.PodList, f.Err
 }
 
-func (f *FakeRuntime) SyncPod(pod *api.Pod, _ api.PodStatus, _ *PodStatus, _ []api.Secret, backOff *util.Backoff) (result PodSyncResult) {
+func (f *FakeRuntime) SyncPod(pod *api.Pod, _ api.PodStatus, _ *PodStatus, _ []api.Secret, backOff *flowcontrol.Backoff) (result PodSyncResult) {
 	f.Lock()
 	defer f.Unlock()
 
@@ -205,7 +205,7 @@ func (f *FakeRuntime) SyncPod(pod *api.Pod, _ api.PodStatus, _ *PodStatus, _ []a
 	return
 }
 
-func (f *FakeRuntime) KillPod(pod *api.Pod, runningPod Pod) error {
+func (f *FakeRuntime) KillPod(pod *api.Pod, runningPod Pod, gracePeriodOverride *int64) error {
 	f.Lock()
 	defer f.Unlock()
 
@@ -276,14 +276,6 @@ func (f *FakeRuntime) AttachContainer(containerID ContainerID, stdin io.Reader, 
 	return f.Err
 }
 
-func (f *FakeRuntime) RunInContainer(containerID ContainerID, cmd []string) ([]byte, error) {
-	f.Lock()
-	defer f.Unlock()
-
-	f.CalledFunctions = append(f.CalledFunctions, "RunInContainer")
-	return []byte{}, f.Err
-}
-
 func (f *FakeRuntime) GetContainerLogs(pod *api.Pod, containerID ContainerID, logOptions *api.PodLogOptions, stdout, stderr io.Writer) (err error) {
 	f.Lock()
 	defer f.Unlock()
@@ -346,10 +338,26 @@ func (f *FakeRuntime) PortForward(pod *Pod, port uint16, stream io.ReadWriteClos
 	return f.Err
 }
 
+func (f *FakeRuntime) GetNetNS(containerID ContainerID) (string, error) {
+	f.Lock()
+	defer f.Unlock()
+
+	f.CalledFunctions = append(f.CalledFunctions, "GetNetNS")
+	return "", f.Err
+}
+
 func (f *FakeRuntime) GarbageCollect(gcPolicy ContainerGCPolicy) error {
 	f.Lock()
 	defer f.Unlock()
 
 	f.CalledFunctions = append(f.CalledFunctions, "GarbageCollect")
 	return f.Err
+}
+
+func (f *FakeRuntime) ImageStats() (*ImageStats, error) {
+	f.Lock()
+	defer f.Unlock()
+
+	f.CalledFunctions = append(f.CalledFunctions, "ImageStats")
+	return nil, f.Err
 }

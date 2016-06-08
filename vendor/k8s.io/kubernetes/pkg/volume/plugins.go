@@ -75,16 +75,16 @@ type VolumePlugin interface {
 	// const.
 	CanSupport(spec *Spec) bool
 
-	// NewBuilder creates a new volume.Builder from an API specification.
+	// NewMounter creates a new volume.Mounter from an API specification.
 	// Ownership of the spec pointer in *not* transferred.
 	// - spec: The api.Volume spec
 	// - pod: The enclosing pod
-	NewBuilder(spec *Spec, podRef *api.Pod, opts VolumeOptions) (Builder, error)
+	NewMounter(spec *Spec, podRef *api.Pod, opts VolumeOptions) (Mounter, error)
 
-	// NewCleaner creates a new volume.Cleaner from recoverable state.
+	// NewUnmounter creates a new volume.Unmounter from recoverable state.
 	// - name: The volume name, as per the api.Volume spec.
 	// - podUID: The UID of the enclosing pod
-	NewCleaner(name string, podUID types.UID) (Cleaner, error)
+	NewUnmounter(name string, podUID types.UID) (Unmounter, error)
 }
 
 // PersistentVolumePlugin is an extended interface of VolumePlugin and is used
@@ -101,7 +101,7 @@ type RecyclableVolumePlugin interface {
 	VolumePlugin
 	// NewRecycler creates a new volume.Recycler which knows how to reclaim this resource
 	// after the volume's release from a PersistentVolumeClaim
-	NewRecycler(spec *Spec) (Recycler, error)
+	NewRecycler(pvName string, spec *Spec) (Recycler, error)
 }
 
 // DeletableVolumePlugin is an extended interface of VolumePlugin and is used by persistent volumes that want
@@ -131,8 +131,20 @@ type ProvisionableVolumePlugin interface {
 // to a node before mounting.
 type AttachableVolumePlugin interface {
 	VolumePlugin
-	NewAttacher(spec *Spec) (Attacher, error)
-	NewDetacher(name string, podUID types.UID) (Detacher, error)
+	NewAttacher() (Attacher, error)
+	NewDetacher() (Detacher, error)
+
+	// GetUniqueVolumeName returns a unique name representing the volume
+	// defined in spec. e.g. pluginname-deviceName-readwrite
+	// This helps ensures that the same operation (attach/detach) is never
+	// started on the same volume.
+	// If the plugin does not support the given spec, this returns an error.
+	GetUniqueVolumeName(spec *Spec) (string, error)
+
+	// GetDeviceName returns the name or ID of the device referenced in the
+	// specified volume spec. This is passed by callers to the Deatch method.
+	// If the plugin does not support the given spec, this returns an error.
+	GetDeviceName(spec *Spec) (string, error)
 }
 
 // VolumeHost is an interface that plugins can use to access the kubelet.
@@ -158,16 +170,16 @@ type VolumeHost interface {
 	// GetKubeClient returns a client interface
 	GetKubeClient() clientset.Interface
 
-	// NewWrapperBuilder finds an appropriate plugin with which to handle
+	// NewWrapperMounter finds an appropriate plugin with which to handle
 	// the provided spec.  This is used to implement volume plugins which
 	// "wrap" other plugins.  For example, the "secret" volume is
 	// implemented in terms of the "emptyDir" volume.
-	NewWrapperBuilder(volName string, spec Spec, pod *api.Pod, opts VolumeOptions) (Builder, error)
+	NewWrapperMounter(volName string, spec Spec, pod *api.Pod, opts VolumeOptions) (Mounter, error)
 
-	// NewWrapperCleaner finds an appropriate plugin with which to handle
-	// the provided spec.  See comments on NewWrapperBuilder for more
+	// NewWrapperUnmounter finds an appropriate plugin with which to handle
+	// the provided spec.  See comments on NewWrapperMounter for more
 	// context.
-	NewWrapperCleaner(volName string, spec Spec, podUID types.UID) (Cleaner, error)
+	NewWrapperUnmounter(volName string, spec Spec, podUID types.UID) (Unmounter, error)
 
 	// Get cloud provider from kubelet.
 	GetCloudProvider() cloudprovider.Interface
@@ -238,6 +250,9 @@ type VolumeConfig struct {
 	// Example: 5Gi volume x 30s increment = 150s + 30s minimum = 180s ActiveDeadlineSeconds for recycler pod
 	RecyclerTimeoutIncrement int
 
+	// PVName is name of the PersistentVolume instance that is being recycled. It is used to generate unique recycler pod name.
+	PVName string
+
 	// OtherAttributes stores config as strings.  These strings are opaque to the system and only understood by the binary
 	// hosting the plugin and the plugin itself.
 	OtherAttributes map[string]string
@@ -272,8 +287,8 @@ func (pm *VolumePluginMgr) InitPlugins(plugins []VolumePlugin, host VolumeHost) 
 	allErrs := []error{}
 	for _, plugin := range plugins {
 		name := plugin.Name()
-		if !validation.IsQualifiedName(name) {
-			allErrs = append(allErrs, fmt.Errorf("volume plugin has invalid name: %#v", plugin))
+		if errs := validation.IsQualifiedName(name); len(errs) != 0 {
+			allErrs = append(allErrs, fmt.Errorf("volume plugin has invalid name: %q: %s", name, strings.Join(errs, ";")))
 			continue
 		}
 
@@ -403,7 +418,7 @@ func (pm *VolumePluginMgr) FindCreatablePluginBySpec(spec *Spec) (ProvisionableV
 }
 
 // FindAttachablePluginBySpec fetches a persistent volume plugin by name.  Unlike the other "FindPlugin" methods, this
-// does not return error if no plugin is found.  All volumes require a builder and cleaner, but not every volume will
+// does not return error if no plugin is found.  All volumes require a mounter and unmounter, but not every volume will
 // have an attacher/detacher.
 func (pm *VolumePluginMgr) FindAttachablePluginBySpec(spec *Spec) (AttachableVolumePlugin, error) {
 	volumePlugin, err := pm.FindPluginBySpec(spec)
@@ -417,7 +432,7 @@ func (pm *VolumePluginMgr) FindAttachablePluginBySpec(spec *Spec) (AttachableVol
 }
 
 // FindAttachablePluginByName fetches an attachable volume plugin by name. Unlike the other "FindPlugin" methods, this
-// does not return error if no plugin is found.  All volumes require a builder and cleaner, but not every volume will
+// does not return error if no plugin is found.  All volumes require a mounter and unmounter, but not every volume will
 // have an attacher/detacher.
 func (pm *VolumePluginMgr) FindAttachablePluginByName(name string) (AttachableVolumePlugin, error) {
 	volumePlugin, err := pm.FindPluginByName(name)

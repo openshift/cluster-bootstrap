@@ -32,7 +32,7 @@ import (
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/kubelet/util/format"
 	"k8s.io/kubernetes/pkg/types"
-	"k8s.io/kubernetes/pkg/util"
+	"k8s.io/kubernetes/pkg/util/diff"
 	"k8s.io/kubernetes/pkg/util/wait"
 )
 
@@ -172,20 +172,14 @@ func (m *manager) SetContainerReadiness(podUID types.UID, containerID kubecontai
 	}
 
 	// Find the container to update.
-	containerIndex := -1
-	for i, c := range oldStatus.status.ContainerStatuses {
-		if c.ContainerID == containerID.String() {
-			containerIndex = i
-			break
-		}
-	}
-	if containerIndex == -1 {
+	containerStatus, _, ok := findContainerStatus(&oldStatus.status, containerID.String())
+	if !ok {
 		glog.Warningf("Container readiness changed for unknown container: %q - %q",
 			format.Pod(pod), containerID.String())
 		return
 	}
 
-	if oldStatus.status.ContainerStatuses[containerIndex].Ready == ready {
+	if containerStatus.Ready == ready {
 		glog.V(4).Infof("Container readiness unchanged (%v): %q - %q", ready,
 			format.Pod(pod), containerID.String())
 		return
@@ -196,7 +190,8 @@ func (m *manager) SetContainerReadiness(podUID types.UID, containerID kubecontai
 	if err != nil {
 		return
 	}
-	status.ContainerStatuses[containerIndex].Ready = ready
+	containerStatus, _, _ = findContainerStatus(&status, containerID.String())
+	containerStatus.Ready = ready
 
 	// Update pod condition.
 	readyConditionIndex := -1
@@ -217,6 +212,31 @@ func (m *manager) SetContainerReadiness(podUID types.UID, containerID kubecontai
 	m.updateStatusInternal(pod, status, false)
 }
 
+func findContainerStatus(status *api.PodStatus, containerID string) (containerStatus *api.ContainerStatus, init bool, ok bool) {
+	// Find the container to update.
+	containerIndex := -1
+	for i, c := range status.ContainerStatuses {
+		if c.ContainerID == containerID {
+			containerIndex = i
+			break
+		}
+	}
+	if containerIndex != -1 {
+		return &status.ContainerStatuses[containerIndex], false, true
+	}
+
+	for i, c := range status.InitContainerStatuses {
+		if c.ContainerID == containerID {
+			containerIndex = i
+			break
+		}
+	}
+	if containerIndex != -1 {
+		return &status.InitContainerStatuses[containerIndex], true, true
+	}
+	return nil, false, false
+}
+
 func (m *manager) TerminatePod(pod *api.Pod) {
 	m.podStatusesLock.Lock()
 	defer m.podStatusesLock.Unlock()
@@ -230,6 +250,11 @@ func (m *manager) TerminatePod(pod *api.Pod) {
 	}
 	for i := range status.ContainerStatuses {
 		status.ContainerStatuses[i].State = api.ContainerState{
+			Terminated: &api.ContainerStateTerminated{},
+		}
+	}
+	for i := range status.InitContainerStatuses {
+		status.InitContainerStatuses[i].State = api.ContainerState{
 			Terminated: &api.ContainerStateTerminated{},
 		}
 	}
@@ -251,14 +276,25 @@ func (m *manager) updateStatusInternal(pod *api.Pod, status api.PodStatus, force
 	}
 
 	// Set ReadyCondition.LastTransitionTime.
-	if readyCondition := api.GetPodReadyCondition(status); readyCondition != nil {
+	if _, readyCondition := api.GetPodCondition(&status, api.PodReady); readyCondition != nil {
 		// Need to set LastTransitionTime.
 		lastTransitionTime := unversioned.Now()
-		oldReadyCondition := api.GetPodReadyCondition(oldStatus)
+		_, oldReadyCondition := api.GetPodCondition(&oldStatus, api.PodReady)
 		if oldReadyCondition != nil && readyCondition.Status == oldReadyCondition.Status {
 			lastTransitionTime = oldReadyCondition.LastTransitionTime
 		}
 		readyCondition.LastTransitionTime = lastTransitionTime
+	}
+
+	// Set InitializedCondition.LastTransitionTime.
+	if _, initCondition := api.GetPodCondition(&status, api.PodInitialized); initCondition != nil {
+		// Need to set LastTransitionTime.
+		lastTransitionTime := unversioned.Now()
+		_, oldInitCondition := api.GetPodCondition(&oldStatus, api.PodInitialized)
+		if oldInitCondition != nil && initCondition.Status == oldInitCondition.Status {
+			lastTransitionTime = oldInitCondition.LastTransitionTime
+		}
+		initCondition.LastTransitionTime = lastTransitionTime
 	}
 
 	// ensure that the start time does not change across updates.
@@ -396,7 +432,10 @@ func (m *manager) syncPod(uid types.UID, status versionedPodStatus) {
 				glog.V(3).Infof("Pod %q is terminated, but some containers are still running", format.Pod(pod))
 				return
 			}
-			if err := m.kubeClient.Core().Pods(pod.Namespace).Delete(pod.Name, api.NewDeleteOptions(0)); err == nil {
+			deleteOptions := api.NewDeleteOptions(0)
+			// Use the pod UID as the precondition for deletion to prevent deleting a newly created pod with the same name and namespace.
+			deleteOptions.Preconditions = api.NewUIDPreconditions(string(pod.UID))
+			if err := m.kubeClient.Core().Pods(pod.Namespace).Delete(pod.Name, deleteOptions); err == nil {
 				glog.V(3).Infof("Pod %q fully terminated and removed from etcd", format.Pod(pod))
 				m.deletePodStatus(uid)
 				return
@@ -453,7 +492,7 @@ func (m *manager) needsReconcile(uid types.UID, status api.PodStatus) bool {
 		return false
 	}
 	glog.V(3).Infof("Pod status is inconsistent with cached status for pod %q, a reconciliation should be triggered:\n %+v", format.Pod(pod),
-		util.ObjectDiff(podStatus, status))
+		diff.ObjectDiff(podStatus, status))
 
 	return true
 }
@@ -487,6 +526,8 @@ func normalizeStatus(status *api.PodStatus) *api.PodStatus {
 		normalizeTimeStamp(&condition.LastProbeTime)
 		normalizeTimeStamp(&condition.LastTransitionTime)
 	}
+
+	// update container statuses
 	for i := range status.ContainerStatuses {
 		cstatus := &status.ContainerStatuses[i]
 		normalizeContainerState(&cstatus.State)
@@ -494,6 +535,15 @@ func normalizeStatus(status *api.PodStatus) *api.PodStatus {
 	}
 	// Sort the container statuses, so that the order won't affect the result of comparison
 	sort.Sort(kubetypes.SortedContainerStatuses(status.ContainerStatuses))
+
+	// update init container statuses
+	for i := range status.InitContainerStatuses {
+		cstatus := &status.InitContainerStatuses[i]
+		normalizeContainerState(&cstatus.State)
+		normalizeContainerState(&cstatus.LastTerminationState)
+	}
+	// Sort the container statuses, so that the order won't affect the result of comparison
+	sort.Sort(kubetypes.SortedContainerStatuses(status.InitContainerStatuses))
 	return status
 }
 

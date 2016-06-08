@@ -18,8 +18,14 @@ package rand
 
 import (
 	"math/rand"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
+)
+
+const (
+	maxRangeTestCount = 500
 )
 
 func TestString(t *testing.T) {
@@ -67,6 +73,41 @@ func TestPerm(t *testing.T) {
 		for j := 0; j < i; j++ {
 			if actual[j] != expected[j] {
 				t.Errorf("Perm call result is unexpected")
+			}
+		}
+	}
+}
+
+func TestShuffle(t *testing.T) {
+	Seed(5) // Arbitrary RNG seed for deterministic testing.
+	have := []int{0, 1, 2, 3, 4}
+	want := []int{3, 2, 4, 1, 0} // "have" shuffled, with RNG at Seed(5).
+	got := append([]int{}, have...)
+	Shuffle(sort.IntSlice(got))
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Shuffle(%v) => %v, want %v", have, got, want)
+	}
+}
+
+func TestIntnRange(t *testing.T) {
+	// 0 is invalid.
+	for min, max := range map[int]int{1: 2, 10: 123, 100: 500} {
+		for i := 0; i < maxRangeTestCount; i++ {
+			inrange := IntnRange(min, max)
+			if inrange < min || inrange >= max {
+				t.Errorf("%v out of range (%v,%v)", inrange, min, max)
+			}
+		}
+	}
+}
+
+func TestInt63nRange(t *testing.T) {
+	// 0 is invalid.
+	for min, max := range map[int64]int64{1: 2, 10: 123, 100: 500} {
+		for i := 0; i < maxRangeTestCount; i++ {
+			inrange := Int63nRange(min, max)
+			if inrange < min || inrange >= max {
+				t.Errorf("%v out of range (%v,%v)", inrange, min, max)
 			}
 		}
 	}

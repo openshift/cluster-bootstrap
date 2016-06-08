@@ -38,11 +38,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/elb"
-	"github.com/scalingdata/gcfg"
+	"gopkg.in/gcfg.v1"
 
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/cloudprovider"
-	"k8s.io/kubernetes/pkg/credentialprovider/aws"
+	aws_credentials "k8s.io/kubernetes/pkg/credentialprovider/aws"
 	"k8s.io/kubernetes/pkg/types"
 
 	"github.com/golang/glog"
@@ -68,6 +68,30 @@ const TagNameSubnetPublicELB = "kubernetes.io/role/elb"
 // Currently we accept only the value "0.0.0.0/0" - other values are an error.
 // This lets us define more advanced semantics in future.
 const ServiceAnnotationLoadBalancerInternal = "service.beta.kubernetes.io/aws-load-balancer-internal"
+
+// Annotation used on the service to enable the proxy protocol on an ELB. Right now we only
+// accept the value "*" which means enable the proxy protocol on all ELB backends. In the
+// future we could adjust this to allow setting the proxy protocol only on certain backends.
+const ServiceAnnotationLoadBalancerProxyProtocol = "service.beta.kubernetes.io/aws-load-balancer-proxy-protocol"
+
+// Service annotation requesting a secure listener. Value is a valid certificate ARN.
+// For more, see http://docs.aws.amazon.com/ElasticLoadBalancing/latest/DeveloperGuide/elb-listener-config.html
+// CertARN is an IAM or CM certificate ARN, e.g. arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012
+const ServiceAnnotationLoadBalancerCertificate = "service.beta.kubernetes.io/aws-load-balancer-ssl-cert"
+
+// Service annotation specifying the protocol spoken by the backend (pod) behind a secure listener.
+// Only inspected when `aws-load-balancer-ssl-cert` is used.
+// If `http` (default) or `https`, an HTTPS listener that terminates the connection and parses headers is created.
+// If set to `ssl` or `tcp`, a "raw" SSL listener is used.
+const ServiceAnnotationLoadBalancerBEProtocol = "service.beta.kubernetes.io/aws-load-balancer-backend-protocol"
+
+// Maps from backend protocol to ELB protocol
+var backendProtocolMapping = map[string]string{
+	"https": "https",
+	"http":  "https",
+	"ssl":   "ssl",
+	"tcp":   "ssl",
+}
 
 // We sometimes read to see if something exists; then try to create it if we didn't find it
 // This can fail once in a consistent system if done in parallel
@@ -140,6 +164,8 @@ type ELB interface {
 	DescribeLoadBalancers(*elb.DescribeLoadBalancersInput) (*elb.DescribeLoadBalancersOutput, error)
 	RegisterInstancesWithLoadBalancer(*elb.RegisterInstancesWithLoadBalancerInput) (*elb.RegisterInstancesWithLoadBalancerOutput, error)
 	DeregisterInstancesFromLoadBalancer(*elb.DeregisterInstancesFromLoadBalancerInput) (*elb.DeregisterInstancesFromLoadBalancerOutput, error)
+	CreateLoadBalancerPolicy(*elb.CreateLoadBalancerPolicyInput) (*elb.CreateLoadBalancerPolicyOutput, error)
+	SetLoadBalancerPoliciesForBackendServer(*elb.SetLoadBalancerPoliciesForBackendServerInput) (*elb.SetLoadBalancerPoliciesForBackendServerOutput, error)
 
 	DetachLoadBalancerFromSubnets(*elb.DetachLoadBalancerFromSubnetsInput) (*elb.DetachLoadBalancerFromSubnetsOutput, error)
 	AttachLoadBalancerToSubnets(*elb.AttachLoadBalancerToSubnetsInput) (*elb.AttachLoadBalancerToSubnetsOutput, error)
@@ -566,20 +592,7 @@ func getAvailabilityZone(metadata EC2Metadata) (string, error) {
 }
 
 func isRegionValid(region string) bool {
-	regions := [...]string{
-		"us-east-1",
-		"us-west-1",
-		"us-west-2",
-		"eu-west-1",
-		"eu-central-1",
-		"ap-southeast-1",
-		"ap-southeast-2",
-		"ap-northeast-1",
-		"cn-north-1",
-		"us-gov-west-1",
-		"sa-east-1",
-	}
-	for _, r := range regions {
+	for _, r := range aws_credentials.AWSRegions {
 		if r == region {
 			return true
 		}
@@ -904,23 +917,6 @@ type awsInstanceType struct {
 // This should be stored as a single letter (i.e. c, not sdc or /dev/sdc)
 type mountDevice string
 
-// TODO: Also return number of mounts allowed?
-func (self *awsInstanceType) getEBSMountDevices() []mountDevice {
-	// See: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/block-device-mapping-concepts.html
-	// We will generate "ba", "bb", "bc"..."bz", "ca", ..., up to DefaultMaxEBSVolumes
-	devices := []mountDevice{}
-	count := 0
-	for first := 'b'; count < DefaultMaxEBSVolumes; first++ {
-		for second := 'a'; count < DefaultMaxEBSVolumes && second <= 'z'; second++ {
-			device := mountDevice(fmt.Sprintf("%c%c", first, second))
-			devices = append(devices, device)
-			count++
-		}
-	}
-
-	return devices
-}
-
 type awsInstance struct {
 	ec2 EC2
 
@@ -1050,19 +1046,20 @@ func (self *awsInstance) getMountDevice(volumeID string, assign bool) (assigned 
 		return mountDevice(""), false, nil
 	}
 
-	// Check all the valid mountpoints to see if any of them are free
-	valid := instanceType.getEBSMountDevices()
-	chosen := mountDevice("")
-	for _, mountDevice := range valid {
-		_, found := deviceMappings[mountDevice]
-		if !found {
-			chosen = mountDevice
-			break
+	// Find the first unused device in sequence 'ba', 'bb', 'bc', ... 'bz', 'ca', ... 'zz'
+	var chosen mountDevice
+	for first := 'b'; first <= 'z' && chosen == ""; first++ {
+		for second := 'a'; second <= 'z' && chosen == ""; second++ {
+			candidate := mountDevice(fmt.Sprintf("%c%c", first, second))
+			if _, found := deviceMappings[candidate]; !found {
+				chosen = candidate
+				break
+			}
 		}
 	}
 
 	if chosen == "" {
-		glog.Warningf("Could not assign a mount device (all in use?).  mappings=%v, valid=%v", deviceMappings, valid)
+		glog.Warningf("Could not assign a mount device (all in use?).  mappings=%v", deviceMappings)
 		return "", false, fmt.Errorf("Too many EBS volumes attached to node %s.", self.nodeName)
 	}
 
@@ -1486,7 +1483,7 @@ func (s *AWSCloud) describeLoadBalancer(name string) (*elb.LoadBalancerDescripti
 func (self *AWSCloud) findVPCID() (string, error) {
 	macs, err := self.metadata.GetMetadata("network/interfaces/macs/")
 	if err != nil {
-		return "", fmt.Errorf("Could not list interfaces of the instance", err)
+		return "", fmt.Errorf("Could not list interfaces of the instance: %v", err)
 	}
 
 	// loop over interfaces, first vpc id returned wins
@@ -1513,7 +1510,7 @@ func (s *AWSCloud) findSecurityGroup(securityGroupId string) (*ec2.SecurityGroup
 
 	groups, err := s.ec2.DescribeSecurityGroups(describeSecurityGroupsRequest)
 	if err != nil {
-		glog.Warning("Error retrieving security group", err)
+		glog.Warningf("Error retrieving security group: %q", err)
 		return nil, err
 	}
 
@@ -1522,7 +1519,7 @@ func (s *AWSCloud) findSecurityGroup(securityGroupId string) (*ec2.SecurityGroup
 	}
 	if len(groups) != 1 {
 		// This should not be possible - ids should be unique
-		return nil, fmt.Errorf("multiple security groups found with same id")
+		return nil, fmt.Errorf("multiple security groups found with same id %q", securityGroupId)
 	}
 	group := groups[0]
 	return group, nil
@@ -1680,7 +1677,7 @@ func (s *AWSCloud) setSecurityGroupIngress(securityGroupId string, permissions I
 func (s *AWSCloud) addSecurityGroupIngress(securityGroupId string, addPermissions []*ec2.IpPermission) (bool, error) {
 	group, err := s.findSecurityGroup(securityGroupId)
 	if err != nil {
-		glog.Warning("Error retrieving security group", err)
+		glog.Warningf("Error retrieving security group: %v", err)
 		return false, err
 	}
 
@@ -1736,7 +1733,7 @@ func (s *AWSCloud) addSecurityGroupIngress(securityGroupId string, addPermission
 func (s *AWSCloud) removeSecurityGroupIngress(securityGroupId string, removePermissions []*ec2.IpPermission) (bool, error) {
 	group, err := s.findSecurityGroup(securityGroupId)
 	if err != nil {
-		glog.Warning("Error retrieving security group", err)
+		glog.Warningf("Error retrieving security group: %v", err)
 		return false, err
 	}
 
@@ -1778,7 +1775,7 @@ func (s *AWSCloud) removeSecurityGroupIngress(securityGroupId string, removePerm
 	request.IpPermissions = changes
 	_, err = s.ec2.RevokeSecurityGroupIngress(request)
 	if err != nil {
-		glog.Warning("Error revoking security group ingress", err)
+		glog.Warningf("Error revoking security group ingress: %v", err)
 		return false, err
 	}
 
@@ -1843,7 +1840,7 @@ func (s *AWSCloud) ensureSecurityGroup(name string, description string) (string,
 
 		if len(securityGroups) >= 1 {
 			if len(securityGroups) > 1 {
-				glog.Warning("Found multiple security groups with name:", name)
+				glog.Warningf("Found multiple security groups with name: %q", name)
 			}
 			err := s.ensureClusterTags(aws.StringValue(securityGroups[0].GroupId), securityGroups[0].Tags)
 			if err != nil {
@@ -1947,7 +1944,7 @@ func findTag(tags []*ec2.Tag, key string) (string, bool) {
 }
 
 // Finds the subnets associated with the cluster, by matching tags.
-// For maximal backwards compatability, if no subnets are tagged, it will fall-back to the current subnet.
+// For maximal backwards compatibility, if no subnets are tagged, it will fall-back to the current subnet.
 // However, in future this will likely be treated as an error.
 func (c *AWSCloud) findSubnets() ([]*ec2.Subnet, error) {
 	request := &ec2.DescribeSubnetsInput{}
@@ -2041,7 +2038,7 @@ func (s *AWSCloud) findELBSubnets(internalELB bool) ([]string, error) {
 		}
 
 		// TODO: Should this be an error?
-		glog.Warning("Found multiple subnets in AZ %q; making arbitrary choice between subnets %q and %q", az, *existing.SubnetId, *subnet.SubnetId)
+		glog.Warningf("Found multiple subnets in AZ %q; making arbitrary choice between subnets %q and %q", az, *existing.SubnetId, *subnet.SubnetId)
 		continue
 	}
 
@@ -2098,32 +2095,70 @@ func isSubnetPublic(rt []*ec2.RouteTable, subnetID string) (bool, error) {
 	return false, nil
 }
 
+// buildListener creates a new listener from the given port, adding an SSL certificate
+// if indicated by the appropriate annotations.
+func buildListener(port api.ServicePort, annotations map[string]string) (*elb.Listener, error) {
+	loadBalancerPort := int64(port.Port)
+	instancePort := int64(port.NodePort)
+	protocol := strings.ToLower(string(port.Protocol))
+	instanceProtocol := protocol
+
+	listener := &elb.Listener{}
+	listener.InstancePort = &instancePort
+	listener.LoadBalancerPort = &loadBalancerPort
+	certID := annotations[ServiceAnnotationLoadBalancerCertificate]
+	if certID != "" {
+		instanceProtocol = annotations[ServiceAnnotationLoadBalancerBEProtocol]
+		if instanceProtocol == "" {
+			protocol = "ssl"
+			instanceProtocol = "tcp"
+		} else {
+			protocol = backendProtocolMapping[instanceProtocol]
+			if protocol == "" {
+				return nil, fmt.Errorf("Invalid backend protocol %s for %s in %s", instanceProtocol, certID, ServiceAnnotationLoadBalancerBEProtocol)
+			}
+		}
+		listener.SSLCertificateId = &certID
+	}
+	listener.Protocol = &protocol
+	listener.InstanceProtocol = &instanceProtocol
+
+	return listener, nil
+}
+
 // EnsureLoadBalancer implements LoadBalancer.EnsureLoadBalancer
-// TODO(justinsb) It is weird that these take a region.  I suspect it won't work cross-region anyway.
-func (s *AWSCloud) EnsureLoadBalancer(name, region string, publicIP net.IP, ports []*api.ServicePort, hosts []string, serviceName types.NamespacedName, affinity api.ServiceAffinity, annotations map[string]string) (*api.LoadBalancerStatus, error) {
-	glog.V(2).Infof("EnsureLoadBalancer(%v, %v, %v, %v, %v, %v, %v)", name, region, publicIP, ports, hosts, serviceName, annotations)
+func (s *AWSCloud) EnsureLoadBalancer(apiService *api.Service, hosts []string) (*api.LoadBalancerStatus, error) {
+	glog.V(2).Infof("EnsureLoadBalancer(%v, %v, %v, %v, %v, %v, %v)",
+		apiService.Namespace, apiService.Name, s.region, apiService.Spec.LoadBalancerIP, apiService.Spec.Ports, hosts, apiService.Annotations)
 
-	if region != s.region {
-		return nil, fmt.Errorf("requested load balancer region '%s' does not match cluster region '%s'", region, s.region)
-	}
-
-	if affinity != api.ServiceAffinityNone {
+	if apiService.Spec.SessionAffinity != api.ServiceAffinityNone {
 		// ELB supports sticky sessions, but only when configured for HTTP/HTTPS
-		return nil, fmt.Errorf("unsupported load balancer affinity: %v", affinity)
+		return nil, fmt.Errorf("unsupported load balancer affinity: %v", apiService.Spec.SessionAffinity)
 	}
 
-	if len(ports) == 0 {
+	if len(apiService.Spec.Ports) == 0 {
 		return nil, fmt.Errorf("requested load balancer with no ports")
 	}
 
-	for _, port := range ports {
+	// Figure out what mappings we want on the load balancer
+	listeners := []*elb.Listener{}
+	for _, port := range apiService.Spec.Ports {
 		if port.Protocol != api.ProtocolTCP {
 			return nil, fmt.Errorf("Only TCP LoadBalancer is supported for AWS ELB")
 		}
+		if port.NodePort == 0 {
+			glog.Errorf("Ignoring port without NodePort defined: %v", port)
+			continue
+		}
+		listener, err := buildListener(port, apiService.Annotations)
+		if err != nil {
+			return nil, err
+		}
+		listeners = append(listeners, listener)
 	}
 
-	if publicIP != nil {
-		return nil, fmt.Errorf("publicIP cannot be specified for AWS ELB")
+	if apiService.Spec.LoadBalancerIP != "" {
+		return nil, fmt.Errorf("LoadBalancerIP cannot be specified for AWS ELB")
 	}
 
 	instances, err := s.getInstancesByNodeNames(hosts)
@@ -2131,14 +2166,14 @@ func (s *AWSCloud) EnsureLoadBalancer(name, region string, publicIP net.IP, port
 		return nil, err
 	}
 
-	sourceRanges, err := service.GetLoadBalancerSourceRanges(annotations)
+	sourceRanges, err := service.GetLoadBalancerSourceRanges(apiService)
 	if err != nil {
 		return nil, err
 	}
 
 	// Determine if this is tagged as an Internal ELB
 	internalELB := false
-	internalAnnotation := annotations[ServiceAnnotationLoadBalancerInternal]
+	internalAnnotation := apiService.Annotations[ServiceAnnotationLoadBalancerInternal]
 	if internalAnnotation != "" {
 		if internalAnnotation != "0.0.0.0/0" {
 			return nil, fmt.Errorf("annotation %q=%q detected, but the only value supported currently is 0.0.0.0/0", ServiceAnnotationLoadBalancerInternal, internalAnnotation)
@@ -2148,6 +2183,16 @@ func (s *AWSCloud) EnsureLoadBalancer(name, region string, publicIP net.IP, port
 			return nil, fmt.Errorf("source-range annotation cannot be combined with the internal-elb annotation")
 		}
 		internalELB = true
+	}
+
+	// Determine if we need to set the Proxy protocol policy
+	proxyProtocol := false
+	proxyProtocolAnnotation := apiService.Annotations[ServiceAnnotationLoadBalancerProxyProtocol]
+	if proxyProtocolAnnotation != "" {
+		if proxyProtocolAnnotation != "*" {
+			return nil, fmt.Errorf("annotation %q=%q detected, but the only value supported currently is '*'", ServiceAnnotationLoadBalancerProxyProtocol, proxyProtocolAnnotation)
+		}
+		proxyProtocol = true
 	}
 
 	// Find the subnets that the ELB will live in
@@ -2162,11 +2207,14 @@ func (s *AWSCloud) EnsureLoadBalancer(name, region string, publicIP net.IP, port
 		return nil, fmt.Errorf("could not find any suitable subnets for creating the ELB")
 	}
 
+	loadBalancerName := cloudprovider.GetLoadBalancerName(apiService)
+	serviceName := types.NamespacedName{Namespace: apiService.Namespace, Name: apiService.Name}
+
 	// Create a security group for the load balancer
 	var securityGroupID string
 	{
-		sgName := "k8s-elb-" + name
-		sgDescription := fmt.Sprintf("Security group for Kubernetes ELB %s (%v)", name, serviceName)
+		sgName := "k8s-elb-" + loadBalancerName
+		sgDescription := fmt.Sprintf("Security group for Kubernetes ELB %s (%v)", loadBalancerName, serviceName)
 		securityGroupID, err = s.ensureSecurityGroup(sgName, sgDescription)
 		if err != nil {
 			glog.Error("Error creating load balancer security group: ", err)
@@ -2179,7 +2227,7 @@ func (s *AWSCloud) EnsureLoadBalancer(name, region string, publicIP net.IP, port
 		}
 
 		permissions := NewIPPermissionSet()
-		for _, port := range ports {
+		for _, port := range apiService.Spec.Ports {
 			portInt64 := int64(port.Port)
 			protocol := strings.ToLower(string(port.Protocol))
 
@@ -2198,28 +2246,16 @@ func (s *AWSCloud) EnsureLoadBalancer(name, region string, publicIP net.IP, port
 	}
 	securityGroupIDs := []string{securityGroupID}
 
-	// Figure out what mappings we want on the load balancer
-	listeners := []*elb.Listener{}
-	for _, port := range ports {
-		if port.NodePort == 0 {
-			glog.Errorf("Ignoring port without NodePort defined: %v", port)
-			continue
-		}
-		instancePort := int64(port.NodePort)
-		loadBalancerPort := int64(port.Port)
-		protocol := strings.ToLower(string(port.Protocol))
-
-		listener := &elb.Listener{}
-		listener.InstancePort = &instancePort
-		listener.LoadBalancerPort = &loadBalancerPort
-		listener.Protocol = &protocol
-		listener.InstanceProtocol = &protocol
-
-		listeners = append(listeners, listener)
-	}
-
 	// Build the load balancer itself
-	loadBalancer, err := s.ensureLoadBalancer(serviceName, name, listeners, subnetIDs, securityGroupIDs, internalELB)
+	loadBalancer, err := s.ensureLoadBalancer(
+		serviceName,
+		loadBalancerName,
+		listeners,
+		subnetIDs,
+		securityGroupIDs,
+		internalELB,
+		proxyProtocol,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2231,7 +2267,7 @@ func (s *AWSCloud) EnsureLoadBalancer(name, region string, publicIP net.IP, port
 
 	err = s.updateInstanceSecurityGroupsForLoadBalancer(loadBalancer, instances)
 	if err != nil {
-		glog.Warning("Error opening ingress rules for the load balancer to the instances: ", err)
+		glog.Warningf("Error opening ingress rules for the load balancer to the instances: %v", err)
 		return nil, err
 	}
 
@@ -2241,7 +2277,7 @@ func (s *AWSCloud) EnsureLoadBalancer(name, region string, publicIP net.IP, port
 		return nil, err
 	}
 
-	glog.V(1).Infof("Loadbalancer %s (%v) has DNS name %s", name, serviceName, orEmpty(loadBalancer.DNSName))
+	glog.V(1).Infof("Loadbalancer %s (%v) has DNS name %s", loadBalancerName, serviceName, orEmpty(loadBalancer.DNSName))
 
 	// TODO: Wait for creation?
 
@@ -2250,12 +2286,9 @@ func (s *AWSCloud) EnsureLoadBalancer(name, region string, publicIP net.IP, port
 }
 
 // GetLoadBalancer is an implementation of LoadBalancer.GetLoadBalancer
-func (s *AWSCloud) GetLoadBalancer(name, region string) (*api.LoadBalancerStatus, bool, error) {
-	if region != s.region {
-		return nil, false, fmt.Errorf("requested load balancer region '%s' does not match cluster region '%s'", region, s.region)
-	}
-
-	lb, err := s.describeLoadBalancer(name)
+func (s *AWSCloud) GetLoadBalancer(service *api.Service) (*api.LoadBalancerStatus, bool, error) {
+	loadBalancerName := cloudprovider.GetLoadBalancerName(service)
+	lb, err := s.describeLoadBalancer(loadBalancerName)
 	if err != nil {
 		return nil, false, err
 	}
@@ -2360,7 +2393,7 @@ func (s *AWSCloud) updateInstanceSecurityGroupsForLoadBalancer(lb *elb.LoadBalan
 		}
 		if loadBalancerSecurityGroupId != "" {
 			// We create LBs with one SG
-			glog.Warning("Multiple security groups for load balancer: ", orEmpty(lb.LoadBalancerName))
+			glog.Warningf("Multiple security groups for load balancer: %q", orEmpty(lb.LoadBalancerName))
 		}
 		loadBalancerSecurityGroupId = *securityGroup
 	}
@@ -2469,18 +2502,15 @@ func (s *AWSCloud) updateInstanceSecurityGroupsForLoadBalancer(lb *elb.LoadBalan
 }
 
 // EnsureLoadBalancerDeleted implements LoadBalancer.EnsureLoadBalancerDeleted.
-func (s *AWSCloud) EnsureLoadBalancerDeleted(name, region string) error {
-	if region != s.region {
-		return fmt.Errorf("requested load balancer region '%s' does not match cluster region '%s'", region, s.region)
-	}
-
-	lb, err := s.describeLoadBalancer(name)
+func (s *AWSCloud) EnsureLoadBalancerDeleted(service *api.Service) error {
+	loadBalancerName := cloudprovider.GetLoadBalancerName(service)
+	lb, err := s.describeLoadBalancer(loadBalancerName)
 	if err != nil {
 		return err
 	}
 
 	if lb == nil {
-		glog.Info("Load balancer already deleted: ", name)
+		glog.Info("Load balancer already deleted: ", loadBalancerName)
 		return nil
 	}
 
@@ -2515,7 +2545,7 @@ func (s *AWSCloud) EnsureLoadBalancerDeleted(name, region string) error {
 		securityGroupIDs := map[string]struct{}{}
 		for _, securityGroupID := range lb.SecurityGroups {
 			if isNilOrEmpty(securityGroupID) {
-				glog.Warning("Ignoring empty security group in ", name)
+				glog.Warning("Ignoring empty security group in ", service.Name)
 				continue
 			}
 			securityGroupIDs[*securityGroupID] = struct{}{}
@@ -2545,7 +2575,7 @@ func (s *AWSCloud) EnsureLoadBalancerDeleted(name, region string) error {
 			}
 
 			if len(securityGroupIDs) == 0 {
-				glog.V(2).Info("Deleted all security groups for load balancer: ", name)
+				glog.V(2).Info("Deleted all security groups for load balancer: ", service.Name)
 				break
 			}
 
@@ -2555,10 +2585,10 @@ func (s *AWSCloud) EnsureLoadBalancerDeleted(name, region string) error {
 					ids = append(ids, id)
 				}
 
-				return fmt.Errorf("timed out deleting ELB: %s. Could not delete security groups %v", name, strings.Join(ids, ","))
+				return fmt.Errorf("timed out deleting ELB: %s. Could not delete security groups %v", service.Name, strings.Join(ids, ","))
 			}
 
-			glog.V(2).Info("Waiting for load-balancer to delete so we can delete security groups: ", name)
+			glog.V(2).Info("Waiting for load-balancer to delete so we can delete security groups: ", service.Name)
 
 			time.Sleep(10 * time.Second)
 		}
@@ -2568,17 +2598,14 @@ func (s *AWSCloud) EnsureLoadBalancerDeleted(name, region string) error {
 }
 
 // UpdateLoadBalancer implements LoadBalancer.UpdateLoadBalancer
-func (s *AWSCloud) UpdateLoadBalancer(name, region string, hosts []string) error {
-	if region != s.region {
-		return fmt.Errorf("requested load balancer region '%s' does not match cluster region '%s'", region, s.region)
-	}
-
+func (s *AWSCloud) UpdateLoadBalancer(service *api.Service, hosts []string) error {
 	instances, err := s.getInstancesByNodeNames(hosts)
 	if err != nil {
 		return err
 	}
 
-	lb, err := s.describeLoadBalancer(name)
+	loadBalancerName := cloudprovider.GetLoadBalancerName(service)
+	lb, err := s.describeLoadBalancer(loadBalancerName)
 	if err != nil {
 		return err
 	}
