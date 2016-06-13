@@ -2,7 +2,7 @@
 
 ### Launch nodes
 
-To find the latest CoreOS alpha/beta/stable images, please see the (CoreOS GCE Documentation)[https://coreos.com/os/docs/latest/booting-on-google-compute-engine.html]
+To find the latest CoreOS alpha/beta/stable images, please see the [CoreOS GCE Documentation](https://coreos.com/os/docs/latest/booting-on-google-compute-engine.html)
 
 Launch 3 nodes:
 
