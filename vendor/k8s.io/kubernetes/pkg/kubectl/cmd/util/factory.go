@@ -159,6 +159,7 @@ const (
 	ServiceV2GeneratorName                      = "service/v2"
 	ServiceAccountV1GeneratorName               = "serviceaccount/v1"
 	HorizontalPodAutoscalerV1Beta1GeneratorName = "horizontalpodautoscaler/v1beta1"
+	HorizontalPodAutoscalerV1GeneratorName      = "horizontalpodautoscaler/v1"
 	DeploymentV1Beta1GeneratorName              = "deployment/v1beta1"
 	JobV1Beta1GeneratorName                     = "job/v1beta1"
 	JobV1GeneratorName                          = "job/v1"
@@ -185,6 +186,7 @@ func DefaultGenerators(cmdName string) map[string]kubectl.Generator {
 	}
 	generators["autoscale"] = map[string]kubectl.Generator{
 		HorizontalPodAutoscalerV1Beta1GeneratorName: kubectl.HorizontalPodAutoscalerV1Beta1{},
+		HorizontalPodAutoscalerV1GeneratorName:      kubectl.HorizontalPodAutoscalerV1{},
 	}
 	generators["namespace"] = map[string]kubectl.Generator{
 		NamespaceV1GeneratorName: kubectl.NamespaceGeneratorV1{},
@@ -317,11 +319,13 @@ func NewFactory(optionalClientConfig clientcmd.ClientConfig) *Factory {
 				Delegate: outputRESTMapper,
 				ResourcePriority: []unversioned.GroupVersionResource{
 					{Group: api.GroupName, Version: meta.AnyVersion, Resource: meta.AnyResource},
+					{Group: autoscaling.GroupName, Version: meta.AnyVersion, Resource: meta.AnyResource},
 					{Group: extensions.GroupName, Version: meta.AnyVersion, Resource: meta.AnyResource},
 					{Group: federation.GroupName, Version: meta.AnyVersion, Resource: meta.AnyResource},
 				},
 				KindPriority: []unversioned.GroupVersionKind{
 					{Group: api.GroupName, Version: meta.AnyVersion, Kind: meta.AnyKind},
+					{Group: autoscaling.GroupName, Version: meta.AnyVersion, Kind: meta.AnyKind},
 					{Group: extensions.GroupName, Version: meta.AnyVersion, Kind: meta.AnyKind},
 					{Group: federation.GroupName, Version: meta.AnyVersion, Kind: meta.AnyKind},
 				},
@@ -373,7 +377,8 @@ func NewFactory(optionalClientConfig clientcmd.ClientConfig) *Factory {
 				gv := gvk.GroupVersion()
 				cfg.GroupVersion = &gv
 				cfg.APIPath = "/apis"
-				cfg.Codec = thirdpartyresourcedata.NewCodec(c.ExtensionsClient.RESTClient.Codec(), gvk.Kind)
+				cfg.Codec = thirdpartyresourcedata.NewCodec(c.ExtensionsClient.RESTClient.Codec(), gvk)
+				cfg.NegotiatedSerializer = thirdpartyresourcedata.NewNegotiatedSerializer(api.Codecs, gvk.Kind, gv, gv)
 				return restclient.RESTClientFor(cfg)
 			}
 		},
@@ -398,10 +403,14 @@ func NewFactory(optionalClientConfig clientcmd.ClientConfig) *Factory {
 			return nil, fmt.Errorf("no description has been implemented for %q", mapping.GroupVersionKind.Kind)
 		},
 		Decoder: func(toInternal bool) runtime.Decoder {
+			var decoder runtime.Decoder
 			if toInternal {
-				return api.Codecs.UniversalDecoder()
+				decoder = api.Codecs.UniversalDecoder()
+			} else {
+				decoder = api.Codecs.UniversalDeserializer()
 			}
-			return api.Codecs.UniversalDeserializer()
+			return thirdpartyresourcedata.NewDecoder(decoder, "")
+
 		},
 		JSONEncoder: func() runtime.Encoder {
 			return api.Codecs.LegacyCodec(registered.EnabledVersions()...)
@@ -768,7 +777,7 @@ func NewFactory(optionalClientConfig clientcmd.ClientConfig) *Factory {
 cluster.  If you want to expose this service to the external internet, you may
 need to set up firewall rules for the service port(s) (%s) to serve traffic.
 
-See http://releases.k8s.io/HEAD/docs/user-guide/services-firewalls.md for more details.
+See http://releases.k8s.io/release-1.3/docs/user-guide/services-firewalls.md for more details.
 `,
 						makePortsString(obj.Spec.Ports, true))
 					out.Write([]byte(msg))
@@ -780,7 +789,7 @@ See http://releases.k8s.io/HEAD/docs/user-guide/services-firewalls.md for more d
 It has been promoted to field [loadBalancerSourceRanges] in service spec. This annotation will be deprecated in the future.
 Please use the loadBalancerSourceRanges field instead.
 
-See http://releases.k8s.io/HEAD/docs/user-guide/services-firewalls.md for more details.
+See http://releases.k8s.io/release-1.3/docs/user-guide/services-firewalls.md for more details.
 `)
 					out.Write([]byte(msg))
 				}
