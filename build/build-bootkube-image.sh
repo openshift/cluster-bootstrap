@@ -9,8 +9,8 @@ DOCKER_PUSH=${DOCKER_PUSH:-false}
 
 TEMP_DIR=$(mktemp -d -t bootkube.XXXX)
 
-cp ../image/bootkube/* ${TEMP_DIR}
-cp ../_output/bin/linux/bootkube ${TEMP_DIR}/bootkube
+cp $BOOTKUBE_ROOT/image/bootkube/* ${TEMP_DIR}
+cp $BOOTKUBE_ROOT/_output/bin/linux/bootkube ${TEMP_DIR}/bootkube
 
 docker build -t ${DOCKER_REPO}:${DOCKER_TAG} -f ${TEMP_DIR}/Dockerfile ${TEMP_DIR}
 rm -rf ${TEMP_DIR}
