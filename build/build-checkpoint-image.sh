@@ -9,8 +9,8 @@ DOCKER_PUSH=${DOCKER_PUSH:-false}
 
 TEMP_DIR=$(mktemp -d -t checkpoint.XXXX)
 
-cp ../image/checkpoint/* ${TEMP_DIR}
-cp ../_output/bin/linux/checkpoint ${TEMP_DIR}/checkpoint
+cp $BOOTKUBE_ROOT/image/checkpoint/* ${TEMP_DIR}
+cp $BOOTKUBE_ROOT/_output/bin/linux/checkpoint ${TEMP_DIR}/checkpoint
 
 docker build -t ${DOCKER_REPO}:${DOCKER_TAG} -f ${TEMP_DIR}/Dockerfile ${TEMP_DIR}
 rm -rf ${TEMP_DIR}

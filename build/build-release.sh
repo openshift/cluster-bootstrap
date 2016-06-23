@@ -8,4 +8,4 @@ sudo rkt run \
     --insecure-options=image docker://golang:1.6.2 --exec /bin/bash -- -c \
     "cd /go/src/github.com/coreos/bootkube && make release"
 
-source build-bootkube-image.sh
+source $BOOTKUBE_ROOT/build/build-bootkube-image.sh
