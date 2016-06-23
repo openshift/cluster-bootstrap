@@ -1,6 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
+REMOTE_HOST=$1
+REMOTE_PORT=${REMOTE_PORT:-22}
+CLUSTER_DIR=${CLUSTER_DIR:-cluster}
+IDENT=${IDENT:-${HOME}/.ssh/id_rsa}
+
+BOOTKUBE_REPO=quay.io/coreos/bootkube
+BOOTKUBE_VERSION=v0.1.0
+
 function usage() {
     echo "USAGE:"
     echo "$0: <remote-host>"
@@ -60,9 +68,8 @@ function init_master_node() {
     systemctl enable etcd2; sudo systemctl start etcd2
     configure_network
 
-    # Start flannel then kubelet
+    # Start flannel
     systemctl enable flanneld; sudo systemctl start flanneld
-    systemctl enable kubelet; sudo systemctl start kubelet
 
     # Render cluster assets
     /usr/bin/rkt run \
@@ -76,6 +83,9 @@ function init_master_node() {
     mkdir -p /etc/kubernetes
     cp /home/core/assets/auth/kubeconfig /etc/kubernetes/
 
+    # Start the kubelet
+    systemctl enable kubelet; sudo systemctl start kubelet
+
     # Start bootkube to launch a self-hosted cluster
     /usr/bin/rkt run \
         --volume home,kind=host,source=/home/core \
@@ -85,14 +95,6 @@ function init_master_node() {
 }
 
 [ "$#" == 1 ] || usage
-
-REMOTE_HOST=$1
-REMOTE_PORT=${REMOTE_PORT:-22}
-CLUSTER_DIR=${CLUSTER_DIR:-cluster}
-IDENT=${IDENT:-${HOME}/.ssh/id_rsa}
-
-BOOTKUBE_REPO=quay.io/coreos/bootkube
-BOOTKUBE_VERSION=v0.1.0
 
 [ -d "${CLUSTER_DIR}" ] && {
     echo "Error: CLUSTER_DIR=${CLUSTER_DIR} already exists"
