@@ -149,9 +149,6 @@ func setup(t *testing.T) (*garbagecollector.GarbageCollector, clientset.Interfac
 
 // This test simulates the cascading deletion.
 func TestCascadingDeletion(t *testing.T) {
-	// TODO: Figure out what's going on with this test!
-	t.Log("This test is failing too much-- lavalamp removed it to stop the submit queue bleeding")
-	return
 	gc, clientSet := setup(t)
 	oldEnableGarbageCollector := registry.EnableGarbageCollector
 	registry.EnableGarbageCollector = true
@@ -183,7 +180,7 @@ func TestCascadingDeletion(t *testing.T) {
 		t.Fatalf("Failed to create Pod: %v", err)
 	}
 
-	// this pod shouldn't be cascadingly deleted, because it has a valid referenece.
+	// this pod shouldn't be cascadingly deleted, because it has a valid reference.
 	pod = newPod(oneValidOwnerPodName, []v1.OwnerReference{
 		{UID: toBeDeletedRC.ObjectMeta.UID, Name: toBeDeletedRCName},
 		{UID: remainingRC.ObjectMeta.UID, Name: remainingRCName},
@@ -253,7 +250,7 @@ func TestCascadingDeletion(t *testing.T) {
 
 // This test simulates the case where an object is created with an owner that
 // doesn't exist. It verifies the GC will delete such an object.
-func TestCreateWithNonExisitentOwner(t *testing.T) {
+func TestCreateWithNonExistentOwner(t *testing.T) {
 	gc, clientSet := setup(t)
 	oldEnableGarbageCollector := registry.EnableGarbageCollector
 	registry.EnableGarbageCollector = true
@@ -349,7 +346,9 @@ func verifyRemainingObjects(t *testing.T, clientSet clientset.Interface, rcNum, 
 	return ret, nil
 }
 
-// This stress test the garbage collector
+// The stress test is not very stressful, because we need to control the running
+// time of our pre-submit tests to increase submit-queue throughput. We'll add
+// e2e tests that put more stress.
 func TestStressingCascadingDeletion(t *testing.T) {
 	t.Logf("starts garbage collector stress test")
 	gc, clientSet := setup(t)
@@ -360,7 +359,7 @@ func TestStressingCascadingDeletion(t *testing.T) {
 	go gc.Run(5, stopCh)
 	defer close(stopCh)
 
-	const collections = 30
+	const collections = 10
 	var wg sync.WaitGroup
 	wg.Add(collections * 4)
 	rcUIDs := make(chan types.UID, collections*4)

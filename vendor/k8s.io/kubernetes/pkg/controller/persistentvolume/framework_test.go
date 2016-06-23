@@ -253,6 +253,7 @@ func (r *volumeReactor) React(action core.Action) (handled bool, ret runtime.Obj
 		_, found := r.volumes[name]
 		if found {
 			delete(r.volumes, name)
+			r.changedSinceLastSync++
 			return true, nil, nil
 		} else {
 			return true, nil, fmt.Errorf("Cannot delete volume %s: not found", name)
@@ -264,6 +265,7 @@ func (r *volumeReactor) React(action core.Action) (handled bool, ret runtime.Obj
 		_, found := r.volumes[name]
 		if found {
 			delete(r.claims, name)
+			r.changedSinceLastSync++
 			return true, nil, nil
 		} else {
 			return true, nil, fmt.Errorf("Cannot delete claim %s: not found", name)
@@ -452,22 +454,17 @@ func (r *volumeReactor) getChangeCount() int {
 	return r.changedSinceLastSync
 }
 
-func (r *volumeReactor) getOperationCount() int {
-	r.ctrl.runningOperationsMapLock.Lock()
-	defer r.ctrl.runningOperationsMapLock.Unlock()
-	return len(r.ctrl.runningOperations)
-}
-
 // waitTest waits until all tests, controllers and other goroutines do their
 // job and no new actions are registered for 10 milliseconds.
 func (r *volumeReactor) waitTest() {
+	r.ctrl.runningOperations.Wait()
 	// Check every 10ms if the controller does something and stop if it's
 	// idle.
 	oldChanges := -1
 	for {
 		time.Sleep(10 * time.Millisecond)
 		changes := r.getChangeCount()
-		if changes == oldChanges && r.getOperationCount() == 0 {
+		if changes == oldChanges {
 			// No changes for last 10ms -> controller must be idle.
 			break
 		}
@@ -519,6 +516,20 @@ func (r *volumeReactor) addVolumeEvent(volume *api.PersistentVolume) {
 	r.volumeSource.Add(volume)
 }
 
+// modifyVolumeEvent simulates that a volume has been modified in etcd and the
+// controller receives 'volume modified' event.
+func (r *volumeReactor) modifyVolumeEvent(volume *api.PersistentVolume) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	r.volumes[volume.Name] = volume
+	// Generate deletion event. Cloned volume is needed to prevent races (and we
+	// would get a clone from etcd too).
+	clone, _ := conversion.NewCloner().DeepCopy(volume)
+	volumeClone := clone.(*api.PersistentVolume)
+	r.volumeSource.Modify(volumeClone)
+}
+
 // addClaimEvent simulates that a claim has been deleted in etcd and the
 // controller receives 'claim added' event.
 func (r *volumeReactor) addClaimEvent(claim *api.PersistentVolumeClaim) {
@@ -544,7 +555,7 @@ func newVolumeReactor(client *fake.Clientset, ctrl *PersistentVolumeController, 
 	return reactor
 }
 
-func newTestController(kubeClient clientset.Interface, volumeSource, claimSource cache.ListerWatcher) *PersistentVolumeController {
+func newTestController(kubeClient clientset.Interface, volumeSource, claimSource cache.ListerWatcher, enableDynamicProvisioning bool) *PersistentVolumeController {
 	if volumeSource == nil {
 		volumeSource = framework.NewFakeControllerSource()
 	}
@@ -561,6 +572,7 @@ func newTestController(kubeClient clientset.Interface, volumeSource, claimSource
 		volumeSource,
 		claimSource,
 		record.NewFakeRecorder(1000), // event recorder
+		enableDynamicProvisioning,
 	)
 
 	// Speed up the test
@@ -652,6 +664,14 @@ func withLabelSelector(labels map[string]string, claims []*api.PersistentVolumeC
 	}
 
 	return claims
+}
+
+// withMessage saves given message into volume.Status.Message of the first
+// volume in the array and returns the array.  Meant to be used to compose
+// volumes specified inline in a test.
+func withMessage(message string, volumes []*api.PersistentVolume) []*api.PersistentVolume {
+	volumes[0].Status.Message = message
+	return volumes
 }
 
 // newVolumeArray returns array with a single volume that would be returned by
@@ -758,7 +778,7 @@ func wrapTestWithInjectedOperation(toWrap testCall, injectBeforeOperation func(c
 
 	return func(ctrl *PersistentVolumeController, reactor *volumeReactor, test controllerTest) error {
 		// Inject a hook before async operation starts
-		ctrl.preOperationHook = func(operationName string, arg interface{}) {
+		ctrl.preOperationHook = func(operationName string) {
 			// Inside the hook, run the function to inject
 			glog.V(4).Infof("reactor: scheduleOperation reached, injecting call")
 			injectBeforeOperation(ctrl, reactor)
@@ -811,7 +831,7 @@ func runSyncTests(t *testing.T, tests []controllerTest) {
 
 		// Initialize the controller
 		client := &fake.Clientset{}
-		ctrl := newTestController(client, nil, nil)
+		ctrl := newTestController(client, nil, nil, true)
 		reactor := newVolumeReactor(client, ctrl, nil, nil, test.errors)
 		for _, claim := range test.initialClaims {
 			ctrl.claims.Add(claim)
@@ -855,7 +875,7 @@ func runMultisyncTests(t *testing.T, tests []controllerTest) {
 
 		// Initialize the controller
 		client := &fake.Clientset{}
-		ctrl := newTestController(client, nil, nil)
+		ctrl := newTestController(client, nil, nil, true)
 		reactor := newVolumeReactor(client, ctrl, nil, nil, test.errors)
 		for _, claim := range test.initialClaims {
 			ctrl.claims.Add(claim)
@@ -969,12 +989,20 @@ func (plugin *mockVolumePlugin) Init(host vol.VolumeHost) error {
 	return nil
 }
 
-func (plugin *mockVolumePlugin) Name() string {
+func (plugin *mockVolumePlugin) GetPluginName() string {
 	return mockPluginName
+}
+
+func (plugin *mockVolumePlugin) GetVolumeName(spec *vol.Spec) (string, error) {
+	return spec.Name(), nil
 }
 
 func (plugin *mockVolumePlugin) CanSupport(spec *vol.Spec) bool {
 	return true
+}
+
+func (plugin *mockVolumePlugin) RequiresRemount() bool {
+	return false
 }
 
 func (plugin *mockVolumePlugin) NewMounter(spec *vol.Spec, podRef *api.Pod, opts vol.VolumeOptions) (vol.Mounter, error) {

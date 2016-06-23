@@ -76,6 +76,27 @@ func ResizeGroup(group string, size int32) error {
 	}
 }
 
+func GetGroupNodes(group string) ([]string, error) {
+	if framework.TestContext.Provider == "gce" || framework.TestContext.Provider == "gke" {
+		// TODO: make this hit the compute API directly instead of shelling out to gcloud.
+		// TODO: make gce/gke implement InstanceGroups, so we can eliminate the per-provider logic
+		output, err := exec.Command("gcloud", "compute", "instance-groups", "managed",
+			"list-instances", group, "--project="+framework.TestContext.CloudConfig.ProjectID,
+			"--zone="+framework.TestContext.CloudConfig.Zone).CombinedOutput()
+		if err != nil {
+			return nil, err
+		}
+		re := regexp.MustCompile(".*RUNNING")
+		lines := re.FindAllString(string(output), -1)
+		for i, line := range lines {
+			lines[i] = line[:strings.Index(line, " ")]
+		}
+		return lines, nil
+	} else {
+		return nil, fmt.Errorf("provider does not support InstanceGroups")
+	}
+}
+
 func GroupSize(group string) (int, error) {
 	if framework.TestContext.Provider == "gce" || framework.TestContext.Provider == "gke" {
 		// TODO: make this hit the compute API directly instead of shelling out to gcloud.
@@ -403,9 +424,10 @@ var _ = framework.KubeDescribe("Nodes [Disruptive]", func() {
 			// Many e2e tests assume that the cluster is fully healthy before they start.  Wait until
 			// the cluster is restored to health.
 			By("waiting for system pods to successfully restart")
-
 			err := framework.WaitForPodsRunningReady(c, api.NamespaceSystem, systemPodsNo, framework.PodReadyBeforeTimeout, ignoreLabels)
 			Expect(err).NotTo(HaveOccurred())
+			By("waiting for image prepulling pods to complete")
+			framework.WaitForPodsSuccess(c, api.NamespaceSystem, framework.ImagePullerLabels, imagePrePullingTimeout)
 		})
 
 		It("should be able to delete nodes", func() {

@@ -257,10 +257,9 @@ func TestNewBootstrapController(t *testing.T) {
 	controller := master.NewBootstrapController()
 
 	assert.Equal(controller.NamespaceRegistry, master.namespaceRegistry)
-	assert.Equal(controller.EndpointRegistry, master.endpointRegistry)
+	assert.Equal(controller.EndpointReconciler, NewMasterCountEndpointReconciler(master.MasterCount, master.endpointRegistry))
 	assert.Equal(controller.ServiceRegistry, master.serviceRegistry)
 	assert.Equal(controller.ServiceNodePortRange, portRange)
-	assert.Equal(controller.MasterCount, master.MasterCount)
 	assert.Equal(controller.ServicePort, master.ServiceReadWritePort)
 	assert.Equal(controller.PublicServicePort, master.PublicReadWritePort)
 }
@@ -430,6 +429,19 @@ func TestDiscoveryAtAPIS(t *testing.T) {
 				Version:      testapi.Autoscaling.GroupVersion().Version,
 			},
 		},
+		// batch is using its pkg/apis/batch/ types here since during installation
+		// both versions get installed and testapi.go currently does not support
+		// multi-versioned clients
+		batch.GroupName: {
+			{
+				GroupVersion: batchapiv1.SchemeGroupVersion.String(),
+				Version:      batchapiv1.SchemeGroupVersion.Version,
+			},
+			{
+				GroupVersion: batchapiv2alpha1.SchemeGroupVersion.String(),
+				Version:      batchapiv2alpha1.SchemeGroupVersion.Version,
+			},
+		},
 		apps.GroupName: {
 			{
 				GroupVersion: testapi.Apps.GroupVersion().String(),
@@ -443,15 +455,6 @@ func TestDiscoveryAtAPIS(t *testing.T) {
 			},
 		},
 	}
-	var batchVersions []unversioned.GroupVersionForDiscovery
-	for _, gv := range testapi.Batch.GroupVersions() {
-		batchVersions = append(batchVersions, unversioned.GroupVersionForDiscovery{
-			GroupVersion: gv.String(),
-			Version:      gv.Version,
-		})
-	}
-	expectVersions[batch.GroupName] = batchVersions
-
 	expectPreferredVersion := map[string]unversioned.GroupVersionForDiscovery{
 		autoscaling.GroupName: {
 			GroupVersion: registered.GroupOrDie(autoscaling.GroupName).GroupVersion.String(),
@@ -531,7 +534,6 @@ type FooList struct {
 
 func initThirdParty(t *testing.T, version, name string) (*Master, *etcdtesting.EtcdTestServer, *httptest.Server, *assert.Assertions) {
 	master, etcdserver, _, assert := newMaster(t)
-
 	api := &extensions.ThirdPartyResource{
 		ObjectMeta: api.ObjectMeta{
 			Name: name,
@@ -773,6 +775,8 @@ func testInstallThirdPartyAPIGetVersion(t *testing.T, version string) {
 }
 
 func TestInstallThirdPartyAPIPost(t *testing.T) {
+	registered.AddThirdPartyAPIGroupVersions(unversioned.GroupVersion{Group: "company.com", Version: "v1"}, unversioned.GroupVersion{Group: "company.com", Version: "v3"})
+
 	for _, version := range versionsToTest {
 		testInstallThirdPartyAPIPostForVersion(t, version)
 	}
