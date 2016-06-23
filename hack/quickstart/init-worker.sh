@@ -1,6 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
+REMOTE_HOST=$1
+KUBECONFIG=$2
+REMOTE_PORT=${REMOTE_PORT:-22}
+IDENT=${IDENT:-${HOME}/.ssh/id_rsa}
+MASTER="$(awk '/server:/ {print $2}' ${KUBECONFIG} | awk -F/ '{print $3}' | awk -F: '{print $1}')"
+
 function usage() {
     echo "USAGE:"
     echo "$0: <remote-host> <kube-config>"
@@ -24,7 +30,6 @@ function configure_flannel() {
     }
 }
 
-
 # Initialize a worker node
 function init_worker_node() {
     configure_flannel
@@ -42,12 +47,6 @@ function init_worker_node() {
 
 [ "$#" == 2 ] || usage
 
-REMOTE_HOST=$1
-KUBECONFIG=$2
-REMOTE_PORT=${REMOTE_PORT:-22}
-IDENT=${IDENT:-${HOME}/.ssh/id_rsa}
-
-MASTER="$(awk '/server:/ {print $2}' ${KUBECONFIG} | awk -F/ '{print $3}' | awk -F: '{print $1}')"
 if [ -z "${MASTER}" ]; then
     echo "Could not extract master host from kubeconfig"
     exit 1
