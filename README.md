@@ -67,7 +67,7 @@ First, clone the repo into the proper location in your $GOPATH:
 
 ```
 go get -u github.com/coreos/bootkube
-cd $GOPATH/github.com/coreos/bootkube
+cd $GOPATH/src/github.com/coreos/bootkube
 ```
 
 Then, to build:
