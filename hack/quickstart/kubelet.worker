@@ -7,6 +7,7 @@ Environment=KUBELET_ACI=quay.io/coreos/hyperkube
 Environment=KUBELET_VERSION=v1.3.0-beta.2_coreos.0
 EnvironmentFile=/etc/environment
 
+ExecStartPre=/bin/mkdir -p /etc/kubernetes/manifests
 ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --api-servers=https://{{apiserver}}:443 \
   --kubeconfig=/etc/kubernetes/kubeconfig \
