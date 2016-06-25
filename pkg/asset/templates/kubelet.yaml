@@ -58,6 +58,8 @@ spec:
           mountPath: /var/lib/docker
         - name: var-lib-kubelet
           mountPath: /var/lib/kubelet
+        - name: var-lib-rkt
+          mountPath: /var/lib/rkt
       hostNetwork: true
       hostPID: true
       volumes:
@@ -82,3 +84,6 @@ spec:
       - name: var-lib-kubelet
         hostPath:
           path: /var/lib/kubelet
+      - name: var-lib-rkt
+        hostPath:
+          path: /var/lib/rkt
