@@ -6,9 +6,13 @@ When launched, bootkube will act as a temporary Kubernetes control-plane (api-se
 
 Additionally, bootkube can be used to generate all of the necessary assets for use in bootstrapping a new cluster. These assets can then be modified to support any additional configuration options.
 
-## Quickstart
+## Guides
 
-* [GCE Quickstart Instructions](hack/quickstart/README.md)
+* [GCE Quickstart](hack/quickstart/quickstart-gce.md)
+* [AWS Quickstart](hack/quickstart/quickstart-aws.md)
+* [CoreOS Baremetal](https://github.com/coreos/coreos-baremetal/blob/master/Documentation/bootkube.md)
+* [Vagrant Single-Node](hack/single-node/README.md)
+* [Vagrant Multi-Node](hack/multi-node/README.md)
 
 ## Usage
 
@@ -47,19 +51,6 @@ Example:
 ```
 bootkube start --asset-dir=my-cluster
 ```
-
-## Hack
-
-There are currently a few reference implementations to demonstrate bootstrapping a cluster.
-
-The ./hack directory in this repository contains Vagrant examples & quickstart guides, which launch VM(s) then use bootkube to render assets and launch a self-hosted cluster.
-
-The coreos-baremetal repository contains a reference implementation using bootkube with bootcfg and a baremetal cluster.
-
-* [hack/single-node](hack/single-node/README.md)
-* [hack/multi-node](hack/multi-node/README.md)
-* [hack/quickstart](hack/quickstart/README.md)
-* [coreos-baremetal](https://github.com/coreos/coreos-baremetal/blob/master/Documentation/bootkube.md)
 
 ## Building
 

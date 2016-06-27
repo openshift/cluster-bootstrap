@@ -5,7 +5,6 @@ REMOTE_HOST=$1
 KUBECONFIG=$2
 REMOTE_PORT=${REMOTE_PORT:-22}
 IDENT=${IDENT:-${HOME}/.ssh/id_rsa}
-MASTER="$(awk '/server:/ {print $2}' ${KUBECONFIG} | awk -F/ '{print $3}' | awk -F: '{print $1}')"
 
 function usage() {
     echo "USAGE:"
@@ -14,11 +13,10 @@ function usage() {
 }
 
 function configure_flannel() {
-    # Configure Flannel options
     [ -f "/etc/flannel/options.env" ] || {
         mkdir -p /etc/flannel
         echo "FLANNELD_IFACE=${COREOS_PRIVATE_IPV4}" >> /etc/flannel/options.env
-        echo "FLANNELD_ETCD_ENDPOINTS=http://${MASTER}:2379" >> /etc/flannel/options.env
+        echo "FLANNELD_ETCD_ENDPOINTS=http://${MASTER_PRIV}:2379" >> /etc/flannel/options.env
     }
 
     # Make sure options are re-used on reboot
@@ -30,13 +28,29 @@ function configure_flannel() {
     }
 }
 
+function extract_master_endpoint (){
+    grep 'certificate-authority-data' ${KUBECONFIG} | awk '{print $2}' | base64 -d > /home/core/ca.crt
+    grep 'client-certificate-data' ${KUBECONFIG} | awk '{print $2}'| base64 -d > /home/core/client.crt
+    grep 'client-key-data' ${KUBECONFIG} | awk '{print $2}'| base64 -d > /home/core/client.key
+
+    MASTER_PUB="$(awk '/server:/ {print $2}' ${KUBECONFIG} | awk -F/ '{print $3}' | awk -F: '{print $1}')"
+    MASTER_PRIV=$(curl https://${MASTER_PUB}:443/api/v1/namespaces/default/endpoints/kubernetes \
+        --cacert /home/core/ca.crt --cert /home/core/client.crt --key /home/core/client.key \
+        | jq -r '.subsets[0].addresses[0].ip')
+    rm -f /home/core/ca.crt /home/core/client.crt /home/core/client.key
+}
+
 # Initialize a worker node
 function init_worker_node() {
+    extract_master_endpoint
     configure_flannel
 
     # Setup kubeconfig
     mkdir -p /etc/kubernetes
     cp ${KUBECONFIG} /etc/kubernetes/kubeconfig
+
+    sed "s/{{apiserver}}/${MASTER_PRIV}/" /home/core/kubelet.worker > /etc/systemd/system/kubelet.service
+    rm /home/core/kubelet.worker
 
     # Start services
     systemctl daemon-reload
@@ -47,19 +61,12 @@ function init_worker_node() {
 
 [ "$#" == 2 ] || usage
 
-if [ -z "${MASTER}" ]; then
-    echo "Could not extract master host from kubeconfig"
-    exit 1
-fi
-
 # This script can execute on a remote host by copying itself + kubelet service unit to remote host.
 # After assets are available on the remote host, the script will execute itself in "local" mode.
 if [ "${REMOTE_HOST}" != "local" ]; then
-    # Set up the kubelet.service on remote host
-    scp -i ${IDENT} -P ${REMOTE_PORT} kubelet.worker core@${REMOTE_HOST}:/home/core/kubelet.worker
-    ssh -i ${IDENT} -p ${REMOTE_PORT} core@${REMOTE_HOST} "sudo sed 's/{{apiserver}}/${MASTER}/' /home/core/kubelet.worker | sudo tee /etc/systemd/system/kubelet.service > /dev/null"
 
-    # Set up the kubeconfig on remote host
+    # Copy kubelet service file and kubeconfig to remote host
+    scp -i ${IDENT} -P ${REMOTE_PORT} kubelet.worker core@${REMOTE_HOST}:/home/core/kubelet.worker
     scp -i ${IDENT} -P ${REMOTE_PORT} ${KUBECONFIG} core@${REMOTE_HOST}:/home/core/kubeconfig
 
     # Copy self to remote host so script can be executed in "local" mode
