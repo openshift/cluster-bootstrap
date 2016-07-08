@@ -3,7 +3,7 @@ set -euo pipefail
 
 CHECK_NODE_COUNT=${CHECK_NODE_COUNT:-true}
 CONFORMANCE_REPO=${CONFORMANCE_REPO:-github.com/coreos/kubernetes}
-CONFORMANCE_VERSION=${CONFORMANCE_VERSION:-v1.3.0-beta.2+coreos.0}
+CONFORMANCE_VERSION=${CONFORMANCE_VERSION:-v1.3.0_coreos.1}
 
 usage() {
     echo "USAGE:"

@@ -5,17 +5,17 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kubelet
-    version: v1.3.0-beta.2
+    version: v1.3.0_coreos.1
 spec:
   template:
     metadata:
       labels:
         k8s-app: kubelet
-        version: v1.3.0-beta.2
+        version: v1.3.0_coreos.1
     spec:
       containers:
       - name: kubelet
-        image: quay.io/coreos/hyperkube:v1.3.0-beta.2_coreos.0
+        image: quay.io/coreos/hyperkube:v1.3.0_coreos.1
         command:
         - /nsenter
         - --target=1
