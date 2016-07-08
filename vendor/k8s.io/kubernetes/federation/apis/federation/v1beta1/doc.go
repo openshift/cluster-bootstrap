@@ -14,11 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
-
-import (
-	"k8s.io/kubernetes/pkg/runtime"
-)
-
-func addDefaultingFuncs(scheme *runtime.Scheme) {
-}
+// +genconversion=true
+package v1beta1
