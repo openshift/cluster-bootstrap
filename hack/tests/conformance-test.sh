@@ -3,7 +3,8 @@ set -euo pipefail
 
 CHECK_NODE_COUNT=${CHECK_NODE_COUNT:-true}
 CONFORMANCE_REPO=${CONFORMANCE_REPO:-github.com/coreos/kubernetes}
-CONFORMANCE_VERSION=${CONFORMANCE_VERSION:-v1.3.0_coreos.1}
+CONFORMANCE_VERSION=${CONFORMANCE_VERSION:-v1.3.0+coreos.1}
+TEST_ARGS=${TEST_ARGS:-"--ginkgo.focus='\[Conformance\]' --ginkgo.skip='\[Flaky\]|\[Feature:.+\]'"}
 
 usage() {
     echo "USAGE:"
@@ -34,7 +35,7 @@ RKT_OPTS=$(echo \
 # Init steps necessary to run conformance in docker://golang:1.6.2 container
 INIT="apt-get update && apt-get install -y rsync"
 
-TEST_FLAGS="-v --test -check_version_skew=false -check_node_count=${CHECK_NODE_COUNT} --test_args=\"ginkgo.focus='\[Conformance\]'\""
+TEST_FLAGS="-v --test -check_version_skew=false -check_node_count=${CHECK_NODE_COUNT} --test_args=\"${TEST_ARGS}\""
 
 CONFORMANCE=$(echo \
     "cd /go/src/k8s.io/kubernetes && " \
