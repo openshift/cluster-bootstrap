@@ -50,7 +50,7 @@ conformance-%: clean all
 
 # This will naively try and create a vendor dir from a k8s release
 # USE: make vendor VENDOR_VERSION=vX.Y.Z
-VENDOR_VERSION = v1.3.0-beta.2
+VENDOR_VERSION = v1.3.0
 vendor: vendor-$(VENDOR_VERSION)
 
 vendor-$(VENDOR_VERSION):

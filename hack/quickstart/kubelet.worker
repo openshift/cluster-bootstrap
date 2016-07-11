@@ -4,7 +4,7 @@ After=docker.service flanneld.service
 
 [Service]
 Environment=KUBELET_ACI=quay.io/coreos/hyperkube
-Environment=KUBELET_VERSION=v1.3.0-beta.2_coreos.0
+Environment=KUBELET_VERSION=v1.3.0_coreos.1
 EnvironmentFile=/etc/environment
 
 ExecStartPre=/bin/mkdir -p /etc/kubernetes/manifests

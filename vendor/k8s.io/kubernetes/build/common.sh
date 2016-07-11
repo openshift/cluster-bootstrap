@@ -170,10 +170,14 @@ function kube::build::verify_prereqs() {
 
 function kube::build::docker_available_on_osx() {
   if [[ -z "${DOCKER_HOST}" ]]; then
+    if [[ -S "/var/run/docker.sock" ]]; then
+      kube::log::status "Using Docker for MacOS"
+      return 0
+    fi
+    
     kube::log::status "No docker host is set. Checking options for setting one..."
-
     if [[ -z "$(which docker-machine)" && -z "$(which boot2docker)" ]]; then
-      kube::log::status "It looks like you're running Mac OS X, and neither docker-machine or boot2docker are nowhere to be found."
+      kube::log::status "It looks like you're running Mac OS X, and neither Docker for Mac, docker-machine or boot2docker are nowhere to be found."
       kube::log::status "See: https://docs.docker.com/machine/ for installation instructions."
       return 1
     elif [[ -n "$(which docker-machine)" ]]; then
@@ -789,6 +793,8 @@ function kube::release::package_server_tarballs() {
 
     cp "${KUBE_ROOT}/Godeps/LICENSES" "${release_stage}/"
 
+    cp "${RELEASE_DIR}/kubernetes-src.tar.gz" "${release_stage}/"
+
     kube::release::clean_cruft
 
     local package_name="${RELEASE_DIR}/kubernetes-server-${platform_tag}.tar.gz"
@@ -1202,6 +1208,16 @@ function kube::release::gcs::copy_release_artifacts() {
   fi
 
   gsutil ls -lhr "${gcs_destination}" || return 1
+
+  if [[ -n "${KUBE_GCS_RELEASE_BUCKET_MIRROR:-}" ]]; then
+    local -r gcs_mirror="gs://${KUBE_GCS_RELEASE_BUCKET_MIRROR}/${KUBE_GCS_RELEASE_PREFIX}"
+    kube::log::status "Mirroring build to ${gcs_mirror}"
+    gsutil -q -m "${gcs_options[@]+${gcs_options[@]}}" rsync -d -r "${gcs_destination}" "${gcs_mirror}" || return 1
+    if [[ ${KUBE_GCS_MAKE_PUBLIC} =~ ^[yY]$ ]]; then
+      kube::log::status "Marking all uploaded mirror objects public"
+      gsutil -q -m acl ch -R -g all:R "${gcs_mirror}" >/dev/null 2>&1 || return 1
+    fi
+  fi
 }
 
 # Publish a new ci version, (latest,) but only if the release files actually
@@ -1466,7 +1482,19 @@ function kube::release::gcs::verify_ci_ge() {
 #   If new version is greater than the GCS version
 function kube::release::gcs::publish() {
   local -r publish_file="${1-}"
-  local -r publish_file_dst="gs://${KUBE_GCS_RELEASE_BUCKET}/${publish_file}"
+
+  kube::release::gcs::publish_to_bucket "${KUBE_GCS_RELEASE_BUCKET}" "${publish_file}" || return 1
+
+  if [[ -n "${KUBE_GCS_RELEASE_BUCKET_MIRROR:-}" ]]; then
+    kube::release::gcs::publish_to_bucket "${KUBE_GCS_RELEASE_BUCKET_MIRROR}" "${publish_file}" || return 1
+  fi
+}
+
+
+function kube::release::gcs::publish_to_bucket() {
+  local -r publish_bucket="${1}"
+  local -r publish_file="${2}"
+  local -r publish_file_dst="gs://${publish_bucket}/${publish_file}"
 
   mkdir -p "${RELEASE_STAGE}/upload" || return 1
   echo "${KUBE_GCS_PUBLISH_VERSION}" > "${RELEASE_STAGE}/upload/latest" || return 1
@@ -1479,7 +1507,7 @@ function kube::release::gcs::publish() {
     gsutil acl ch -R -g all:R "${publish_file_dst}" >/dev/null 2>&1 || return 1
     gsutil setmeta -h "Cache-Control:private, max-age=0" "${publish_file_dst}" >/dev/null 2>&1 || return 1
     # If public, validate public link
-    local -r public_link="https://storage.googleapis.com/${KUBE_GCS_RELEASE_BUCKET}/${publish_file}"
+    local -r public_link="https://storage.googleapis.com/${publish_bucket}/${publish_file}"
     kube::log::status "Validating uploaded version file at ${public_link}"
     contents="$(curl -s "${public_link}")"
   else
