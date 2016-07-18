@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/client/cache"
 	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/release_1_3"
 	"k8s.io/kubernetes/pkg/client/restclient"
@@ -67,7 +68,7 @@ func (s *statusController) Run() {
 				return s.client.Core().Pods(api.NamespaceSystem).Watch(options)
 			},
 		},
-		&api.Pod{},
+		&v1.Pod{},
 		30*time.Minute,
 		framework.ResourceEventHandlerFuncs{},
 	)
@@ -85,15 +86,15 @@ func (s *statusController) AllRunning() (bool, error) {
 	running := true
 	for p, s := range ps {
 		glog.Infof("Pod status %s: %s", p, s)
-		if s != api.PodRunning {
+		if s != v1.PodRunning {
 			running = false
 		}
 	}
 	return running, nil
 }
 
-func (s *statusController) PodStatus() (map[string]api.PodPhase, error) {
-	status := make(map[string]api.PodPhase)
+func (s *statusController) PodStatus() (map[string]v1.PodPhase, error) {
+	status := make(map[string]v1.PodPhase)
 
 	podNames := s.podStore.ListKeys()
 	for _, pod := range s.watchPods {
@@ -112,7 +113,7 @@ func (s *statusController) PodStatus() (map[string]api.PodPhase, error) {
 			status[pod] = doesNotExist
 			continue
 		}
-		if p, ok := p.(*api.Pod); ok {
+		if p, ok := p.(*v1.Pod); ok {
 			status[pod] = p.Status.Phase
 		}
 	}
