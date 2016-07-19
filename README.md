@@ -6,6 +6,8 @@ When launched, bootkube will act as a temporary Kubernetes control-plane (api-se
 
 Additionally, bootkube can be used to generate all of the necessary assets for use in bootstrapping a new cluster. These assets can then be modified to support any additional configuration options.
 
+If you are interested in the design and details [see the bootkube design document](https://docs.google.com/document/d/1VNp4CMjPPHevh2_JQGMl-hpz9JSLq3s7HlI87CTjl-8/edit).
+
 ## Guides
 
 * [GCE Quickstart](hack/quickstart/quickstart-gce.md)
