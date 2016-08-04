@@ -5,18 +5,18 @@ metadata:
   namespace: kube-system
   labels:
     k8s_app: kube-proxy
-    version: v1.3.0_coreos.1
+    version: v1.3.4_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s_app: kube-proxy
-        version: v1.3.0_coreos.1
+        version: v1.3.4_coreos.0
     spec:
       hostNetwork: true
       containers:
       - name: kube-proxy
-        image: quay.io/coreos/hyperkube:v1.3.0_coreos.1
+        image: quay.io/coreos/hyperkube:v1.3.4_coreos.0
         command:
         - /hyperkube
         - proxy

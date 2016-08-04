@@ -3,7 +3,7 @@ set -euo pipefail
 
 CHECK_NODE_COUNT=${CHECK_NODE_COUNT:-true}
 CONFORMANCE_REPO=${CONFORMANCE_REPO:-github.com/coreos/kubernetes}
-CONFORMANCE_VERSION=${CONFORMANCE_VERSION:-v1.3.0+coreos.1}
+CONFORMANCE_VERSION=${CONFORMANCE_VERSION:-v1.3.4_coreos.0}
 TEST_ARGS=${TEST_ARGS:-"--ginkgo.focus='\[Conformance\]' --ginkgo.skip='\[Flaky\]|\[Feature:.+\]'"}
 
 usage() {
