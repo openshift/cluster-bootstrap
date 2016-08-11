@@ -8,7 +8,7 @@ Launch nodes:
 
 ```
 $ gcloud compute instances create k8s-core1 \
-  --image https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images/coreos-alpha-1068-0-0-v20160607 \
+  --image https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images/coreos-stable-1068-9-0-v20160809 \
   --zone us-central1-a --machine-type n1-standard-1
 ```
 
