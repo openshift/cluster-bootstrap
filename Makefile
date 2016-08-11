@@ -50,13 +50,13 @@ conformance-%: clean all
 
 # This will naively try and create a vendor dir from a k8s release
 # USE: make vendor VENDOR_VERSION=vX.Y.Z
-VENDOR_VERSION = v1.3.0
+VENDOR_VERSION = v1.3.4+coreos.0
 vendor: vendor-$(VENDOR_VERSION)
 
 vendor-$(VENDOR_VERSION):
 	@echo "Creating k8s vendor dir: $@"
 	@mkdir -p $@/k8s.io/kubernetes
-	@git clone --branch=$(VENDOR_VERSION) --depth=1 https://github.com/kubernetes/kubernetes $@/k8s.io/kubernetes > /dev/null 2>&1
+	@git clone --branch=$(VENDOR_VERSION) --depth=1 https://github.com/coreos/kubernetes $@/k8s.io/kubernetes > /dev/null 2>&1
 	@cd $@/k8s.io/kubernetes && git checkout $(VENDOR_VERSION) > /dev/null 2>&1
 	@cd $@/k8s.io/kubernetes && rm -rf docs examples hack cluster Godeps
 	@cd $@/k8s.io/kubernetes/vendor && mv k8s.io/heapster $(abspath $@/k8s.io) && rmdir k8s.io
