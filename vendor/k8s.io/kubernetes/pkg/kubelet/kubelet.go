@@ -77,10 +77,12 @@ import (
 	"k8s.io/kubernetes/pkg/types"
 	"k8s.io/kubernetes/pkg/util"
 	"k8s.io/kubernetes/pkg/util/bandwidth"
+	utildbus "k8s.io/kubernetes/pkg/util/dbus"
 	utilerrors "k8s.io/kubernetes/pkg/util/errors"
 	utilexec "k8s.io/kubernetes/pkg/util/exec"
 	"k8s.io/kubernetes/pkg/util/flowcontrol"
 	kubeio "k8s.io/kubernetes/pkg/util/io"
+	utilipt "k8s.io/kubernetes/pkg/util/iptables"
 	"k8s.io/kubernetes/pkg/util/mount"
 	utilnet "k8s.io/kubernetes/pkg/util/net"
 	"k8s.io/kubernetes/pkg/util/oom"
@@ -239,6 +241,9 @@ func NewMainKubelet(
 	evictionConfig eviction.Config,
 	kubeOptions []Option,
 	enableControllerAttachDetach bool,
+	makeIPTablesUtilChains bool,
+	iptablesMasqueradeBit int,
+	iptablesDropBit int,
 ) (*Kubelet, error) {
 	if rootDirectory == "" {
 		return nil, fmt.Errorf("invalid root directory %q", rootDirectory)
@@ -361,6 +366,10 @@ func NewMainKubelet(
 		enableCustomMetrics:          enableCustomMetrics,
 		babysitDaemons:               babysitDaemons,
 		enableControllerAttachDetach: enableControllerAttachDetach,
+		iptClient:                    utilipt.New(utilexec.New(), utildbus.New(), utilipt.ProtocolIpv4),
+		makeIPTablesUtilChains:       makeIPTablesUtilChains,
+		iptablesMasqueradeBit:        iptablesMasqueradeBit,
+		iptablesDropBit:              iptablesDropBit,
 	}
 
 	if klet.flannelExperimentalOverlay {
@@ -501,13 +510,15 @@ func NewMainKubelet(
 		return nil, err
 	}
 
+	// setup volumeManager
 	klet.volumeManager, err = volumemanager.NewVolumeManager(
 		enableControllerAttachDetach,
 		nodeName,
 		klet.podManager,
 		klet.kubeClient,
 		klet.volumePluginMgr,
-		klet.containerRuntime)
+		klet.containerRuntime,
+		klet.getPodsDir())
 
 	runtimeCache, err := kubecontainer.NewRuntimeCache(klet.containerRuntime)
 	if err != nil {
@@ -586,6 +597,7 @@ type Kubelet struct {
 	dockerClient  dockertools.DockerInterface
 	runtimeCache  kubecontainer.RuntimeCache
 	kubeClient    clientset.Interface
+	iptClient     utilipt.Interface
 	rootDirectory string
 
 	// podWorkers handle syncing Pods in response to events.
@@ -843,6 +855,15 @@ type Kubelet struct {
 	// should manage attachment/detachment of volumes scheduled to this node,
 	// and disable kubelet from executing any attach/detach operations
 	enableControllerAttachDetach bool
+
+	// config iptables util rules
+	makeIPTablesUtilChains bool
+
+	// The bit of the fwmark space to mark packets for SNAT.
+	iptablesMasqueradeBit int
+
+	// The bit of the fwmark space to mark packets for dropping.
+	iptablesDropBit int
 }
 
 // Validate given node IP belongs to the current host
@@ -998,7 +1019,7 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 	}
 
 	// Start volume manager
-	go kl.volumeManager.Run(wait.NeverStop)
+	go kl.volumeManager.Run(kl.sourcesReady, wait.NeverStop)
 
 	if kl.kubeClient != nil {
 		// Start syncing node status immediately, this may set up things the runtime needs to run.
@@ -1006,6 +1027,11 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 	}
 	go wait.Until(kl.syncNetworkStatus, 30*time.Second, wait.NeverStop)
 	go wait.Until(kl.updateRuntimeUp, 5*time.Second, wait.NeverStop)
+
+	// Start loop to sync iptables util rules
+	if kl.makeIPTablesUtilChains {
+		go wait.Until(kl.syncNetworkUtil, 1*time.Minute, wait.NeverStop)
+	}
 
 	// Start a goroutine responsible for killing pods (that are not properly
 	// handled by pod workers).
@@ -2017,16 +2043,21 @@ func (kl *Kubelet) cleanupOrphanedPodDirs(
 		if allPods.Has(string(uid)) {
 			continue
 		}
+		// If volumes have not been unmounted/detached, do not delete directory.
+		// Doing so may result in corruption of data.
 		if podVolumesExist := kl.podVolumesExist(uid); podVolumesExist {
-			// If volumes have not been unmounted/detached, do not delete directory.
-			// Doing so may result in corruption of data.
 			glog.V(3).Infof("Orphaned pod %q found, but volumes are not cleaned up; err: %v", uid, err)
+			continue
+		}
+		// Check whether volume is still mounted on disk. If so, do not delete directory
+		if volumeNames, err := kl.getPodVolumeNameListFromDisk(uid); err != nil || len(volumeNames) != 0 {
+			glog.V(3).Infof("Orphaned pod %q found, but volumes are still mounted; err: %v, volumes: %v ", uid, err, volumeNames)
 			continue
 		}
 
 		glog.V(3).Infof("Orphaned pod %q found, removing", uid)
 		if err := os.RemoveAll(kl.getPodDir(uid)); err != nil {
-			glog.Infof("Failed to remove orphaned pod %q dir; err: %v", uid, err)
+			glog.Errorf("Failed to remove orphaned pod %q dir; err: %v", uid, err)
 			errlist = append(errlist, err)
 		}
 	}
@@ -2529,7 +2560,6 @@ func (kl *Kubelet) syncLoopIteration(configCh <-chan kubetypes.PodUpdate, handle
 			glog.Errorf("Update channel is closed. Exiting the sync loop.")
 			return false
 		}
-		kl.sourcesReady.AddSource(u.Source)
 
 		switch u.Op {
 		case kubetypes.ADD:
@@ -2552,6 +2582,14 @@ func (kl *Kubelet) syncLoopIteration(configCh <-chan kubetypes.PodUpdate, handle
 			// TODO: Do we want to support this?
 			glog.Errorf("Kubelet does not support snapshot update")
 		}
+
+		// Mark the source ready after receiving at least one update from the
+		// source. Once all the sources are marked ready, various cleanup
+		// routines will start reclaiming resources. It is important that this
+		// takes place only after kubelet calls the update handler to process
+		// the update to ensure the internal pod cache is up-to-date.
+		kl.sourcesReady.AddSource(u.Source)
+
 	case e := <-plegCh:
 		// PLEG event for a pod; sync it.
 		pod, ok := kl.podManager.GetPodByUID(e.ID)
