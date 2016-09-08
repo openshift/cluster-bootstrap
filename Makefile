@@ -3,8 +3,7 @@ export CGO_ENABLED:=0
 export GOARCH:=amd64
 
 LOCAL_OS:=$(shell uname | tr A-Z a-z)
-GOFILES:=$(shell find . -name '*.go' | grep -v -E '(./vendor|internal/templates.go)')
-TEMPLATES:=$(shell find pkg/asset/templates -type f)
+GOFILES:=$(shell find . -name '*.go' | grep -v -E '(./vendor)')
 GOPATH_BIN:=$(shell echo ${GOPATH} | awk 'BEGIN { FS = ":" }; { print $1 }')/bin
 
 all: \
@@ -15,7 +14,7 @@ all: \
 release: clean check \
 	_output/release/bootkube.tar.gz
 
-check: pkg/asset/internal/templates.go
+check:
 	@find . -name vendor -prune -o -name '*.go' -exec gofmt -s -d {} +
 	@go vet $(shell go list ./... | grep -v '/vendor/')
 	@go test -v $(shell go list ./... | grep -v '/vendor/')
@@ -24,7 +23,7 @@ install: _output/bin/$(LOCAL_OS)/bootkube
 	cp $< $(GOPATH_BIN)
 
 _output/bin/%/bootkube: LDFLAGS=-X github.com/coreos/bootkube/pkg/version.Version=$(shell $(CURDIR)/build/git-version.sh)
-_output/bin/%/bootkube: $(GOFILES) pkg/asset/internal/templates.go
+_output/bin/%/bootkube: $(GOFILES)
 	mkdir -p $(dir $@)
 	GOOS=$* go build -ldflags "$(LDFLAGS)" -o _output/bin/$*/bootkube github.com/coreos/bootkube/cmd/bootkube
 
@@ -35,10 +34,6 @@ _output/bin/%/checkpoint: cmd/checkpoint/main.go
 _output/release/bootkube.tar.gz: _output/bin/linux/bootkube _output/bin/darwin/bootkube _output/bin/linux/checkpoint
 	mkdir -p $(dir $@)
 	tar czf $@ -C _output bin/linux/bootkube bin/darwin/bootkube bin/linux/checkpoint
-
-pkg/asset/internal/templates.go: $(GOFILES) $(TEMPLATES)
-	mkdir -p $(dir $@)
-	go generate pkg/asset/templates_gen.go
 
 #TODO(aaron): Prompt because this is destructive
 conformance-%: clean all
@@ -65,6 +60,5 @@ vendor-$(VENDOR_VERSION):
 
 clean:
 	rm -rf _output
-	rm -rf pkg/asset/internal
 
 .PHONY: all check clean install release vendor
