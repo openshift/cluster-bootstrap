@@ -34,13 +34,16 @@ func WaitUntilPodsRunning(pods []string, timeout time.Duration) error {
 	if err := wait.Poll(5*time.Second, timeout, sc.AllRunning); err != nil {
 		return fmt.Errorf("error while checking pod status: %v", err)
 	}
+
+	UserOutput("All self-hosted control plane components successfully started\n")
 	return nil
 }
 
 type statusController struct {
-	client    clientset.Interface
-	podStore  cache.Store
-	watchPods []string
+	client        clientset.Interface
+	podStore      cache.Store
+	watchPods     []string
+	lastPodPhases map[string]v1.PodPhase
 }
 
 func NewStatusController(pods []string) (*statusController, error) {
@@ -82,6 +85,17 @@ func (s *statusController) AllRunning() (bool, error) {
 		glog.Infof("Error retriving pod statuses: %v", err)
 		return false, nil
 	}
+
+	// use lastPodPhases to print only pods whose phase has changed
+	if s.lastPodPhases == nil {
+		s.lastPodPhases = ps
+	}
+	for pod, phase := range ps {
+		if s.lastPodPhases[pod] != phase {
+			UserOutput("\tPod Status:%24s\t%s\n", pod, phase)
+		}
+	}
+	s.lastPodPhases = ps
 
 	running := true
 	for p, s := range ps {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"net/url"
 
@@ -48,6 +49,8 @@ func runCmdStart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// set in util init() func, but lets not depend on that
+	flag.Set("logtostderr", "true")
 	util.InitLogs()
 	defer util.FlushLogs()
 

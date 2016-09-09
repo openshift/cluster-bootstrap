@@ -1,6 +1,7 @@
 package bootkube
 
 import (
+	"fmt"
 	"net/url"
 	"path/filepath"
 	"time"
@@ -94,6 +95,8 @@ func NewBootkube(config Config) (*bootkube, error) {
 }
 
 func (b *bootkube) Run() error {
+	UserOutput("Running temporary bootstrap control plane...\n")
+
 	errch := make(chan error)
 	go func() { errch <- apiapp.Run(b.apiServer) }()
 	go func() { errch <- cmapp.Run(b.controller) }()
@@ -107,4 +110,12 @@ func (b *bootkube) Run() error {
 
 	// If any of the bootkube services exit, it means it is unrecoverable and we should exit.
 	return <-errch
+}
+
+// All bootkube printing to stdout should go through this fmt.Printf wrapper.
+// The stdout of bootkube should convey information useful to a human sitting
+// at a terminal watching their cluster bootstrap itself. Otherwise the message
+// should go to stderr.
+func UserOutput(format string, a ...interface{}) {
+	fmt.Printf(format, a...)
 }
