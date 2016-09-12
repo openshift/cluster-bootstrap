@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/coreos/bootkube/pkg/tlsutil"
+	"github.com/kubernetes-incubator/bootkube/pkg/tlsutil"
 )
 
 const (

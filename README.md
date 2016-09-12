@@ -59,8 +59,8 @@ bootkube start --asset-dir=my-cluster
 First, clone the repo into the proper location in your $GOPATH:
 
 ```
-go get -u github.com/coreos/bootkube
-cd $GOPATH/src/github.com/coreos/bootkube
+go get -u github.com/kubernetes-incubator/bootkube
+cd $GOPATH/src/github.com/kubernetes-incubator/bootkube
 ```
 
 Then, to build:

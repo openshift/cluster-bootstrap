@@ -8,7 +8,7 @@ import (
 
 	"github.com/ghodss/yaml"
 
-	"github.com/coreos/bootkube/pkg/asset/internal"
+	"github.com/kubernetes-incubator/bootkube/pkg/asset/internal"
 )
 
 const (
