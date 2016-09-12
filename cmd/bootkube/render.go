@@ -12,8 +12,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/coreos/bootkube/pkg/asset"
-	"github.com/coreos/bootkube/pkg/tlsutil"
+	"github.com/kubernetes-incubator/bootkube/pkg/asset"
+	"github.com/kubernetes-incubator/bootkube/pkg/tlsutil"
 )
 
 var (

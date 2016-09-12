@@ -5,7 +5,7 @@ import (
 	"crypto/x509"
 	"net"
 
-	"github.com/coreos/bootkube/pkg/tlsutil"
+	"github.com/kubernetes-incubator/bootkube/pkg/tlsutil"
 )
 
 func newTLSAssets(caCert *x509.Certificate, caPrivKey *rsa.PrivateKey, altNames tlsutil.AltNames) ([]Asset, error) {

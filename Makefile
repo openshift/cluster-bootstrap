@@ -22,14 +22,14 @@ check:
 install: _output/bin/$(LOCAL_OS)/bootkube
 	cp $< $(GOPATH_BIN)
 
-_output/bin/%/bootkube: LDFLAGS=-X github.com/coreos/bootkube/pkg/version.Version=$(shell $(CURDIR)/build/git-version.sh)
+_output/bin/%/bootkube: LDFLAGS=-X github.com/kubernetes-incubator/bootkube/pkg/version.Version=$(shell $(CURDIR)/build/git-version.sh)
 _output/bin/%/bootkube: $(GOFILES)
 	mkdir -p $(dir $@)
-	GOOS=$* go build -ldflags "$(LDFLAGS)" -o _output/bin/$*/bootkube github.com/coreos/bootkube/cmd/bootkube
+	GOOS=$* go build -ldflags "$(LDFLAGS)" -o _output/bin/$*/bootkube github.com/kubernetes-incubator/bootkube/cmd/bootkube
 
 _output/bin/%/checkpoint: cmd/checkpoint/main.go
 	mkdir -p $(dir $@)
-	GOOS=$* go build -o _output/bin/$*/checkpoint github.com/coreos/bootkube/cmd/checkpoint
+	GOOS=$* go build -o _output/bin/$*/checkpoint github.com/kubernetes-incubator/bootkube/cmd/checkpoint
 
 _output/release/bootkube.tar.gz: _output/bin/linux/bootkube _output/bin/darwin/bootkube _output/bin/linux/checkpoint
 	mkdir -p $(dir $@)

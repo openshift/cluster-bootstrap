@@ -13,7 +13,7 @@ import (
 	schedapp "k8s.io/kubernetes/plugin/cmd/kube-scheduler/app"
 	scheduler "k8s.io/kubernetes/plugin/cmd/kube-scheduler/app/options"
 
-	"github.com/coreos/bootkube/pkg/asset"
+	"github.com/kubernetes-incubator/bootkube/pkg/asset"
 )
 
 const (
