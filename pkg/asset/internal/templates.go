@@ -326,19 +326,19 @@ spec:
         args:
           - --domain=cluster.local.
           - --dns-port=10053
-          ports:
-          - containerPort: 10053
-            name: dns-local
-            protocol: UDP
-          - containerPort: 10053
-            name: dns-tcp-local
-            protocol: TCP
-        - name: dnsmasq
-          image: gcr.io/google_containers/kube-dnsmasq-amd64:1.3
-          args:
-          - --cache-size=1000
-          - --no-resolv
-          - --server=127.0.0.1#10053
+        ports:
+        - containerPort: 10053
+          name: dns-local
+          protocol: UDP
+        - containerPort: 10053
+          name: dns-tcp-local
+          protocol: TCP
+      - name: dnsmasq
+        image: gcr.io/google_containers/kube-dnsmasq-amd64:1.3
+        args:
+        - --cache-size=1000
+        - --no-resolv
+        - --server=127.0.0.1#10053
         ports:
         - containerPort: 53
           name: dns
