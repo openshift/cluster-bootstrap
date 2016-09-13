@@ -7,5 +7,3 @@ sudo rkt run \
     --mount volume=bk,target=/go/src/github.com/kubernetes-incubator/bootkube \
     --insecure-options=image docker://golang:1.6.2 --exec /bin/bash -- -c \
     "cd /go/src/github.com/kubernetes-incubator/bootkube && make release"
-
-source $BOOTKUBE_ROOT/build/build-bootkube-image.sh
