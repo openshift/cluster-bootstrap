@@ -2,6 +2,7 @@ package bootkube
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang/glog"
@@ -18,6 +19,8 @@ import (
 )
 
 func CreateAssets(manifestDir string, timeout time.Duration) error {
+	UserOutput("Sending self-hosted assets to temporary control plane...\n")
+
 	upFn := func() (bool, error) {
 		if err := apiTest(); err != nil {
 			glog.Warningf("Unable to determine api-server version: %v", err)
@@ -44,6 +47,9 @@ func CreateAssets(manifestDir string, timeout time.Duration) error {
 	if err := wait.Poll(5*time.Second, timeout, createFn); err != nil {
 		return fmt.Errorf("Failed to create assets: %v", err)
 	}
+
+	UserOutput("Spawning self-hosted control plane...\n")
+
 	return nil
 }
 
@@ -111,6 +117,7 @@ func createAssets(manifestDir string) error {
 			f.PrintObjectSpecificMessage(info.Object, util.GlogWriter{})
 		}
 		cmdutil.PrintSuccess(mapper, shortOutput, util.GlogWriter{}, info.Mapping.Resource, info.Name, "created")
+		UserOutput("\tcreated %23s %s\n", info.Name, strings.TrimSuffix(info.Mapping.Resource, "s"))
 		return nil
 	})
 	if err != nil {
