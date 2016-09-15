@@ -5,6 +5,7 @@ export GOARCH:=amd64
 LOCAL_OS:=$(shell uname | tr A-Z a-z)
 GOFILES:=$(shell find . -name '*.go' | grep -v -E '(./vendor)')
 GOPATH_BIN:=$(shell echo ${GOPATH} | awk 'BEGIN { FS = ":" }; { print $1 }')/bin
+LDFLAGS=-X github.com/kubernetes-incubator/bootkube/pkg/version.Version=$(shell $(CURDIR)/build/git-version.sh)
 
 all: \
 	_output/bin/linux/bootkube \
@@ -22,14 +23,9 @@ check:
 install: _output/bin/$(LOCAL_OS)/bootkube
 	cp $< $(GOPATH_BIN)
 
-_output/bin/%/bootkube: LDFLAGS=-X github.com/kubernetes-incubator/bootkube/pkg/version.Version=$(shell $(CURDIR)/build/git-version.sh)
-_output/bin/%/bootkube: $(GOFILES)
+_output/bin/%: $(GOFILES)
 	mkdir -p $(dir $@)
-	GOOS=$* go build -ldflags "$(LDFLAGS)" -o _output/bin/$*/bootkube github.com/kubernetes-incubator/bootkube/cmd/bootkube
-
-_output/bin/%/checkpoint: cmd/checkpoint/main.go
-	mkdir -p $(dir $@)
-	GOOS=$* go build -o _output/bin/$*/checkpoint github.com/kubernetes-incubator/bootkube/cmd/checkpoint
+	GOOS=$(word 1, $(subst /, ,$*)) go build -ldflags "$(LDFLAGS)" -o $@ github.com/kubernetes-incubator/bootkube/cmd/$(notdir $@)
 
 _output/release/bootkube.tar.gz: _output/bin/linux/bootkube _output/bin/darwin/bootkube _output/bin/linux/checkpoint
 	mkdir -p $(dir $@)
@@ -45,11 +41,11 @@ conformance-%: clean all
 
 # This will naively try and create a vendor dir from a k8s release
 # USE: make vendor VENDOR_VERSION=vX.Y.Z
+#TODO(aaron): Prompt because this is destructive
 VENDOR_VERSION = v1.3.6+coreos.0
-vendor: vendor-$(VENDOR_VERSION)
-
-vendor-$(VENDOR_VERSION):
-	@echo "Creating k8s vendor dir: $@"
+vendor:
+	@echo "Creating k8s vendor for: $(VENDOR_VERSION)"
+	@rm -rf vendor
 	@mkdir -p $@/k8s.io/kubernetes
 	@git clone https://github.com/coreos/kubernetes $@/k8s.io/kubernetes > /dev/null 2>&1
 	@cd $@/k8s.io/kubernetes && git checkout $(VENDOR_VERSION) > /dev/null 2>&1
