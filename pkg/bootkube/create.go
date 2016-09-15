@@ -19,7 +19,6 @@ import (
 )
 
 func CreateAssets(manifestDir string, timeout time.Duration) error {
-	UserOutput("Sending self-hosted assets to temporary control plane...\n")
 
 	upFn := func() (bool, error) {
 		if err := apiTest(); err != nil {
@@ -38,17 +37,17 @@ func CreateAssets(manifestDir string, timeout time.Duration) error {
 		return true, nil
 	}
 
+	UserOutput("Waiting for api-server...\n")
 	start := time.Now()
 	if err := wait.Poll(5*time.Second, timeout, upFn); err != nil {
 		return fmt.Errorf("API Server unavailable: %v", err)
 	}
 
+	UserOutput("Creating self-hosted assets...\n")
 	timeout = timeout - time.Since(start)
 	if err := wait.Poll(5*time.Second, timeout, createFn); err != nil {
 		return fmt.Errorf("Failed to create assets: %v", err)
 	}
-
-	UserOutput("Spawning self-hosted control plane...\n")
 
 	return nil
 }

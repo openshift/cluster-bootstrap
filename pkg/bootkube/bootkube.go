@@ -109,7 +109,11 @@ func (b *bootkube) Run() error {
 	go func() { errch <- WaitUntilPodsRunning(requiredPods, assetTimeout) }()
 
 	// If any of the bootkube services exit, it means it is unrecoverable and we should exit.
-	return <-errch
+	err := <-errch
+	if err != nil {
+		UserOutput("Error: %v\n", err)
+	}
+	return err
 }
 
 // All bootkube printing to stdout should go through this fmt.Printf wrapper.
