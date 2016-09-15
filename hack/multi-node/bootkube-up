@@ -28,7 +28,7 @@ scp -q -o stricthostkeychecking=no -i ${ssh_ident} -P ${ssh_port} -r cluster cor
 scp -q -o stricthostkeychecking=no -i ${ssh_ident} -P ${ssh_port} ../../_output/bin/linux/bootkube core@127.0.0.1:/home/core
 
 # Run bootkube
-ssh -q -o stricthostkeychecking=no -i ${ssh_ident} -p ${ssh_port} core@127.0.0.1 "sudo /home/core/bootkube start --asset-dir=/home/core/cluster --etcd-server=http://172.17.4.51:2379 2> /home/core/stderr.log"
+ssh -q -o stricthostkeychecking=no -i ${ssh_ident} -p ${ssh_port} core@127.0.0.1 "sudo /home/core/bootkube start --asset-dir=/home/core/cluster --etcd-server=http://172.17.4.51:2379 2>> /home/core/bootkube.log"
 
 echo
 echo "Bootstrap complete. Access your kubernetes cluster using:"

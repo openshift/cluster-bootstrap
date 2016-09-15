@@ -3,6 +3,7 @@ package bootkube
 import (
 	"fmt"
 	"path"
+	"reflect"
 	"strings"
 	"time"
 
@@ -86,20 +87,19 @@ func (s *statusController) AllRunning() (bool, error) {
 		return false, nil
 	}
 
-	// use lastPodPhases to print only pods whose phase has changed
 	if s.lastPodPhases == nil {
 		s.lastPodPhases = ps
 	}
-	for pod, phase := range ps {
-		if s.lastPodPhases[pod] != phase {
-			UserOutput("\tPod Status:%24s\t%s\n", pod, phase)
-		}
-	}
+
+	// use lastPodPhases to print only pods whose phase has changed
+	changed := !reflect.DeepEqual(ps, s.lastPodPhases)
 	s.lastPodPhases = ps
 
 	running := true
 	for p, s := range ps {
-		glog.Infof("Pod status %s: %s", p, s)
+		if changed {
+			UserOutput("\tPod Status:%24s\t%s\n", p, s)
+		}
 		if s != v1.PodRunning {
 			running = false
 		}
