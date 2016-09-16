@@ -32,7 +32,8 @@ func CreateAssets(manifestDir string, timeout time.Duration) error {
 		err := createAssets(manifestDir)
 		if err != nil {
 			glog.Warningf("Error creating assets: %v", err)
-			return !shouldRetry(err), nil
+			// order matters, evaluate "shouldRetry" first
+			return (shouldRetry(err) || shouldQuit(err)), err
 		}
 		return true, nil
 	}
@@ -56,7 +57,15 @@ func shouldRetry(err error) bool {
 	// Retry if error is system namespace not found
 	if apierrors.IsNotFound(err) {
 		details := err.(*apierrors.StatusError).Status().Details
-		return (details.Name == api.NamespaceSystem && details.Kind == "namespaces")
+		return !(details.Name == api.NamespaceSystem && details.Kind == "namespaces")
+	}
+	return false
+}
+
+func shouldQuit(err error) bool {
+	// Fail on anything but "already exists"
+	if !apierrors.IsAlreadyExists(err) {
+		return true
 	}
 	return false
 }
