@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors All rights reserved.
+Copyright 2016 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -183,6 +183,9 @@ func (d *kubeDockerClient) InspectImage(image string) (*dockertypes.ImageInspect
 			err = imageNotFoundError{ID: image}
 		}
 		return nil, err
+	}
+	if !matchImageTagOrSHA(resp, image) {
+		return nil, imageNotFoundError{ID: image}
 	}
 	return &resp, nil
 }
@@ -454,6 +457,24 @@ func (d *kubeDockerClient) AttachToContainer(id string, opts dockertypes.Contain
 	return d.holdHijackedConnection(sopts.RawTerminal, sopts.InputStream, sopts.OutputStream, sopts.ErrorStream, resp)
 }
 
+func (d *kubeDockerClient) ResizeExecTTY(id string, height, width int) error {
+	ctx, cancel := d.getCancelableContext()
+	defer cancel()
+	return d.client.ContainerExecResize(ctx, id, dockertypes.ResizeOptions{
+		Height: height,
+		Width:  width,
+	})
+}
+
+func (d *kubeDockerClient) ResizeContainerTTY(id string, height, width int) error {
+	ctx, cancel := d.getCancelableContext()
+	defer cancel()
+	return d.client.ContainerResize(ctx, id, dockertypes.ResizeOptions{
+		Height: height,
+		Width:  width,
+	})
+}
+
 // redirectResponseToOutputStream redirect the response stream to stdout and stderr. When tty is true, all stream will
 // only be redirected to stdout.
 func (d *kubeDockerClient) redirectResponseToOutputStream(tty bool, outputStream, errorStream io.Writer, resp io.Reader) error {
@@ -522,8 +543,8 @@ func (d *kubeDockerClient) getCustomTimeoutContext(timeout time.Duration) (conte
 	return context.WithTimeout(context.Background(), timeout)
 }
 
-// parseDockerTimestamp parses the timestamp returned by DockerInterface from string to time.Time
-func parseDockerTimestamp(s string) (time.Time, error) {
+// ParseDockerTimestamp parses the timestamp returned by DockerInterface from string to time.Time
+func ParseDockerTimestamp(s string) (time.Time, error) {
 	// Timestamp returned by Docker is in time.RFC3339Nano format.
 	return time.Parse(time.RFC3339Nano, s)
 }

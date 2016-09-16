@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors All rights reserved.
+Copyright 2016 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/volumemanager/cache"
 	"k8s.io/kubernetes/pkg/types"
 	"k8s.io/kubernetes/pkg/util/goroutinemap/exponentialbackoff"
+	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/util/strings"
 	"k8s.io/kubernetes/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/volume"
@@ -76,6 +77,7 @@ type Reconciler interface {
 // operationExecutor - used to trigger attach/detach/mount/unmount operations
 //   safely (prevents more than one operation from being triggered on the same
 //   volume)
+// mounter - mounter passed in from kubelet, passed down unmount path
 // volumePluginMrg - volume plugin manager passed from kubelet
 func NewReconciler(
 	kubeClient internalclientset.Interface,
@@ -87,6 +89,7 @@ func NewReconciler(
 	desiredStateOfWorld cache.DesiredStateOfWorld,
 	actualStateOfWorld cache.ActualStateOfWorld,
 	operationExecutor operationexecutor.OperationExecutor,
+	mounter mount.Interface,
 	volumePluginMgr *volume.VolumePluginMgr,
 	kubeletPodsDir string) Reconciler {
 	return &reconciler{
@@ -99,6 +102,7 @@ func NewReconciler(
 		desiredStateOfWorld:           desiredStateOfWorld,
 		actualStateOfWorld:            actualStateOfWorld,
 		operationExecutor:             operationExecutor,
+		mounter:                       mounter,
 		volumePluginMgr:               volumePluginMgr,
 		kubeletPodsDir:                kubeletPodsDir,
 		timeOfLastReconstruct:         time.Now(),
@@ -115,6 +119,7 @@ type reconciler struct {
 	desiredStateOfWorld           cache.DesiredStateOfWorld
 	actualStateOfWorld            cache.ActualStateOfWorld
 	operationExecutor             operationexecutor.OperationExecutor
+	mounter                       mount.Interface
 	volumePluginMgr               *volume.VolumePluginMgr
 	kubeletPodsDir                string
 	timeOfLastReconstruct         time.Time
@@ -305,7 +310,7 @@ func (rc *reconciler) reconcile() {
 					attachedVolume.VolumeName,
 					attachedVolume.VolumeSpec.Name())
 				err := rc.operationExecutor.UnmountDevice(
-					attachedVolume.AttachedVolume, rc.actualStateOfWorld)
+					attachedVolume.AttachedVolume, rc.actualStateOfWorld, rc.mounter)
 				if err != nil &&
 					!nestedpendingoperations.IsAlreadyExists(err) &&
 					!exponentialbackoff.IsExponentialBackoff(err) {
@@ -382,7 +387,7 @@ type podVolume struct {
 }
 
 // reconstructFromDisk scans the volume directories under the given pod directory. If the volume is not
-// in either actual or desired state of world, or pending operation, this function will reconstuct
+// in either actual or desired state of world, or pending operation, this function will reconstruct
 // the volume spec and put it in both the actual and desired state of worlds. If no running
 // container is mounting the volume, the volume will be removed by desired state of world's populator and
 // cleaned up by the reconciler.
@@ -402,7 +407,7 @@ func (rc *reconciler) reconstructStates(podsDir string) {
 
 		// Check if there is an pending operation for the given pod and volume.
 		// Need to check pending operation before checking the actual and desired
-		// states to avoid race condition during checking. For exmaple, the following
+		// states to avoid race condition during checking. For example, the following
 		// might happen if pending operation is checked after checking actual and desired states.
 		// 1. Checking the pod and it does not exist in either actual or desired state.
 		// 2. An operation for the given pod finishes and the actual state is updated.
@@ -420,7 +425,7 @@ func (rc *reconciler) reconstructStates(podsDir string) {
 			"Could not find pod information in desired or actual states or pending operation, update it in both states: %+v",
 			volumeToMount)
 		if err = rc.updateStates(volumeToMount); err != nil {
-			glog.Errorf("Error occured during reconstruct volume from disk: %v", err)
+			glog.Errorf("Error occurred during reconstruct volume from disk: %v", err)
 		}
 	}
 }

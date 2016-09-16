@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors All rights reserved.
+Copyright 2016 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,7 +28,10 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/errors"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	"k8s.io/kubernetes/pkg/client/record"
+	kevents "k8s.io/kubernetes/pkg/kubelet/events"
 	"k8s.io/kubernetes/pkg/types"
+	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util/nestedpendingoperations"
 	volumetypes "k8s.io/kubernetes/pkg/volume/util/types"
@@ -86,7 +89,7 @@ type OperationExecutor interface {
 	// UnmountDevice unmounts the volumes global mount path from the device (for
 	// attachable volumes only, freeing it for detach. It then updates the
 	// actual state of the world to reflect that.
-	UnmountDevice(deviceToDetach AttachedVolume, actualStateOfWorld ActualStateOfWorldMounterUpdater) error
+	UnmountDevice(deviceToDetach AttachedVolume, actualStateOfWorld ActualStateOfWorldMounterUpdater, mounter mount.Interface) error
 
 	// VerifyControllerAttachedVolume checks if the specified volume is present
 	// in the specified nodes AttachedVolumes Status field. It uses kubeClient
@@ -108,12 +111,15 @@ type OperationExecutor interface {
 // NewOperationExecutor returns a new instance of OperationExecutor.
 func NewOperationExecutor(
 	kubeClient internalclientset.Interface,
-	volumePluginMgr *volume.VolumePluginMgr) OperationExecutor {
+	volumePluginMgr *volume.VolumePluginMgr,
+	recorder record.EventRecorder) OperationExecutor {
+
 	return &operationExecutor{
 		kubeClient:      kubeClient,
 		volumePluginMgr: volumePluginMgr,
 		pendingOperations: nestedpendingoperations.NewNestedPendingOperations(
 			true /* exponentialBackOffOnError */),
+		recorder: recorder,
 	}
 }
 
@@ -147,6 +153,14 @@ type ActualStateOfWorldAttacherUpdater interface {
 
 	// Marks the specified volume as detached from the specified node
 	MarkVolumeAsDetached(volumeName api.UniqueVolumeName, nodeName string)
+
+	// Marks desire to detach the specified volume (remove the volume from the node's
+	// volumesToReportedAsAttached list)
+	RemoveVolumeFromReportAsAttached(volumeName api.UniqueVolumeName, nodeName string) error
+
+	// Unmarks the desire to detach for the specified volume (add the volume back to
+	// the node's volumesToReportedAsAttached list)
+	AddVolumeToReportAsAttached(volumeName api.UniqueVolumeName, nodeName string)
 }
 
 // VolumeToAttach represents a volume that should be attached to a node.
@@ -162,6 +176,12 @@ type VolumeToAttach struct {
 	// NodeName is the identifier for the node that the volume should be
 	// attached to.
 	NodeName string
+
+	// scheduledPods is a map containing the set of pods that reference this
+	// volume and are scheduled to the underlying node. The key in the map is
+	// the name of the pod and the value is a pod object containing more
+	// information about the pod.
+	ScheduledPods []*api.Pod
 }
 
 // VolumeToMount represents a volume that should be attached to this node and
@@ -219,6 +239,10 @@ type AttachedVolume struct {
 	// PluginIsAttachable indicates that the plugin for this volume implements
 	// the volume.Attacher interface
 	PluginIsAttachable bool
+
+	// DevicePath contains the path on the node where the volume is attached.
+	// For non-attachable volumes this is empty.
+	DevicePath string
 }
 
 // MountedVolume represents a volume that has successfully been mounted to a pod.
@@ -337,6 +361,9 @@ type operationExecutor struct {
 	// pendingOperations keeps track of pending attach and detach operations so
 	// multiple operations are not started on the same volume
 	pendingOperations nestedpendingoperations.NestedPendingOperations
+
+	// recorder is used to record events in the API server
+	recorder record.EventRecorder
 }
 
 func (oe *operationExecutor) IsOperationPending(volumeName api.UniqueVolumeName, podName volumetypes.UniquePodName) bool {
@@ -412,9 +439,10 @@ func (oe *operationExecutor) UnmountVolume(
 
 func (oe *operationExecutor) UnmountDevice(
 	deviceToDetach AttachedVolume,
-	actualStateOfWorld ActualStateOfWorldMounterUpdater) error {
+	actualStateOfWorld ActualStateOfWorldMounterUpdater,
+	mounter mount.Interface) error {
 	unmountDeviceFunc, err :=
-		oe.generateUnmountDeviceFunc(deviceToDetach, actualStateOfWorld)
+		oe.generateUnmountDeviceFunc(deviceToDetach, actualStateOfWorld, mounter)
 	if err != nil {
 		return err
 	}
@@ -469,12 +497,15 @@ func (oe *operationExecutor) generateAttachVolumeFunc(
 
 		if attachErr != nil {
 			// On failure, return error. Caller will log and retry.
-			return fmt.Errorf(
-				"AttachVolume.Attach failed for volume %q (spec.Name: %q) from node %q with: %v",
-				volumeToAttach.VolumeName,
+			err := fmt.Errorf(
+				"Failed to attach volume %q on node %q with: %v",
 				volumeToAttach.VolumeSpec.Name(),
 				volumeToAttach.NodeName,
 				attachErr)
+			for _, pod := range volumeToAttach.ScheduledPods {
+				oe.recorder.Eventf(pod, api.EventTypeWarning, kevents.FailedMountVolume, err.Error())
+			}
+			return err
 		}
 
 		glog.Infof(
@@ -538,24 +569,23 @@ func (oe *operationExecutor) generateDetachVolumeFunc(
 	}
 
 	return func() error {
+		var err error
 		if verifySafeToDetach {
-			safeToDetachErr := oe.verifyVolumeIsSafeToDetach(volumeToDetach)
-			if safeToDetachErr != nil {
-				// On failure, return error. Caller will log and retry.
-				return err
-			}
+			err = oe.verifyVolumeIsSafeToDetach(volumeToDetach)
 		}
-
-		// Execute detach
-		detachErr := volumeDetacher.Detach(volumeName, volumeToDetach.NodeName)
-		if detachErr != nil {
-			// On failure, return error. Caller will log and retry.
+		if err == nil {
+			err = volumeDetacher.Detach(volumeName, volumeToDetach.NodeName)
+		}
+		if err != nil {
+			// On failure, add volume back to ReportAsAttached list
+			actualStateOfWorld.AddVolumeToReportAsAttached(
+				volumeToDetach.VolumeName, volumeToDetach.NodeName)
 			return fmt.Errorf(
 				"DetachVolume.Detach failed for volume %q (spec.Name: %q) from node %q with: %v",
 				volumeToDetach.VolumeName,
 				volumeToDetach.VolumeSpec.Name(),
 				volumeToDetach.NodeName,
-				detachErr)
+				err)
 		}
 
 		glog.Infof(
@@ -716,13 +746,15 @@ func (oe *operationExecutor) generateMountVolumeFunc(
 				deviceMountPath)
 			if err != nil {
 				// On failure, return error. Caller will log and retry.
-				return fmt.Errorf(
+				err := fmt.Errorf(
 					"MountVolume.MountDevice failed for volume %q (spec.Name: %q) pod %q (UID: %q) with: %v",
 					volumeToMount.VolumeName,
 					volumeToMount.VolumeSpec.Name(),
 					volumeToMount.PodName,
 					volumeToMount.Pod.UID,
 					err)
+				oe.recorder.Eventf(volumeToMount.Pod, api.EventTypeWarning, kevents.FailedMountVolume, err.Error())
+				return err
 			}
 
 			glog.Infof(
@@ -751,13 +783,15 @@ func (oe *operationExecutor) generateMountVolumeFunc(
 		mountErr := volumeMounter.SetUp(fsGroup)
 		if mountErr != nil {
 			// On failure, return error. Caller will log and retry.
-			return fmt.Errorf(
+			err := fmt.Errorf(
 				"MountVolume.SetUp failed for volume %q (spec.Name: %q) pod %q (UID: %q) with: %v",
 				volumeToMount.VolumeName,
 				volumeToMount.VolumeSpec.Name(),
 				volumeToMount.PodName,
 				volumeToMount.Pod.UID,
 				mountErr)
+			oe.recorder.Eventf(volumeToMount.Pod, api.EventTypeWarning, kevents.FailedMountVolume, err.Error())
+			return err
 		}
 
 		glog.Infof(
@@ -862,7 +896,8 @@ func (oe *operationExecutor) generateUnmountVolumeFunc(
 
 func (oe *operationExecutor) generateUnmountDeviceFunc(
 	deviceToDetach AttachedVolume,
-	actualStateOfWorld ActualStateOfWorldMounterUpdater) (func() error, error) {
+	actualStateOfWorld ActualStateOfWorldMounterUpdater,
+	mounter mount.Interface) (func() error, error) {
 	// Get attacher plugin
 	attachableVolumePlugin, err :=
 		oe.volumePluginMgr.FindAttachablePluginBySpec(deviceToDetach.VolumeSpec)
@@ -923,6 +958,24 @@ func (oe *operationExecutor) generateUnmountDeviceFunc(
 				deviceToDetach.VolumeName,
 				deviceToDetach.VolumeSpec.Name(),
 				unmountDeviceErr)
+		}
+		// Before logging that UnmountDevice succeeded and moving on,
+		// use mounter.DeviceOpened to check if the device is in use anywhere
+		// else on the system. Retry if it returns true.
+		deviceOpened, deviceOpenedErr := mounter.DeviceOpened(deviceToDetach.DevicePath)
+		if deviceOpenedErr != nil {
+			return fmt.Errorf(
+				"UnmountDevice.DeviceOpened failed for volume %q (spec.Name: %q) with: %v",
+				deviceToDetach.VolumeName,
+				deviceToDetach.VolumeSpec.Name(),
+				deviceOpenedErr)
+		}
+		// The device is still in use elsewhere. Caller will log and retry.
+		if deviceOpened {
+			return fmt.Errorf(
+				"UnmountDevice failed for volume %q (spec.Name: %q) because the device is in use when it was no longer expected to be in use",
+				deviceToDetach.VolumeName,
+				deviceToDetach.VolumeSpec.Name())
 		}
 
 		glog.Infof(

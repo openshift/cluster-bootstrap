@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -192,7 +192,7 @@ func (a *OIDCAuthenticator) client() (*oidc.Client, error) {
 	}
 
 	// SyncProviderConfig will start a goroutine to periodically synchronize the provider config.
-	// The synchronization interval is set by the expiration length of the config, and has a mininum
+	// The synchronization interval is set by the expiration length of the config, and has a minimum
 	// and maximum threshold.
 	stop := client.SyncProviderConfig(a.issuerURL)
 	a.oidcClient.Store(client)

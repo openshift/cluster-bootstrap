@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors All rights reserved.
+Copyright 2016 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -69,9 +69,8 @@ func NewNestedPendingOperations(exponentialBackOffOnError bool) NestedPendingOpe
 	g := &nestedPendingOperations{
 		operations:                []operation{},
 		exponentialBackOffOnError: exponentialBackOffOnError,
-		lock: &sync.RWMutex{},
 	}
-	g.cond = sync.NewCond(g.lock)
+	g.cond = sync.NewCond(&g.lock)
 	return g
 }
 
@@ -79,7 +78,7 @@ type nestedPendingOperations struct {
 	operations                []operation
 	exponentialBackOffOnError bool
 	cond                      *sync.Cond
-	lock                      *sync.RWMutex
+	lock                      sync.RWMutex
 }
 
 type operation struct {

@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,10 +41,19 @@ type Interface interface {
 	// IsLikelyNotMountPoint determines if a directory is a mountpoint.
 	// It should return ErrNotExist when the directory does not exist.
 	IsLikelyNotMountPoint(file string) (bool, error)
+	// DeviceOpened determines if the device is in use elsewhere
+	// on the system, i.e. still mounted.
+	DeviceOpened(pathname string) (bool, error)
+	// PathIsDevice determines if a path is a device.
+	PathIsDevice(pathname string) (bool, error)
 	// GetDeviceNameFromMount finds the device name by checking the mount path
 	// to get the global mount path which matches its plugin directory
 	GetDeviceNameFromMount(mountPath, pluginDir string) (string, error)
 }
+
+// Compile-time check to ensure all Mounter implementations satisfy
+// the mount interface
+var _ Interface = &Mounter{}
 
 // This represents a single line in /proc/mounts or /etc/fstab.
 type MountPoint struct {

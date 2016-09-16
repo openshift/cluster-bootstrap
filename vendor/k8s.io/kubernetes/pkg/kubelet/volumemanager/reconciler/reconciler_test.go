@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors All rights reserved.
+Copyright 2016 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,10 +24,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
+	"k8s.io/kubernetes/pkg/client/record"
 	"k8s.io/kubernetes/pkg/client/testing/core"
 	"k8s.io/kubernetes/pkg/kubelet/config"
 	"k8s.io/kubernetes/pkg/kubelet/volumemanager/cache"
 	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/util/sets"
 	"k8s.io/kubernetes/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/volume"
@@ -56,7 +58,8 @@ func Test_Run_Positive_DoNothing(t *testing.T) {
 	dsw := cache.NewDesiredStateOfWorld(volumePluginMgr)
 	asw := cache.NewActualStateOfWorld(nodeName, volumePluginMgr)
 	kubeClient := createTestClient()
-	oex := operationexecutor.NewOperationExecutor(kubeClient, volumePluginMgr)
+	fakeRecorder := &record.FakeRecorder{}
+	oex := operationexecutor.NewOperationExecutor(kubeClient, volumePluginMgr, fakeRecorder)
 	reconciler := NewReconciler(
 		kubeClient,
 		false, /* controllerAttachDetachEnabled */
@@ -67,6 +70,7 @@ func Test_Run_Positive_DoNothing(t *testing.T) {
 		dsw,
 		asw,
 		oex,
+		&mount.FakeMounter{},
 		volumePluginMgr,
 		kubeletPodsDir)
 
@@ -91,7 +95,8 @@ func Test_Run_Positive_VolumeAttachAndMount(t *testing.T) {
 	dsw := cache.NewDesiredStateOfWorld(volumePluginMgr)
 	asw := cache.NewActualStateOfWorld(nodeName, volumePluginMgr)
 	kubeClient := createTestClient()
-	oex := operationexecutor.NewOperationExecutor(kubeClient, volumePluginMgr)
+	fakeRecorder := &record.FakeRecorder{}
+	oex := operationexecutor.NewOperationExecutor(kubeClient, volumePluginMgr, fakeRecorder)
 	reconciler := NewReconciler(
 		kubeClient,
 		false, /* controllerAttachDetachEnabled */
@@ -102,6 +107,7 @@ func Test_Run_Positive_VolumeAttachAndMount(t *testing.T) {
 		dsw,
 		asw,
 		oex,
+		&mount.FakeMounter{},
 		volumePluginMgr,
 		kubeletPodsDir)
 	pod := &api.Pod{
@@ -160,7 +166,8 @@ func Test_Run_Positive_VolumeMountControllerAttachEnabled(t *testing.T) {
 	dsw := cache.NewDesiredStateOfWorld(volumePluginMgr)
 	asw := cache.NewActualStateOfWorld(nodeName, volumePluginMgr)
 	kubeClient := createTestClient()
-	oex := operationexecutor.NewOperationExecutor(kubeClient, volumePluginMgr)
+	fakeRecorder := &record.FakeRecorder{}
+	oex := operationexecutor.NewOperationExecutor(kubeClient, volumePluginMgr, fakeRecorder)
 	reconciler := NewReconciler(
 		kubeClient,
 		true, /* controllerAttachDetachEnabled */
@@ -171,6 +178,7 @@ func Test_Run_Positive_VolumeMountControllerAttachEnabled(t *testing.T) {
 		dsw,
 		asw,
 		oex,
+		&mount.FakeMounter{},
 		volumePluginMgr,
 		kubeletPodsDir)
 	pod := &api.Pod{
@@ -230,7 +238,8 @@ func Test_Run_Positive_VolumeAttachMountUnmountDetach(t *testing.T) {
 	dsw := cache.NewDesiredStateOfWorld(volumePluginMgr)
 	asw := cache.NewActualStateOfWorld(nodeName, volumePluginMgr)
 	kubeClient := createTestClient()
-	oex := operationexecutor.NewOperationExecutor(kubeClient, volumePluginMgr)
+	fakeRecorder := &record.FakeRecorder{}
+	oex := operationexecutor.NewOperationExecutor(kubeClient, volumePluginMgr, fakeRecorder)
 	reconciler := NewReconciler(
 		kubeClient,
 		false, /* controllerAttachDetachEnabled */
@@ -241,6 +250,7 @@ func Test_Run_Positive_VolumeAttachMountUnmountDetach(t *testing.T) {
 		dsw,
 		asw,
 		oex,
+		&mount.FakeMounter{},
 		volumePluginMgr,
 		kubeletPodsDir)
 	pod := &api.Pod{
@@ -311,7 +321,8 @@ func Test_Run_Positive_VolumeUnmountControllerAttachEnabled(t *testing.T) {
 	dsw := cache.NewDesiredStateOfWorld(volumePluginMgr)
 	asw := cache.NewActualStateOfWorld(nodeName, volumePluginMgr)
 	kubeClient := createTestClient()
-	oex := operationexecutor.NewOperationExecutor(kubeClient, volumePluginMgr)
+	fakeRecorder := &record.FakeRecorder{}
+	oex := operationexecutor.NewOperationExecutor(kubeClient, volumePluginMgr, fakeRecorder)
 	reconciler := NewReconciler(
 		kubeClient,
 		true, /* controllerAttachDetachEnabled */
@@ -322,6 +333,7 @@ func Test_Run_Positive_VolumeUnmountControllerAttachEnabled(t *testing.T) {
 		dsw,
 		asw,
 		oex,
+		&mount.FakeMounter{},
 		volumePluginMgr,
 		kubeletPodsDir)
 	pod := &api.Pod{
