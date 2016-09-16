@@ -14,8 +14,9 @@ import (
 	clientcmdapi "k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
-	"k8s.io/kubernetes/pkg/util"
 	"k8s.io/kubernetes/pkg/util/wait"
+
+	"github.com/kubernetes-incubator/bootkube/pkg/util"
 )
 
 func CreateAssets(manifestDir string, timeout time.Duration) error {
