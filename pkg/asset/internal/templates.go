@@ -45,15 +45,14 @@ spec:
         - --
         - ./hyperkube
         - kubelet
-        - --api-servers={{ index .APIServers 0 }}
-        - --config=/etc/kubernetes/manifests
+        - --pod-manifest-path=/etc/kubernetes/manifests
         - --allow-privileged
         - --hostname-override=$(MY_POD_IP)
         - --cluster-dns=10.3.0.10
         - --cluster-domain=cluster.local
         - --kubeconfig=/etc/kubernetes/kubeconfig
+        - --require-kubeconfig
         - --lock-file=/var/run/lock/kubelet.lock
-        - --minimum-container-ttl-duration=3m0s
         env:
           - name: MY_POD_IP
             valueFrom:
@@ -148,6 +147,7 @@ spec:
         - --allow-privileged=true
         - --service-cluster-ip-range=10.3.0.0/24
         - --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,ResourceQuota
+        - --runtime-config=api/all=true
         - --tls-cert-file=/etc/kubernetes/secrets/apiserver.crt
         - --tls-private-key-file=/etc/kubernetes/secrets/apiserver.key
         - --service-account-key-file=/etc/kubernetes/secrets/service-account.pub
@@ -259,7 +259,6 @@ spec:
         command:
         - /hyperkube
         - proxy
-        - --master={{ index .APIServers 0 }}
         - --kubeconfig=/etc/kubernetes/kubeconfig
         - --proxy-mode=iptables
         securityContext:
@@ -396,10 +395,5 @@ spec:
   - name: dns-tcp
     port: 53
     protocol: TCP
-`)
-	SystemNSTemplate = []byte(`apiVersion: v1
-kind: Namespace
-metadata:
-  name: kube-system
 `)
 )
