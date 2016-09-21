@@ -42,7 +42,7 @@ conformance-%: clean all
 # This will naively try and create a vendor dir from a k8s release
 # USE: make vendor VENDOR_VERSION=vX.Y.Z
 #TODO(aaron): Prompt because this is destructive
-VENDOR_VERSION = v1.3.6+coreos.0
+VENDOR_VERSION = v1.3.7+coreos.0
 vendor:
 	@echo "Creating k8s vendor for: $(VENDOR_VERSION)"
 	@rm -rf vendor
