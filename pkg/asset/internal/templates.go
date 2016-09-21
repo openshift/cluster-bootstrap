@@ -26,17 +26,17 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kubelet
-    version: v1.3.6_coreos.0
+    version: v1.3.7_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s-app: kubelet
-        version: v1.3.6_coreos.0
+        version: v1.3.7_coreos.0
     spec:
       containers:
       - name: kubelet
-        image: quay.io/coreos/hyperkube:v1.3.6_coreos.0
+        image: quay.io/coreos/hyperkube:v1.3.7_coreos.0
         command:
         - /nsenter
         - --target=1
@@ -116,13 +116,13 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kube-apiserver
-    version: v1.3.6_coreos.0
+    version: v1.3.7_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s-app: kube-apiserver
-        version: v1.3.6_coreos.0
+        version: v1.3.7_coreos.0
     spec:
       nodeSelector:
         master: "true"
@@ -136,7 +136,7 @@ spec:
         - mountPath: /etc/kubernetes/manifests
           name: etc-k8s-manifests
       - name: kube-apiserver
-        image: quay.io/coreos/hyperkube:v1.3.6_coreos.0
+        image: quay.io/coreos/hyperkube:v1.3.7_coreos.0
         command:
         - /hyperkube
         - apiserver
@@ -182,17 +182,17 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kube-controller-manager
-    version: v1.3.6_coreos.0
+    version: v1.3.7_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s-app: kube-controller-manager
-        version: v1.3.6_coreos.0
+        version: v1.3.7_coreos.0
     spec:
       containers:
       - name: kube-controller-manager
-        image: quay.io/coreos/hyperkube:v1.3.6_coreos.0
+        image: quay.io/coreos/hyperkube:v1.3.7_coreos.0
         command:
         - ./hyperkube
         - controller-manager
@@ -221,17 +221,17 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kube-scheduler
-    version: v1.3.6_coreos.0
+    version: v1.3.7_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s-app: kube-scheduler
-        version: v1.3.6_coreos.0
+        version: v1.3.7_coreos.0
     spec:
       containers:
       - name: kube-scheduler
-        image: quay.io/coreos/hyperkube:v1.3.6_coreos.0
+        image: quay.io/coreos/hyperkube:v1.3.7_coreos.0
         command:
         - ./hyperkube
         - scheduler
@@ -244,18 +244,18 @@ metadata:
   namespace: kube-system
   labels:
     k8s_app: kube-proxy
-    version: v1.3.6_coreos.0
+    version: v1.3.7_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s_app: kube-proxy
-        version: v1.3.6_coreos.0
+        version: v1.3.7_coreos.0
     spec:
       hostNetwork: true
       containers:
       - name: kube-proxy
-        image: quay.io/coreos/hyperkube:v1.3.6_coreos.0
+        image: quay.io/coreos/hyperkube:v1.3.7_coreos.0
         command:
         - /hyperkube
         - proxy
