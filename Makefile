@@ -39,10 +39,11 @@ conformance-%: clean all
 	@sleep 30 # Give addons a little time to start
 	@cd hack/$*-node && ./conformance-test.sh
 
+#TODO(aaron): Prompt because this is destructive
+#TODO(aaron): the k8s.io/client-go upstream package is a symlink with relative path. Making note because we change symlink path.
 # This will naively try and create a vendor dir from a k8s release
 # USE: make vendor VENDOR_VERSION=vX.Y.Z
-#TODO(aaron): Prompt because this is destructive
-VENDOR_VERSION = v1.3.7+coreos.0
+VENDOR_VERSION = v1.4.0+coreos.0
 vendor:
 	@echo "Creating k8s vendor for: $(VENDOR_VERSION)"
 	@rm -rf vendor
@@ -50,8 +51,9 @@ vendor:
 	@git clone https://github.com/coreos/kubernetes $@/k8s.io/kubernetes > /dev/null 2>&1
 	@cd $@/k8s.io/kubernetes && git checkout $(VENDOR_VERSION) > /dev/null 2>&1
 	@cd $@/k8s.io/kubernetes && rm -rf docs examples hack cluster Godeps
-	@cd $@/k8s.io/kubernetes/vendor && mv k8s.io/heapster $(abspath $@/k8s.io) && rmdir k8s.io
+	@cd $@/k8s.io/kubernetes/vendor && mv k8s.io/* $(abspath $@/k8s.io) && rmdir k8s.io
 	@mv $@/k8s.io/kubernetes/vendor/* $(abspath $@)
+	@cd $@/k8s.io/ && ln -sf kubernetes/staging/src/k8s.io/client-go client-go
 	@rm -rf $@/k8s.io/kubernetes/vendor $@/k8s.io/kubernetes/.git
 
 clean:
