@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -154,7 +154,7 @@ func proxyContext(version string) {
 			CreatedPods: &pods,
 		}
 		Expect(framework.RunRC(cfg)).NotTo(HaveOccurred())
-		defer framework.DeleteRC(f.Client, f.Namespace.Name, cfg.Name)
+		defer framework.DeleteRCAndPods(f.Client, f.Namespace.Name, cfg.Name)
 
 		Expect(f.WaitForAnEndpoint(service.Name)).NotTo(HaveOccurred())
 

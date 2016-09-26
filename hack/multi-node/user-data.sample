@@ -26,20 +26,19 @@ coreos:
         [Service]
         EnvironmentFile=/etc/environment
         Environment=KUBELET_ACI=quay.io/coreos/hyperkube
-        Environment=KUBELET_VERSION=v1.3.7_coreos.0
+        Environment=KUBELET_VERSION=v1.4.0_coreos.0
         ExecStartPre=/bin/mkdir -p /etc/kubernetes/manifests
         ExecStartPre=/bin/mkdir -p /srv/kubernetes/manifests
         ExecStartPre=/bin/mkdir -p /etc/kubernetes/checkpoint-secrets
         ExecStart=/usr/lib/coreos/kubelet-wrapper \
-          --api-servers=https://172.17.4.101:443 \
           --kubeconfig=/etc/kubernetes/kubeconfig \
+          --require-kubeconfig \
           --lock-file=/var/run/lock/kubelet.lock \
           --exit-on-lock-contention \
-          --config=/etc/kubernetes/manifests \
+          --pod-manifest-path=/etc/kubernetes/manifests \
           --allow-privileged \
           --hostname-override=${COREOS_PUBLIC_IPV4} \
           --node-labels=master=true \
-          --minimum-container-ttl-duration=3m0s \
           --cluster_dns=10.3.0.10 \
           --cluster_domain=cluster.local
         Restart=always

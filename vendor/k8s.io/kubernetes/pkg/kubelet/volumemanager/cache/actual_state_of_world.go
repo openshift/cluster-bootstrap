@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors All rights reserved.
+Copyright 2016 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -294,6 +294,15 @@ func (asw *actualStateOfWorld) MarkVolumeAsMounted(
 		mounter,
 		outerVolumeSpecName,
 		volumeGidValue)
+}
+
+func (asw *actualStateOfWorld) AddVolumeToReportAsAttached(volumeName api.UniqueVolumeName, nodeName string) {
+	// no operation for kubelet side
+}
+
+func (asw *actualStateOfWorld) RemoveVolumeFromReportAsAttached(volumeName api.UniqueVolumeName, nodeName string) error {
+	// no operation for kubelet side
+	return nil
 }
 
 func (asw *actualStateOfWorld) MarkVolumeAsUnmounted(
@@ -600,7 +609,8 @@ func (asw *actualStateOfWorld) newAttachedVolume(
 			VolumeName:         attachedVolume.volumeName,
 			VolumeSpec:         attachedVolume.spec,
 			NodeName:           asw.nodeName,
-			PluginIsAttachable: attachedVolume.pluginIsAttachable},
+			PluginIsAttachable: attachedVolume.pluginIsAttachable,
+			DevicePath:         attachedVolume.devicePath},
 		GloballyMounted: attachedVolume.globallyMounted}
 }
 

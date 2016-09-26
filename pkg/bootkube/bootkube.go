@@ -65,8 +65,8 @@ func NewBootkube(config Config) (*bootkube, error) {
 		"--etcd-servers=" + config.EtcdServer.String(),
 		"--service-cluster-ip-range=10.3.0.0/24",
 		"--service-account-key-file=" + filepath.Join(config.AssetDir, asset.AssetPathServiceAccountPubKey),
-		"--admission-control=ServiceAccount",
-		"--runtime-config=extensions/v1beta1/deployments=true,extensions/v1beta1/daemonsets=true",
+		"--admission-control=NamespaceLifecycle,ServiceAccount",
+		"--runtime-config=api/all=true",
 	})
 
 	cmServer := controller.NewCMServer()

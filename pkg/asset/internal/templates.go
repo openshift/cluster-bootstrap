@@ -26,17 +26,17 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kubelet
-    version: v1.3.7_coreos.0
+    version: v1.4.0_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s-app: kubelet
-        version: v1.3.7_coreos.0
+        version: v1.4.0_coreos.0
     spec:
       containers:
       - name: kubelet
-        image: quay.io/coreos/hyperkube:v1.3.7_coreos.0
+        image: quay.io/coreos/hyperkube:v1.4.0_coreos.0
         command:
         - /nsenter
         - --target=1
@@ -45,15 +45,14 @@ spec:
         - --
         - ./hyperkube
         - kubelet
-        - --api-servers={{ index .APIServers 0 }}
-        - --config=/etc/kubernetes/manifests
+        - --pod-manifest-path=/etc/kubernetes/manifests
         - --allow-privileged
         - --hostname-override=$(MY_POD_IP)
         - --cluster-dns=10.3.0.10
         - --cluster-domain=cluster.local
         - --kubeconfig=/etc/kubernetes/kubeconfig
+        - --require-kubeconfig
         - --lock-file=/var/run/lock/kubelet.lock
-        - --minimum-container-ttl-duration=3m0s
         env:
           - name: MY_POD_IP
             valueFrom:
@@ -116,13 +115,13 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kube-apiserver
-    version: v1.3.7_coreos.0
+    version: v1.4.0_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s-app: kube-apiserver
-        version: v1.3.7_coreos.0
+        version: v1.4.0_coreos.0
     spec:
       nodeSelector:
         master: "true"
@@ -136,7 +135,7 @@ spec:
         - mountPath: /etc/kubernetes/manifests
           name: etc-k8s-manifests
       - name: kube-apiserver
-        image: quay.io/coreos/hyperkube:v1.3.7_coreos.0
+        image: quay.io/coreos/hyperkube:v1.4.0_coreos.0
         command:
         - /hyperkube
         - apiserver
@@ -148,6 +147,7 @@ spec:
         - --allow-privileged=true
         - --service-cluster-ip-range=10.3.0.0/24
         - --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,ResourceQuota
+        - --runtime-config=api/all=true
         - --tls-cert-file=/etc/kubernetes/secrets/apiserver.crt
         - --tls-private-key-file=/etc/kubernetes/secrets/apiserver.key
         - --service-account-key-file=/etc/kubernetes/secrets/service-account.pub
@@ -182,17 +182,17 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kube-controller-manager
-    version: v1.3.7_coreos.0
+    version: v1.4.0_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s-app: kube-controller-manager
-        version: v1.3.7_coreos.0
+        version: v1.4.0_coreos.0
     spec:
       containers:
       - name: kube-controller-manager
-        image: quay.io/coreos/hyperkube:v1.3.7_coreos.0
+        image: quay.io/coreos/hyperkube:v1.4.0_coreos.0
         command:
         - ./hyperkube
         - controller-manager
@@ -221,17 +221,17 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kube-scheduler
-    version: v1.3.7_coreos.0
+    version: v1.4.0_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s-app: kube-scheduler
-        version: v1.3.7_coreos.0
+        version: v1.4.0_coreos.0
     spec:
       containers:
       - name: kube-scheduler
-        image: quay.io/coreos/hyperkube:v1.3.7_coreos.0
+        image: quay.io/coreos/hyperkube:v1.4.0_coreos.0
         command:
         - ./hyperkube
         - scheduler
@@ -244,22 +244,21 @@ metadata:
   namespace: kube-system
   labels:
     k8s_app: kube-proxy
-    version: v1.3.7_coreos.0
+    version: v1.4.0_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s_app: kube-proxy
-        version: v1.3.7_coreos.0
+        version: v1.4.0_coreos.0
     spec:
       hostNetwork: true
       containers:
       - name: kube-proxy
-        image: quay.io/coreos/hyperkube:v1.3.7_coreos.0
+        image: quay.io/coreos/hyperkube:v1.4.0_coreos.0
         command:
         - /hyperkube
         - proxy
-        - --master={{ index .APIServers 0 }}
         - --kubeconfig=/etc/kubernetes/kubeconfig
         - --proxy-mode=iptables
         securityContext:
@@ -282,11 +281,11 @@ spec:
 	DNSDeploymentTemplate = []byte(`apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: kube-dns-v17.1
+  name: kube-dns-v19
   namespace: kube-system
   labels:
     k8s-app: kube-dns
-    version: v17.1
+    version: v19
     kubernetes.io/cluster-service: "true"
 spec:
   replicas: 1
@@ -294,15 +293,21 @@ spec:
     metadata:
       labels:
         k8s-app: kube-dns
-        version: v17.1
+        version: v19
         kubernetes.io/cluster-service: "true"
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+        scheduler.alpha.kubernetes.io/tolerations: '[{"key":"CriticalAddonsOnly", "operator":"Exists"}]'
     spec:
       containers:
       - name: kubedns
-        image: gcr.io/google_containers/kubedns-amd64:1.5
+        image: gcr.io/google_containers/kubedns-amd64:1.7
         resources:
+          # TODO: Set memory limits when we've profiled the container for large
+          # clusters, then set request = limit to keep this container in
+          # guaranteed class. Currently, this container falls into the
+          # "burstable" category so the kubelet doesn't backoff from restarting it.
           limits:
-            cpu: 100m
             memory: 170Mi
           requests:
             cpu: 100m
@@ -321,11 +326,14 @@ spec:
             path: /readiness
             port: 8081
             scheme: HTTP
+          # we poll on pod startup for the Kubernetes master service and
+          # only setup the /readiness HTTP server once that's available.
           initialDelaySeconds: 30
           timeoutSeconds: 5
         args:
-          - --domain=cluster.local.
-          - --dns-port=10053
+        # command = "/kube-dns"
+        - --domain=cluster.local.
+        - --dns-port=10053
         ports:
         - containerPort: 10053
           name: dns-local
@@ -350,19 +358,22 @@ spec:
         image: gcr.io/google_containers/exechealthz-amd64:1.1
         resources:
           limits:
-            cpu: 10m
             memory: 50Mi
           requests:
             cpu: 10m
+            # Note that this container shouldn't really need 50Mi of memory. The
+            # limits are set higher than expected pending investigation on #29688.
+            # The extra memory was stolen from the kubedns container to keep the
+            # net memory requested by the pod constant.
             memory: 50Mi
         args:
-        - -cmd=nslookup kubernetes.default.svc.cluster.local 127.0.0.1 >/dev/null
+        - -cmd=nslookup kubernetes.default.svc.cluster.local 127.0.0.1 >/dev/null && nslookup kubernetes.default.svc.cluster.local 127.0.0.1:10053 >/dev/null
         - -port=8080
         - -quiet
         ports:
         - containerPort: 8080
           protocol: TCP
-      dnsPolicy: Default
+      dnsPolicy: Default  # Don't use cluster DNS.
 `)
 	DNSSvcTemplate = []byte(`apiVersion: v1
 kind: Service
@@ -384,10 +395,5 @@ spec:
   - name: dns-tcp
     port: 53
     protocol: TCP
-`)
-	SystemNSTemplate = []byte(`apiVersion: v1
-kind: Namespace
-metadata:
-  name: kube-system
 `)
 )
