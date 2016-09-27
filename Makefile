@@ -43,8 +43,9 @@ run-%: clean-vm-% _output/bin/linux/bootkube _output/bin/$(LOCAL_OS)/bootkube
 
 clean-vm-single:
 clean-vm-%:
+	@cd hack/$*-node && rm -rf cluster
 	@echo "Cleaning VM..."
-	@(cd hack/single-node && vagrant destroy -f && vagrant up) &
+	@(cd hack/$*-node && vagrant destroy -f && vagrant up) &
 
 #TODO(aaron): Prompt because this is destructive
 conformance-%: clean all
