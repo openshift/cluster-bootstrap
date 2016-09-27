@@ -33,11 +33,6 @@ _output/release/bootkube.tar.gz: _output/bin/linux/bootkube _output/bin/darwin/b
 
 run-%: GOFLAGS = -i
 run-%: clean-vm-% _output/bin/linux/bootkube _output/bin/$(LOCAL_OS)/bootkube
-	@until (cd hack/$*-node && vagrant up 2>/dev/null);\
-	do \
-		echo "Vagrant not ready."; \
-		sleep 5; \
-	done;
 	@cd hack/$*-node && ./bootkube-up
 	@echo "Bootkube ready"
 
@@ -46,8 +41,7 @@ clean-vm-%:
 	@echo "Cleaning VM..."
 	@(cd hack/$*-node && \
 	    vagrant destroy -f && \
-	    vagrant up \
-	    rm -rf cluster) &
+	    rm -rf cluster )
 
 #TODO(aaron): Prompt because this is destructive
 conformance-%: clean all
