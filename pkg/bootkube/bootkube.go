@@ -24,7 +24,6 @@ const (
 
 var requiredPods = []string{
 	"kube-api-checkpoint",
-	"kubelet",
 	"kube-apiserver",
 	"kube-scheduler",
 	"kube-controller-manager",
