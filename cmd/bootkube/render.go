@@ -33,6 +33,7 @@ var (
 		etcdServers       string
 		apiServers        string
 		altNames          string
+		selfHostKubelet   bool
 	}
 )
 
@@ -44,6 +45,7 @@ func init() {
 	cmdRender.Flags().StringVar(&renderOpts.etcdServers, "etcd-servers", "http://127.0.0.1:2379", "List of etcd servers URLs including host:port, comma separated")
 	cmdRender.Flags().StringVar(&renderOpts.apiServers, "api-servers", "https://127.0.0.1:443", "List of API server URLs including host:port, commma seprated")
 	cmdRender.Flags().StringVar(&renderOpts.altNames, "api-server-alt-names", "", "List of SANs to use in api-server certificate. Example: 'IP=127.0.0.1,IP=127.0.0.2,DNS=localhost'. If empty, SANs will be extracted from the --api-servers flag.")
+	cmdRender.Flags().BoolVar(&renderOpts.selfHostKubelet, "self-host-kubelet", true, "Set false to skip creation of and pivot to self-hosted kubelet.")
 }
 
 func runCmdRender(cmd *cobra.Command, args []string) error {
@@ -106,11 +108,12 @@ func flagsToAssetConfig() (c *asset.Config, err error) {
 		}
 	}
 	return &asset.Config{
-		EtcdServers: etcdServers,
-		CACert:      caCert,
-		CAPrivKey:   caPrivKey,
-		APIServers:  apiServers,
-		AltNames:    altNames,
+		EtcdServers:     etcdServers,
+		CACert:          caCert,
+		CAPrivKey:       caPrivKey,
+		APIServers:      apiServers,
+		AltNames:        altNames,
+		SelfHostKubelet: renderOpts.selfHostKubelet,
 	}, nil
 }
 
