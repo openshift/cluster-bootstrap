@@ -33,7 +33,6 @@ import (
 	kube_release_1_4 "k8s.io/kubernetes/pkg/client/clientset_generated/release_1_4"
 	"k8s.io/kubernetes/pkg/client/record"
 	"k8s.io/kubernetes/pkg/controller"
-	"k8s.io/kubernetes/pkg/controller/framework"
 	"k8s.io/kubernetes/pkg/conversion"
 	pkg_runtime "k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/types"
@@ -81,7 +80,7 @@ type IngressController struct {
 	// Definitions of ingresses that should be federated.
 	ingressInformerStore cache.Store
 	// Informer controller for ingresses that should be federated.
-	ingressInformerController framework.ControllerInterface
+	ingressInformerController cache.ControllerInterface
 
 	// Client to federated api server.
 	federatedApiClient federation_release_1_4.Interface
@@ -125,7 +124,7 @@ func NewIngressController(client federation_release_1_4.Interface) *IngressContr
 	ic.configMapDeliverer = util.NewDelayingDeliverer()
 
 	// Start informer in federated API servers on ingresses that should be federated.
-	ic.ingressInformerStore, ic.ingressInformerController = framework.NewInformer(
+	ic.ingressInformerStore, ic.ingressInformerController = cache.NewInformer(
 		&cache.ListWatch{
 			ListFunc: func(options api.ListOptions) (pkg_runtime.Object, error) {
 				return client.Extensions().Ingresses(api.NamespaceAll).List(options)
@@ -145,8 +144,8 @@ func NewIngressController(client federation_release_1_4.Interface) *IngressContr
 	// Federated informer on ingresses in members of federation.
 	ic.ingressFederatedInformer = util.NewFederatedInformer(
 		client,
-		func(cluster *federation_api.Cluster, targetClient kube_release_1_4.Interface) (cache.Store, framework.ControllerInterface) {
-			return framework.NewInformer(
+		func(cluster *federation_api.Cluster, targetClient kube_release_1_4.Interface) (cache.Store, cache.ControllerInterface) {
+			return cache.NewInformer(
 				&cache.ListWatch{
 					ListFunc: func(options api.ListOptions) (pkg_runtime.Object, error) {
 						return targetClient.Extensions().Ingresses(api.NamespaceAll).List(options)
@@ -177,9 +176,9 @@ func NewIngressController(client federation_release_1_4.Interface) *IngressContr
 	// Federated informer on configmaps for ingress controllers in members of the federation.
 	ic.configMapFederatedInformer = util.NewFederatedInformer(
 		client,
-		func(cluster *federation_api.Cluster, targetClient kube_release_1_4.Interface) (cache.Store, framework.ControllerInterface) {
+		func(cluster *federation_api.Cluster, targetClient kube_release_1_4.Interface) (cache.Store, cache.ControllerInterface) {
 			glog.V(4).Infof("Returning new informer for cluster %q", cluster.Name)
-			return framework.NewInformer(
+			return cache.NewInformer(
 				&cache.ListWatch{
 					ListFunc: func(options api.ListOptions) (pkg_runtime.Object, error) {
 						if targetClient == nil {
@@ -666,7 +665,7 @@ func (ic *IngressController) reconcileIngress(ingress types.NamespacedName) {
 					ClusterName: cluster.Name,
 				})
 			} else {
-				glog.V(4).Infof("No annotation %q exists on ingress %q in federation, and index of cluster %q is %d and not zero.  Not queueing create operation for ingress %q until annotation exists", staticIPNameKeyWritable, ingress, cluster.Name, clusterIndex)
+				glog.V(4).Infof("No annotation %q exists on ingress %q in federation, and index of cluster %q is %d and not zero.  Not queueing create operation for ingress %q until annotation exists", staticIPNameKeyWritable, ingress, cluster.Name, clusterIndex, ingress)
 			}
 		} else {
 			clusterIngress := clusterIngressObj.(*extensions_v1beta1.Ingress)
@@ -679,6 +678,16 @@ func (ic *IngressController) reconcileIngress(ingress types.NamespacedName) {
 				glog.V(4).Infof(logStr, "Transferring")
 				if !baseIPAnnotationExists && clusterIPNameExists {
 					baseIngress.ObjectMeta.Annotations[staticIPNameKeyWritable] = clusterIPName
+					glog.V(4).Infof("Attempting to update base federated ingress annotations: %v", baseIngress)
+					if updatedFedIngress, err := ic.federatedApiClient.Extensions().Ingresses(baseIngress.Namespace).Update(baseIngress); err != nil {
+						glog.Errorf("Failed to add static IP annotation to federated ingress %q, will try again later: %v", ingress, err)
+						ic.deliverIngress(ingress, ic.ingressReviewDelay, true)
+						return
+					} else {
+						glog.V(4).Infof("Successfully updated federated ingress %q (added IP annotation), after update: %q", ingress, updatedFedIngress)
+						ic.deliverIngress(ingress, ic.smallDelay, false)
+						return
+					}
 				}
 				if !baseLBStatusExists && clusterLBStatusExists {
 					lbstatusObj, lbErr := conversion.NewCloner().DeepCopy(&clusterIngress.Status.LoadBalancer)
@@ -689,16 +698,16 @@ func (ic *IngressController) reconcileIngress(ingress types.NamespacedName) {
 						return
 					}
 					baseIngress.Status.LoadBalancer = *lbstatus
-				}
-				glog.V(4).Infof("Attempting to update base federated ingress: %v", baseIngress)
-				if _, err = ic.federatedApiClient.Extensions().Ingresses(baseIngress.Namespace).Update(baseIngress); err != nil {
-					glog.Errorf("Failed to add static IP annotation to federated ingress %q, will try again later: %v", ingress, err)
-					ic.deliverIngress(ingress, ic.ingressReviewDelay, true)
-					return
-				} else {
-					glog.V(4).Infof("Successfully added static IP annotation to federated ingress: %q", ingress)
-					ic.deliverIngress(ingress, ic.smallDelay, false)
-					return
+					glog.V(4).Infof("Attempting to update base federated ingress status: %v", baseIngress)
+					if updatedFedIngress, err := ic.federatedApiClient.Extensions().Ingresses(baseIngress.Namespace).UpdateStatus(baseIngress); err != nil {
+						glog.Errorf("Failed to update federated ingress status of %q (loadbalancer status), will try again later: %v", ingress, err)
+						ic.deliverIngress(ingress, ic.ingressReviewDelay, true)
+						return
+					} else {
+						glog.V(4).Infof("Successfully updated federated ingress status of %q (added loadbalancer status), after update: %q", ingress, updatedFedIngress)
+						ic.deliverIngress(ingress, ic.smallDelay, false)
+						return
+					}
 				}
 			} else {
 				glog.V(4).Infof(logStr, "Not transferring")
@@ -712,10 +721,13 @@ func (ic *IngressController) reconcileIngress(ingress types.NamespacedName) {
 				objMeta, err := conversion.NewCloner().DeepCopy(clusterIngress.ObjectMeta)
 				if err != nil {
 					glog.Errorf("Error deep copying ObjectMeta: %v", err)
+					ic.deliverIngress(ingress, ic.ingressReviewDelay, true)
+
 				}
 				desiredIngress.ObjectMeta, ok = objMeta.(v1.ObjectMeta)
 				if !ok {
 					glog.Errorf("Internal error: Failed to cast to v1.ObjectMeta: %v", objMeta)
+					ic.deliverIngress(ingress, ic.ingressReviewDelay, true)
 				}
 				// Merge any annotations and labels on the federated ingress onto the underlying cluster ingress,
 				// overwriting duplicates.
@@ -748,6 +760,7 @@ func (ic *IngressController) reconcileIngress(ingress types.NamespacedName) {
 	if len(operations) == 0 {
 		// Everything is in order
 		glog.V(4).Infof("Ingress %q is up-to-date in all clusters - no propagation to clusters required.", ingress)
+		ic.deliverIngress(ingress, ic.ingressReviewDelay, false)
 		return
 	}
 	glog.V(4).Infof("Calling federatedUpdater.Update() - operations: %v", operations)
@@ -760,4 +773,6 @@ func (ic *IngressController) reconcileIngress(ingress types.NamespacedName) {
 		ic.deliverIngress(ingress, ic.ingressReviewDelay, true)
 		return
 	}
+	// Schedule another periodic reconciliation, only to account for possible bugs in watch processing.
+	ic.deliverIngress(ingress, ic.ingressReviewDelay, false)
 }

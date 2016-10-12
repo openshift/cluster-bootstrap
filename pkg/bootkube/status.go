@@ -13,7 +13,6 @@ import (
 	"k8s.io/kubernetes/pkg/client/cache"
 	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/release_1_4"
 	"k8s.io/kubernetes/pkg/client/restclient"
-	"k8s.io/kubernetes/pkg/controller/framework"
 	"k8s.io/kubernetes/pkg/labels"
 	"k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/util/wait"
@@ -63,7 +62,7 @@ func (s *statusController) Run() {
 	}
 
 	options := api.ListOptions{LabelSelector: ls}
-	podStore, podController := framework.NewInformer(
+	podStore, podController := cache.NewInformer(
 		&cache.ListWatch{
 			ListFunc: func(lo api.ListOptions) (runtime.Object, error) {
 				return s.client.Core().Pods(api.NamespaceSystem).List(options)
@@ -74,7 +73,7 @@ func (s *statusController) Run() {
 		},
 		&v1.Pod{},
 		30*time.Minute,
-		framework.ResourceEventHandlerFuncs{},
+		cache.ResourceEventHandlerFuncs{},
 	)
 	s.podStore = podStore
 	go podController.Run(wait.NeverStop)

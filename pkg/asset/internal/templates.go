@@ -26,17 +26,17 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kubelet
-    version: v1.4.0_coreos.0
+    version: v1.4.1_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s-app: kubelet
-        version: v1.4.0_coreos.0
+        version: v1.4.1_coreos.0
     spec:
       containers:
       - name: kubelet
-        image: quay.io/coreos/hyperkube:v1.4.0_coreos.0
+        image: quay.io/coreos/hyperkube:v1.4.1_coreos.0
         command:
         - /nsenter
         - --target=1
@@ -115,13 +115,13 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kube-apiserver
-    version: v1.4.0_coreos.0
+    version: v1.4.1_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s-app: kube-apiserver
-        version: v1.4.0_coreos.0
+        version: v1.4.1_coreos.0
     spec:
       nodeSelector:
         master: "true"
@@ -135,7 +135,7 @@ spec:
         - mountPath: /etc/kubernetes/manifests
           name: etc-k8s-manifests
       - name: kube-apiserver
-        image: quay.io/coreos/hyperkube:v1.4.0_coreos.0
+        image: quay.io/coreos/hyperkube:v1.4.1_coreos.0
         command:
         - /hyperkube
         - apiserver
@@ -182,17 +182,17 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kube-controller-manager
-    version: v1.4.0_coreos.0
+    version: v1.4.1_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s-app: kube-controller-manager
-        version: v1.4.0_coreos.0
+        version: v1.4.1_coreos.0
     spec:
       containers:
       - name: kube-controller-manager
-        image: quay.io/coreos/hyperkube:v1.4.0_coreos.0
+        image: quay.io/coreos/hyperkube:v1.4.1_coreos.0
         command:
         - ./hyperkube
         - controller-manager
@@ -221,17 +221,17 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kube-scheduler
-    version: v1.4.0_coreos.0
+    version: v1.4.1_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s-app: kube-scheduler
-        version: v1.4.0_coreos.0
+        version: v1.4.1_coreos.0
     spec:
       containers:
       - name: kube-scheduler
-        image: quay.io/coreos/hyperkube:v1.4.0_coreos.0
+        image: quay.io/coreos/hyperkube:v1.4.1_coreos.0
         command:
         - ./hyperkube
         - scheduler
@@ -244,18 +244,18 @@ metadata:
   namespace: kube-system
   labels:
     k8s_app: kube-proxy
-    version: v1.4.0_coreos.0
+    version: v1.4.1_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s_app: kube-proxy
-        version: v1.4.0_coreos.0
+        version: v1.4.1_coreos.0
     spec:
       hostNetwork: true
       containers:
       - name: kube-proxy
-        image: quay.io/coreos/hyperkube:v1.4.0_coreos.0
+        image: quay.io/coreos/hyperkube:v1.4.1_coreos.0
         command:
         - /hyperkube
         - proxy
@@ -281,11 +281,11 @@ spec:
 	DNSDeploymentTemplate = []byte(`apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: kube-dns-v19
+  name: kube-dns-v20
   namespace: kube-system
   labels:
     k8s-app: kube-dns
-    version: v19
+    version: v20
     kubernetes.io/cluster-service: "true"
 spec:
   replicas: 1
@@ -293,15 +293,14 @@ spec:
     metadata:
       labels:
         k8s-app: kube-dns
-        version: v19
-        kubernetes.io/cluster-service: "true"
+        version: v20
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
         scheduler.alpha.kubernetes.io/tolerations: '[{"key":"CriticalAddonsOnly", "operator":"Exists"}]'
     spec:
       containers:
       - name: kubedns
-        image: gcr.io/google_containers/kubedns-amd64:1.7
+        image: gcr.io/google_containers/kubedns-amd64:1.8
         resources:
           # TODO: Set memory limits when we've profiled the container for large
           # clusters, then set request = limit to keep this container in
@@ -314,7 +313,7 @@ spec:
             memory: 70Mi
         livenessProbe:
           httpGet:
-            path: /healthz
+            path: /healthz-kubedns
             port: 8080
             scheme: HTTP
           initialDelaySeconds: 60
@@ -328,7 +327,7 @@ spec:
             scheme: HTTP
           # we poll on pod startup for the Kubernetes master service and
           # only setup the /readiness HTTP server once that's available.
-          initialDelaySeconds: 30
+          initialDelaySeconds: 3
           timeoutSeconds: 5
         args:
         # command = "/kube-dns"
@@ -342,11 +341,21 @@ spec:
           name: dns-tcp-local
           protocol: TCP
       - name: dnsmasq
-        image: gcr.io/google_containers/kube-dnsmasq-amd64:1.3
+        image: gcr.io/google_containers/kube-dnsmasq-amd64:1.4
+        livenessProbe:
+          httpGet:
+            path: /healthz-dnsmasq
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 60
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 5
         args:
         - --cache-size=1000
         - --no-resolv
         - --server=127.0.0.1#10053
+        - --log-facility=-
         ports:
         - containerPort: 53
           name: dns
@@ -355,7 +364,7 @@ spec:
           name: dns-tcp
           protocol: TCP
       - name: healthz
-        image: gcr.io/google_containers/exechealthz-amd64:1.1
+        image: gcr.io/google_containers/exechealthz-amd64:1.2
         resources:
           limits:
             memory: 50Mi
@@ -367,9 +376,12 @@ spec:
             # net memory requested by the pod constant.
             memory: 50Mi
         args:
-        - -cmd=nslookup kubernetes.default.svc.cluster.local 127.0.0.1 >/dev/null && nslookup kubernetes.default.svc.cluster.local 127.0.0.1:10053 >/dev/null
-        - -port=8080
-        - -quiet
+        - --cmd=nslookup kubernetes.default.svc.cluster.local 127.0.0.1 >/dev/null
+        - --url=/healthz-dnsmasq
+        - --cmd=nslookup kubernetes.default.svc.cluster.local 127.0.0.1:10053 >/dev/null
+        - --url=/healthz-kubedns
+        - --port=8080
+        - --quiet
         ports:
         - containerPort: 8080
           protocol: TCP
