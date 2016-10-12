@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package app does all of the work necessary to create a Kubernetes
 // APIServer by binding together the API, master and APIServer infrastructure.
-// It can be configured and called directly or via the hyperkube framework.
+// It can be configured and called directly or via the hyperkube cache.
 package app
 
 import (
@@ -33,7 +33,7 @@ import (
 	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/apis/rbac"
 	"k8s.io/kubernetes/pkg/apiserver/authenticator"
-	"k8s.io/kubernetes/pkg/controller/framework/informers"
+	"k8s.io/kubernetes/pkg/controller/informers"
 	"k8s.io/kubernetes/pkg/genericapiserver"
 	"k8s.io/kubernetes/pkg/genericapiserver/authorizer"
 	genericoptions "k8s.io/kubernetes/pkg/genericapiserver/options"
@@ -75,6 +75,10 @@ func Run(s *options.ServerRunOptions) error {
 	// TODO: register cluster federation resources here.
 	resourceConfig := genericapiserver.NewResourceConfig()
 
+	if s.StorageConfig.DeserializationCacheSize == 0 {
+		// When size of cache is not explicitly set, set it to 50000
+		s.StorageConfig.DeserializationCacheSize = 50000
+	}
 	storageGroupsToEncodingVersion, err := s.StorageGroupsToEncodingVersion()
 	if err != nil {
 		glog.Fatalf("error generating storage version map: %s", err)
