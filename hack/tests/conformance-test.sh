@@ -32,8 +32,8 @@ RKT_OPTS=$(echo \
     "--mount volume=kc,target=/kubeconfig " \
     "--mount volume=k8s,target=/go/src/k8s.io/kubernetes")
 
-# Init steps necessary to run conformance in docker://golang:1.6.2 container
-INIT="apt-get update && apt-get install -y rsync"
+# Init steps necessary to run conformance in golang container
+INIT="apt-get update && apt-get install -y rsync && go get -u github.com/jteeuwen/go-bindata/go-bindata"
 
 TEST_FLAGS="-v --test -check_version_skew=false -check_node_count=${CHECK_NODE_COUNT} --test_args=\"${TEST_ARGS}\""
 
@@ -45,6 +45,6 @@ CONFORMANCE=$(echo \
     "make all WHAT=test/e2e/e2e.test && " \
     "KUBECONFIG=/kubeconfig KUBERNETES_PROVIDER=skeleton KUBERNETES_CONFORMANCE_TEST=Y go run hack/e2e.go ${TEST_FLAGS}")
 
-CMD="sudo rkt run --insecure-options=image ${RKT_OPTS} docker://golang:1.6.2 --exec /bin/bash -- -c \"${INIT} && ${CONFORMANCE}\""
+CMD="sudo rkt run --insecure-options=image ${RKT_OPTS} docker://golang:1.6.3 --exec /bin/bash -- -c \"${INIT} && ${CONFORMANCE}\""
 
 ssh -q -o stricthostkeychecking=no -i ${ssh_key} -p ${ssh_port} core@${ssh_host} "${CMD}"
