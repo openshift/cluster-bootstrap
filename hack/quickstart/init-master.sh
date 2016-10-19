@@ -7,7 +7,7 @@ CLUSTER_DIR=${CLUSTER_DIR:-cluster}
 IDENT=${IDENT:-${HOME}/.ssh/id_rsa}
 
 BOOTKUBE_REPO=quay.io/coreos/bootkube
-BOOTKUBE_VERSION=v0.2.1
+BOOTKUBE_VERSION=v0.2.2
 
 function usage() {
     echo "USAGE:"
