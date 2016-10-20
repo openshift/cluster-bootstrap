@@ -5,6 +5,7 @@ REMOTE_HOST=$1
 REMOTE_PORT=${REMOTE_PORT:-22}
 CLUSTER_DIR=${CLUSTER_DIR:-cluster}
 IDENT=${IDENT:-${HOME}/.ssh/id_rsa}
+SSH_OPTS=${SSH_OPTS:-}
 
 BOOTKUBE_REPO=quay.io/coreos/bootkube
 BOOTKUBE_VERSION=v0.2.2
@@ -105,19 +106,19 @@ function init_master_node() {
 # After assets are available on the remote host, the script will execute itself in "local" mode.
 if [ "${REMOTE_HOST}" != "local" ]; then
     # Set up the kubelet.service on remote host
-    scp -i ${IDENT} -P ${REMOTE_PORT} kubelet.master core@${REMOTE_HOST}:/home/core/kubelet.master
-    ssh -i ${IDENT} -p ${REMOTE_PORT} core@${REMOTE_HOST} "sudo mv /home/core/kubelet.master /etc/systemd/system/kubelet.service"
+    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} kubelet.master core@${REMOTE_HOST}:/home/core/kubelet.master
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "sudo mv /home/core/kubelet.master /etc/systemd/system/kubelet.service"
 
     # Copy self to remote host so script can be executed in "local" mode
-    scp -i ${IDENT} -P ${REMOTE_PORT} ${BASH_SOURCE[0]} core@${REMOTE_HOST}:/home/core/init-master.sh
-    ssh -i ${IDENT} -p ${REMOTE_PORT} core@${REMOTE_HOST} "sudo /home/core/init-master.sh local"
+    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${BASH_SOURCE[0]} core@${REMOTE_HOST}:/home/core/init-master.sh
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "sudo /home/core/init-master.sh local"
 
     # Copy assets from remote host to a local directory. These can be used to launch additional nodes & contain TLS assets
     mkdir ${CLUSTER_DIR}
-    scp -q -i ${IDENT} -P ${REMOTE_PORT} -r core@${REMOTE_HOST}:/home/core/assets/* ${CLUSTER_DIR}
+    scp -q -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} -r core@${REMOTE_HOST}:/home/core/assets/* ${CLUSTER_DIR}
 
     # Cleanup
-    ssh -i ${IDENT} -p ${REMOTE_PORT} core@${REMOTE_HOST} "rm -rf /home/core/assets && rm -rf /home/core/init-master.sh"
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "rm -rf /home/core/assets && rm -rf /home/core/init-master.sh"
 
     echo "Cluster assets copied to ${CLUSTER_DIR}"
     echo
