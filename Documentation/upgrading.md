@@ -150,7 +150,23 @@ Verify that the kubelet and kube-proxy on each node have been upgraded.
           kubeProxyVersion: v1.4.3+coreos.0
           kubeletVersion: v1.4.3+coreos.0
 
-Now, Kubernetes components have been upgraded to a new version of Kubernetes!
+Now, all self-hosted Kubernetes components have been upgraded to a new version of Kubernetes!
+
+## On-host Kubelet
+
+The on-host kubelet is started by systemd, and is used to launch, and be replaced by, the self-hosted kubelet. While the on-host kubelet is short-lived, it should be kept up to date with the self hosted components.
+
+On each host running a kubelet, modify the kubelet systemd unit to reference a new `KUBELET_VERSION` (an example snippet is below)
+
+`/etc/systemd/system/kubelet.service`
+
+    [Service]
+    Environment=KUBELET_VERSION=v1.4.3_coreos.0
+
+Reload systemd daemon and restart the kubelet unit:
+
+    $ sudo systemctl daemon-reload
+    $ sudo systemctl restart kubelet
 
 ## Going Further
 
