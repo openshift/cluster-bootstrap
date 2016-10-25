@@ -184,6 +184,7 @@ metadata:
     k8s-app: kube-controller-manager
     version: v1.4.3_coreos.0
 spec:
+  replicas: 2
   template:
     metadata:
       labels:
@@ -223,6 +224,7 @@ metadata:
     k8s-app: kube-scheduler
     version: v1.4.3_coreos.0
 spec:
+  replicas: 2
   template:
     metadata:
       labels:
