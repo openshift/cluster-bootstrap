@@ -127,13 +127,6 @@ spec:
         master: "true"
       hostNetwork: true
       containers:
-      - name: checkpoint-installer
-        image: quay.io/coreos/pod-checkpointer:f226b70d3a863a5dbcc5846ccd818296c30e703f
-        command:
-        - /checkpoint-installer.sh
-        volumeMounts:
-        - mountPath: /etc/kubernetes/manifests
-          name: etc-k8s-manifests
       - name: kube-apiserver
         image: quay.io/coreos/hyperkube:v1.4.3_coreos.0
         command:
@@ -168,12 +161,38 @@ spec:
       - name: ssl-certs-host
         hostPath:
           path: /usr/share/ca-certificates
-      - name: etc-k8s-manifests
-        hostPath:
-          path: /etc/kubernetes/manifests
       - name: secrets
         secret:
           secretName: kube-apiserver
+`)
+	CheckpointerTemplate = []byte(`apiVersion: "extensions/v1beta1"
+kind: DaemonSet
+metadata:
+  name: checkpoint-installer
+  namespace: kube-system
+  labels:
+    k8s-app: kube-api-checkpointer
+spec:
+  template:
+    metadata:
+      labels:
+        k8s-app: kube-api-checkpointer
+    spec:
+      nodeSelector:
+        master: "true"
+      hostNetwork: true
+      containers:
+      - name: checkpoint-installer
+        image: quay.io/coreos/pod-checkpointer:f226b70d3a863a5dbcc5846ccd818296c30e703f
+        command:
+        - /checkpoint-installer.sh
+        volumeMounts:
+        - mountPath: /etc/kubernetes/manifests
+          name: etc-k8s-manifests
+      volumes:
+      - name: etc-k8s-manifests
+        hostPath:
+          path: /etc/kubernetes/manifests
 `)
 	ControllerManagerTemplate = []byte(`apiVersion: extensions/v1beta1
 kind: Deployment
