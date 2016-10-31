@@ -26,13 +26,11 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kubelet
-    version: v1.4.3_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s-app: kubelet
-        version: v1.4.3_coreos.0
     spec:
       containers:
       - name: kubelet
@@ -115,13 +113,11 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kube-apiserver
-    version: v1.4.3_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s-app: kube-apiserver
-        version: v1.4.3_coreos.0
     spec:
       nodeSelector:
         master: "true"
@@ -182,14 +178,12 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kube-controller-manager
-    version: v1.4.3_coreos.0
 spec:
   replicas: 2
   template:
     metadata:
       labels:
         k8s-app: kube-controller-manager
-        version: v1.4.3_coreos.0
     spec:
       containers:
       - name: kube-controller-manager
@@ -222,14 +216,12 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: kube-scheduler
-    version: v1.4.3_coreos.0
 spec:
   replicas: 2
   template:
     metadata:
       labels:
         k8s-app: kube-scheduler
-        version: v1.4.3_coreos.0
     spec:
       containers:
       - name: kube-scheduler
@@ -246,13 +238,11 @@ metadata:
   namespace: kube-system
   labels:
     k8s_app: kube-proxy
-    version: v1.4.3_coreos.0
 spec:
   template:
     metadata:
       labels:
         k8s_app: kube-proxy
-        version: v1.4.3_coreos.0
     spec:
       hostNetwork: true
       containers:
