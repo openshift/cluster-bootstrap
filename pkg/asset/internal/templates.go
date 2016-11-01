@@ -34,7 +34,7 @@ spec:
     spec:
       containers:
       - name: kubelet
-        image: quay.io/coreos/hyperkube:v1.4.3_coreos.0
+        image: quay.io/coreos/hyperkube:v1.4.4_coreos.0
         command:
         - /nsenter
         - --target=1
@@ -131,7 +131,7 @@ spec:
         - mountPath: /etc/kubernetes/manifests
           name: etc-k8s-manifests
       - name: kube-apiserver
-        image: quay.io/coreos/hyperkube:v1.4.3_coreos.0
+        image: quay.io/coreos/hyperkube:v1.4.4_coreos.0
         command:
         - /hyperkube
         - apiserver
@@ -187,7 +187,7 @@ spec:
     spec:
       containers:
       - name: kube-controller-manager
-        image: quay.io/coreos/hyperkube:v1.4.3_coreos.0
+        image: quay.io/coreos/hyperkube:v1.4.4_coreos.0
         command:
         - ./hyperkube
         - controller-manager
@@ -225,7 +225,7 @@ spec:
     spec:
       containers:
       - name: kube-scheduler
-        image: quay.io/coreos/hyperkube:v1.4.3_coreos.0
+        image: quay.io/coreos/hyperkube:v1.4.4_coreos.0
         command:
         - ./hyperkube
         - scheduler
@@ -247,7 +247,7 @@ spec:
       hostNetwork: true
       containers:
       - name: kube-proxy
-        image: quay.io/coreos/hyperkube:v1.4.3_coreos.0
+        image: quay.io/coreos/hyperkube:v1.4.4_coreos.0
         command:
         - /hyperkube
         - proxy
