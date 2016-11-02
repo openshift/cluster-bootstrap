@@ -8,8 +8,16 @@ set -euo pipefail
 # REQUIREMENTS:
 #  - gcloud cli is installed
 #  - rkt is available on the host
-#  - $BUILD_ROOT environment variable is set and contains a checkout of bootkube at $BUILD_ROOT/bootkube
-#  - $KEY_FILE environment variable is set as path to GCE service account keyfile
+#
+# REQUIRED ENV VARS:
+#  - $BUILD_ROOT: environment variable is set and contains a checkout of bootkube at $BUILD_ROOT/bootkube
+#  - $KEY_FILE:   environment variable is set as path to GCE service account keyfile
+#
+# OPTIONAL ENV VARS:
+#  - $WORKER_COUNT:     number of worker machines to launch. Default 4
+#  - $BOOTKUBE_REPO:    container repo to use to launch bootkube. Default to value in quickstart/init-master.sh
+#  - $BOOTKUBE_VERSION: container version to use to launch bootkube. Default to value in quickstart/init-master.sh
+#  - $COREOS_VERSION:   CoreOS image version.
 #
 # PROCESS:
 #
@@ -21,6 +29,8 @@ set -euo pipefail
 #   - Run conformance tests against the launched cluster
 #
 WORKER_COUNT=4
+BOOTKUBE_REPO=${BOOTKUBE_REPO:-}
+BOOTKUBE_VERSION=${BOOTKUBE_VERSION:-}
 COREOS_IMAGE=${COREOS_IMAGE:-'https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images/coreos-stable-1122-2-0-v20160906'}
 
 function cleanup {
@@ -53,7 +63,8 @@ function add_master {
     gcloud compute instances add-metadata bootkube-ci-m1 --zone us-central1-a --metadata-from-file ssh-keys=/root/.ssh/gce-format.pub
 
     MASTER_IP=$(gcloud compute instances list bootkube-ci-m1 --format=json | jq --raw-output '.[].networkInterfaces[].accessConfigs[].natIP')
-    cd /build/bootkube/hack/quickstart && SSH_OPTS="-o StrictHostKeyChecking=no" CLUSTER_DIR=/build/cluster ./init-master.sh ${MASTER_IP}
+    cd /build/bootkube/hack/quickstart && SSH_OPTS="-o StrictHostKeyChecking=no" \
+        CLUSTER_DIR=/build/cluster BOOTKUBE_REPO=${BOOTKUBE_REPO} BOOTKUBE_VERSION=${BOOTKUBE_VERSION} ./init-master.sh ${MASTER_IP}
 }
 
 function add_workers {
