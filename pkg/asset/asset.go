@@ -27,6 +27,7 @@ const (
 	AssetPathProxy                   = "manifests/kube-proxy.yaml"
 	AssetPathAPIServerSecret         = "manifests/kube-apiserver-secret.yaml"
 	AssetPathAPIServer               = "manifests/kube-apiserver.yaml"
+	AssetPathCheckpointer            = "manifests/kube-api-checkpointer.yaml"
 	AssetPathControllerManager       = "manifests/kube-controller-manager.yaml"
 	AssetPathControllerManagerSecret = "manifests/kube-controller-manager-secret.yaml"
 	AssetPathScheduler               = "manifests/kube-scheduler.yaml"
