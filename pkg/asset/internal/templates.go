@@ -292,19 +292,20 @@ spec:
 	DNSDeploymentTemplate = []byte(`apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: kube-dns-v20
+  name: kube-dns
   namespace: kube-system
   labels:
     k8s-app: kube-dns
-    version: v20
     kubernetes.io/cluster-service: "true"
 spec:
   replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: kube-dns
   template:
     metadata:
       labels:
         k8s-app: kube-dns
-        version: v20
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
         scheduler.alpha.kubernetes.io/tolerations: '[{"key":"CriticalAddonsOnly", "operator":"Exists"}]'
