@@ -38,6 +38,8 @@ kind: Pod
 metadata:
   name: boot-etcd
   namespace: kube-system
+  labels:
+    k8s-app: boot-etcd
 spec:
   containers:
   - command:
@@ -61,4 +63,5 @@ spec:
     image: quay.io/coreos/etcd:v3.1.0-alpha.1
     name: etcd
   hostNetwork: true
+  restartPolicy: Never
 `

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/kubernetes-incubator/bootkube/pkg/util/etcdutil"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/client/cache"
@@ -24,7 +25,7 @@ const (
 	doesNotExist = "DoesNotExist"
 )
 
-func WaitUntilPodsRunning(pods []string, timeout time.Duration) error {
+func WaitUntilPodsRunning(pods []string, timeout time.Duration, selfHostedEtcd bool) error {
 	sc, err := NewStatusController(pods)
 	if err != nil {
 		return err
@@ -33,6 +34,12 @@ func WaitUntilPodsRunning(pods []string, timeout time.Duration) error {
 
 	if err := wait.Poll(5*time.Second, timeout, sc.AllRunning); err != nil {
 		return fmt.Errorf("error while checking pod status: %v", err)
+	}
+
+	if selfHostedEtcd {
+		if err := etcdutil.Migrate(); err != nil {
+			return err
+		}
 	}
 
 	UserOutput("All self-hosted control plane components successfully started\n")

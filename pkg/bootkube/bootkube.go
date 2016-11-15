@@ -30,35 +30,24 @@ var requiredPods = []string{
 }
 
 type Config struct {
-	AssetDir   string
-	EtcdServer *url.URL
+	AssetDir       string
+	EtcdServer     *url.URL
+	SelfHostedEtcd bool
 }
 
 type bootkube struct {
-	assetDir   string
-	apiServer  *apiserver.APIServer
-	controller *controller.CMServer
-	scheduler  *scheduler.SchedulerServer
+	selfHostedEtcd bool
+	assetDir       string
+	apiServer      *apiserver.APIServer
+	controller     *controller.CMServer
+	scheduler      *scheduler.SchedulerServer
 }
 
 func NewBootkube(config Config) (*bootkube, error) {
 	apiServer := apiserver.NewAPIServer()
 	fs := pflag.NewFlagSet("apiserver", pflag.ExitOnError)
 	apiServer.AddFlags(fs)
-	fs.Parse([]string{
-		"--bind-address=0.0.0.0",
-		"--secure-port=443",
-		"--insecure-port=8080",
-		"--allow-privileged=true",
-		"--tls-private-key-file=" + filepath.Join(config.AssetDir, asset.AssetPathAPIServerKey),
-		"--tls-cert-file=" + filepath.Join(config.AssetDir, asset.AssetPathAPIServerCert),
-		"--client-ca-file=" + filepath.Join(config.AssetDir, asset.AssetPathCACert),
-		"--etcd-servers=" + config.EtcdServer.String(),
-		"--service-cluster-ip-range=10.3.0.0/24",
-		"--service-account-key-file=" + filepath.Join(config.AssetDir, asset.AssetPathServiceAccountPubKey),
-		"--admission-control=NamespaceLifecycle,ServiceAccount",
-		"--runtime-config=api/all=true",
-	})
+	fs.Parse(makeAPIServerFlags(config))
 
 	cmServer := controller.NewCMServer()
 	fs = pflag.NewFlagSet("controllermanager", pflag.ExitOnError)
@@ -79,11 +68,33 @@ func NewBootkube(config Config) (*bootkube, error) {
 	})
 
 	return &bootkube{
-		apiServer:  apiServer,
-		controller: cmServer,
-		scheduler:  schedServer,
-		assetDir:   config.AssetDir,
+		apiServer:      apiServer,
+		controller:     cmServer,
+		scheduler:      schedServer,
+		assetDir:       config.AssetDir,
+		selfHostedEtcd: config.SelfHostedEtcd,
 	}, nil
+}
+
+func makeAPIServerFlags(config Config) []string {
+	res := []string{
+		"--bind-address=0.0.0.0",
+		"--secure-port=443",
+		"--insecure-port=8080",
+		"--allow-privileged=true",
+		"--tls-private-key-file=" + filepath.Join(config.AssetDir, asset.AssetPathAPIServerKey),
+		"--tls-cert-file=" + filepath.Join(config.AssetDir, asset.AssetPathAPIServerCert),
+		"--client-ca-file=" + filepath.Join(config.AssetDir, asset.AssetPathCACert),
+		"--etcd-servers=" + config.EtcdServer.String(),
+		"--service-cluster-ip-range=10.3.0.0/24",
+		"--service-account-key-file=" + filepath.Join(config.AssetDir, asset.AssetPathServiceAccountPubKey),
+		"--admission-control=NamespaceLifecycle,ServiceAccount",
+		"--runtime-config=api/all=true",
+	}
+	if config.SelfHostedEtcd {
+		res = append(res, "--storage-backend=etcd3")
+	}
+	return res
 }
 
 func (b *bootkube) Run() error {
@@ -98,7 +109,7 @@ func (b *bootkube) Run() error {
 			errch <- err
 		}
 	}()
-	go func() { errch <- WaitUntilPodsRunning(requiredPods, assetTimeout) }()
+	go func() { errch <- WaitUntilPodsRunning(requiredPods, assetTimeout, b.selfHostedEtcd) }()
 
 	// If any of the bootkube services exit, it means it is unrecoverable and we should exit.
 	err := <-errch
