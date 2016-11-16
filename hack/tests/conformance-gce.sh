@@ -10,11 +10,10 @@ set -euo pipefail
 #  - rkt is available on the host
 #
 # REQUIRED ENV VARS:
-#  - $BUILD_ROOT: environment variable is set and contains a checkout of bootkube at $BUILD_ROOT/bootkube
-#  - $KEY_FILE:   environment variable is set as path to GCE service account keyfile
+#  - $BUILD_ROOT: contains a checkout of bootkube at $BUILD_ROOT/bootkube
+#  - $KEY_FILE:   path to GCE service account keyfile
 #
 # OPTIONAL ENV VARS:
-#  - $WORKER_COUNT:     number of worker machines to launch. Default 4
 #  - $BOOTKUBE_REPO:    container repo to use to launch bootkube. Default to value in quickstart/init-master.sh
 #  - $BOOTKUBE_VERSION: container version to use to launch bootkube. Default to value in quickstart/init-master.sh
 #  - $COREOS_VERSION:   CoreOS image version.
@@ -28,10 +27,10 @@ set -euo pipefail
 #     - Use the quickstart init-worker.sh script to join node to kubernetes cluster
 #   - Run conformance tests against the launched cluster
 #
-WORKER_COUNT=4
 BOOTKUBE_REPO=${BOOTKUBE_REPO:-}
 BOOTKUBE_VERSION=${BOOTKUBE_VERSION:-}
 COREOS_IMAGE=${COREOS_IMAGE:-'https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images/coreos-stable-1122-2-0-v20160906'}
+WORKER_COUNT=4
 
 function cleanup {
     gcloud compute instances delete --quiet --zone us-central1-a bootkube-ci-m1 || true
@@ -106,5 +105,6 @@ else
         "--mount volume=keyfile,target=/build/keyfile " \
     )
 
-    sudo rkt run --insecure-options=image ${RKT_OPTS} docker://golang:1.6.3 --exec /bin/bash -- -c "IN_CONTAINER=true /build/bootkube/hack/tests/$(basename $0)"
+    sudo rkt run --insecure-options=image ${RKT_OPTS} docker://golang:1.6.3 --exec /bin/bash -- -c \
+        "IN_CONTAINER=true BOOTKUBE_REPO=${BOOTKUBE_REPO} BOOTKUBE_VERSION=${BOOTKUBE_VERSION} COREOS_IMAGE=${COREOS_IMAGE} /build/bootkube/hack/tests/$(basename $0)"
 fi
