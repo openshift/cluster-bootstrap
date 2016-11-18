@@ -34,6 +34,8 @@ const (
 	AssetPathKubeDNSDeployment       = "manifests/kube-dns-deployment.yaml"
 	AssetPathKubeDNSSvc              = "manifests/kube-dns-svc.yaml"
 	AssetPathSystemNamespace         = "manifests/kube-system-ns.yaml"
+	AssetPathEtcdOperator            = "manifests/etcd-operator.yaml"
+	AssetPathEtcdSvc                 = "manifests/etcd-service.yaml"
 )
 
 // AssetConfig holds all configuration needed when generating
@@ -45,6 +47,7 @@ type Config struct {
 	CAPrivKey       *rsa.PrivateKey
 	AltNames        *tlsutil.AltNames
 	SelfHostKubelet bool
+	StorageBackend  string
 }
 
 // NewDefaultAssets returns a list of default assets, optionally

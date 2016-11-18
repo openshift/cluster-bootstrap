@@ -51,8 +51,9 @@ func runCmdStart(cmd *cobra.Command, args []string) error {
 	}
 
 	bk, err := bootkube.NewBootkube(bootkube.Config{
-		AssetDir:   startOpts.assetDir,
-		EtcdServer: etcdServer,
+		AssetDir:       startOpts.assetDir,
+		EtcdServer:     etcdServer,
+		SelfHostedEtcd: startOpts.selfHostedEtcd,
 	})
 
 	if err != nil {
