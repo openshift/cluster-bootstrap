@@ -93,6 +93,7 @@ func makeAPIServerFlags(config Config) ([]string, error) {
 		"--tls-private-key-file=" + filepath.Join(config.AssetDir, asset.AssetPathAPIServerKey),
 		"--tls-cert-file=" + filepath.Join(config.AssetDir, asset.AssetPathAPIServerCert),
 		"--client-ca-file=" + filepath.Join(config.AssetDir, asset.AssetPathCACert),
+		"--authorization-mode=RBAC",
 		"--etcd-servers=" + config.EtcdServer.String(),
 		"--service-cluster-ip-range=" + serviceCIDR,
 		"--service-account-key-file=" + filepath.Join(config.AssetDir, asset.AssetPathServiceAccountPubKey),
