@@ -167,6 +167,8 @@ spec:
         - --runtime-config=api/all=true
         - --tls-cert-file=/etc/kubernetes/secrets/apiserver.crt
         - --tls-private-key-file=/etc/kubernetes/secrets/apiserver.key
+        - --kubelet-client-certificate=/etc/kubernetes/secrets/apiserver.crt
+        - --kubelet-client-key=/etc/kubernetes/secrets/apiserver.key
         - --service-account-key-file=/etc/kubernetes/secrets/service-account.pub
         - --client-ca-file=/etc/kubernetes/secrets/ca.crt
         - --authorization-mode=RBAC
@@ -216,7 +218,7 @@ spec:
       hostNetwork: true
       containers:
       - name: checkpoint-installer
-        image: quay.io/coreos/pod-checkpointer:5b585a2d731173713fa6871c436f6c53fa17f754
+        image: quay.io/coreos/pod-checkpointer:417b8f7552ccf3db192ba1e5472e524848f0eb5f
         command:
         - /checkpoint-installer.sh
         volumeMounts:
