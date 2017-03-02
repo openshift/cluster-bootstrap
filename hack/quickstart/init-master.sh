@@ -52,6 +52,7 @@ function init_master_node() {
     chown -R core:core /home/core/assets
     mkdir -p /etc/kubernetes
     cp /home/core/assets/auth/kubeconfig /etc/kubernetes/
+    cp /home/core/assets/tls/ca.crt /etc/kubernetes/ca.crt
 
     # Start the kubelet
     systemctl enable kubelet; sudo systemctl start kubelet
