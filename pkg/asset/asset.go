@@ -41,6 +41,7 @@ const (
 	AssetPathCheckpointer                = "manifests/pod-checkpoint-installer.yaml"
 	AssetPathEtcdOperator                = "manifests/etcd-operator.yaml"
 	AssetPathEtcdSvc                     = "manifests/etcd-service.yaml"
+	AssetPathKubeSystemSARoleBinding     = "manifests/kube-system-rbac-role-binding.yaml"
 )
 
 // AssetConfig holds all configuration needed when generating
