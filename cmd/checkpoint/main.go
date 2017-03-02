@@ -60,21 +60,64 @@ func main() {
 	}
 
 	glog.Infof("Starting checkpointer for node: %s", nodeName)
-	run(newClient(), nodeName)
+	// This is run as a static pod, so we can't use InClusterConfig (no secrets/service account)
+	// Use the same kubeconfig as the kubelet for auth and api-server location.
+	kubeConfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfigPath},
+		&clientcmd.ConfigOverrides{}).ClientConfig()
+	if err != nil {
+		glog.Fatalf("Failed to load kubeconfig: %v", err)
+	}
+	client := clientset.NewForConfigOrDie(kubeConfig)
+
+	load := func(rawData []byte, filepath string) []byte {
+		if len(rawData) > 0 {
+			return rawData
+		}
+		data, err := ioutil.ReadFile(filepath)
+		if err != nil {
+			glog.Fatalf("Failed to load %s: %v", filepath, err)
+		}
+		return data
+	}
+
+	// Grab the kubelet's client certificate out of its kubeconfig.
+	c := kubeConfig.TLSClientConfig
+	clientCert, err := tls.X509KeyPair(load(c.CertData, c.CertFile), load(c.KeyData, c.KeyFile))
+	if err != nil {
+		glog.Fatalf("Failed to load kubelet client cert: %v", err)
+	}
+
+	// Use the kubelet's own client cert to talk to the kubelet's API.
+	// Kubelets with API auth enabled will require this.
+	kubelet := &kubeletClient{
+		client: &http.Client{
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				TLSClientConfig: &tls.Config{
+					Certificates: []tls.Certificate{clientCert},
+					// Kubelet is using a self signed cert.
+					InsecureSkipVerify: true,
+				},
+			},
+		},
+	}
+
+	run(client, kubelet, nodeName)
 }
 
-func run(client clientset.Interface, nodeName string) {
+func run(client clientset.Interface, kubelet *kubeletClient, nodeName string) {
 	for {
 		time.Sleep(3 * time.Second)
 
-		localParentPods, err := getLocalParentPods()
+		localParentPods, err := kubelet.localParentPods()
 		if err != nil {
 			// If we can't determine local state from kubelet api, we shouldn't make any decisions about checkpoints.
 			glog.Errorf("Failed to retrive pod list from kubelet api: %v", err)
 			continue
 		}
 
-		localRunningPods, err := getLocalRunningPods()
+		localRunningPods, err := kubelet.localRunningPods()
 		if err != nil {
 			glog.Errorf("Failed to retrieve running pods from kubelet api: %v", err)
 			continue
@@ -314,9 +357,15 @@ func getAPIParentPods(client clientset.Interface, nodeName string) map[string]*v
 	return podListToParentPods(podList)
 }
 
-// getAPIParentPods will retrieve all pods from kubelet api that are parents & should be checkpointed
-func getLocalParentPods() (map[string]*v1.Pod, error) {
-	resp, err := http.Get(kubeletAPIPodsURL)
+// A minimal kubelet client. It assumes the kubelet can be reached the kubelet's insecure API at
+// 127.0.0.1:10255 and the secure API at 127.0.0.1:10250.
+type kubeletClient struct {
+	client *http.Client
+}
+
+// localParentPods will retrieve all pods from kubelet api that are parents & should be checkpointed
+func (c *kubeletClient) localParentPods() (map[string]*v1.Pod, error) {
+	resp, err := c.client.Get(kubeletAPIPodsURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to contact kubelet pod api: %v", err)
 	}
@@ -334,14 +383,9 @@ func getLocalParentPods() (map[string]*v1.Pod, error) {
 	return podListToParentPods(&podList), nil
 }
 
-// Transports should be re-used and not created as needed: https://golang.org/pkg/net/http/#Transport
-var insecureTransport *http.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
-
-// getLocalRunningPods uses the /runningpods/ kubelet api to retrieve the local container runtime pod state
-func getLocalRunningPods() (map[string]*v1.Pod, error) {
-	// TODO(aaron): The kubelet api is currently secured by a self-signed cert. We should update this to actually verify at some point
-	client := &http.Client{Transport: insecureTransport}
-	resp, err := client.Get(kubeletAPIRunningPodsURL)
+// localRunningPods uses the /runningpods/ kubelet api to retrieve the local container runtime pod state
+func (c *kubeletClient) localRunningPods() (map[string]*v1.Pod, error) {
+	resp, err := c.client.Get(kubeletAPIRunningPodsURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to contact kubelet pod api: %v", err)
 	}
@@ -549,18 +593,6 @@ func secretPath(namespace, podName, secretName string) string {
 func PodFullNameToSecretPath(id string) string {
 	namespace, podname := path.Split(id)
 	return filepath.Join(checkpointSecretPath, namespace, podname)
-}
-
-func newClient() clientset.Interface {
-	// This is run as a static pod, so we can't use InClusterConfig (no secrets/service account)
-	// Use the same kubeconfig as the kubelet for auth and api-server location.
-	kubeConfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfigPath},
-		&clientcmd.ConfigOverrides{}).ClientConfig()
-	if err != nil {
-		glog.Fatalf("Failed to load kubeconfig: %v", err)
-	}
-	return clientset.NewForConfigOrDie(kubeConfig)
 }
 
 func writeAndAtomicRename(path string, data []byte, perm os.FileMode) error {
