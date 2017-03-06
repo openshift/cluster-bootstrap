@@ -256,7 +256,6 @@ spec:
         - --service-account-private-key-file=/etc/kubernetes/secrets/service-account.key
         - --leader-elect=true
         - --cloud-provider={{ .CloudProvider  }}
-        - --configure-cloud-routes=false
         volumeMounts:
         - name: secrets
           mountPath: /etc/kubernetes/secrets
