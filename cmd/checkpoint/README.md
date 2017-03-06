@@ -52,7 +52,7 @@ metadata:
 - Inactive checkpoint manifests: /srv/kubernetes/manifests
 - Active checkpoint manifests: /etc/kubernetes/manifests
 - Checkpointed secrets: /etc/kubernetes/checkpoint-secrets
-- Config Maps: TODO
+- Config Maps: /etc/kubernetes/checkpoint-configmaps
 
 ### Pod Manifest Sanitization
 
@@ -61,7 +61,7 @@ Parts of the pod manifest will be scrubbed prior to being saved as checkpoints. 
  - All labels and non-checkpoint related annotations will be removed
  - Service account details are removed
  - Secrets are downloaded from the apiserver and converted to hostMounts
- - When support is added for ConfigMaps, these will also be stored locally and converted to hostMounts
+ - ConfigMaps are downloaded from the apiserver and converted to hostMounts
  - Pod status is cleared
 
 ### Secret Storage
@@ -72,3 +72,10 @@ Secrets are stored using a path of:
 /etc/kubernets/checkpoint-secrets/<namespace>/<pod-name>/<secret-name>
 ```
 
+### ConfigMap Storage
+
+ConfigMaps are stored using a path of:
+
+```
+/etc/kubernets/checkpoint-configmaps/<namespace>/<pod-name>/<configmap-name>
+```

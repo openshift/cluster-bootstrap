@@ -34,10 +34,11 @@ const (
 	kubeletAPIPodsURL        = "http://127.0.0.1:10255/pods"
 	kubeletAPIRunningPodsURL = "https://127.0.0.1:10250/runningpods/"
 
-	activeCheckpointPath   = "/etc/kubernetes/manifests"
-	inactiveCheckpointPath = "/srv/kubernetes/manifests"
-	checkpointSecretPath   = "/etc/kubernetes/checkpoint-secrets"
-	kubeconfigPath         = "/etc/kubernetes/kubeconfig"
+	activeCheckpointPath    = "/etc/kubernetes/manifests"
+	inactiveCheckpointPath  = "/srv/kubernetes/manifests"
+	checkpointSecretPath    = "/etc/kubernetes/checkpoint-secrets"
+	checkpointConfigMapPath = "/etc/kubernetes/checkpoint-configmaps"
+	kubeconfigPath          = "/etc/kubernetes/kubeconfig"
 
 	shouldCheckpointAnnotation = "checkpointer.alpha.coreos.com/checkpoint"    // = "true"
 	checkpointParentAnnotation = "checkpointer.alpha.coreos.com/checkpoint-of" // = "podName"
@@ -226,7 +227,7 @@ func process(localRunningPods, localParentPods, apiParentPods, activeCheckpoints
 }
 
 // createCheckpointsForValidParents will iterate through pods which are candidates for checkpointing, then:
-// - checkpoint any remote assets they need (e.g. secrets)
+// - checkpoint any remote assets they need (e.g. secrets, configmaps)
 // - sanitize their podSpec, removing unnecessary information
 // - store the manifest on disk in an "inactive" checkpoint location
 //TODO(aaron): Add support for checkpointing configMaps
@@ -256,6 +257,14 @@ func createCheckpointsForValidParents(client clientset.Interface, pods map[strin
 			glog.Errorf("Failed to checkpoint secrets for pod %s: %v", id, err)
 			continue
 		}
+		cp, err = checkpointConfigMapVolumes(client, cp)
+		if err != nil {
+			//TODO(aaron): This can end up spamming logs at times when api-server is unavailable. To reduce spam
+			//             we could only log error if api-server can't be contacted and existing configmap doesn't exist.
+			glog.Errorf("Failed to checkpoint configMaps for pod %s: %v", id, err)
+			continue
+		}
+
 		cp, err = sanitizeCheckpointPod(cp)
 		if err != nil {
 			glog.Errorf("Failed to sanitize manifest for %s: %v", id, err)
@@ -445,6 +454,47 @@ func checkpointSecret(client clientset.Interface, namespace, podName, secretName
 	return basePath, nil
 }
 
+// checkpointConfigMapVolumes ensures that all pod configMaps are checkpointed locally, then converts the configMap volume to a hostpath.
+func checkpointConfigMapVolumes(client clientset.Interface, pod *v1.Pod) (*v1.Pod, error) {
+	for i := range pod.Spec.Volumes {
+		v := &pod.Spec.Volumes[i]
+		if v.ConfigMap == nil {
+			continue
+		}
+
+		path, err := checkpointConfigMap(client, pod.Namespace, pod.Name, v.ConfigMap.Name)
+		if err != nil {
+			return nil, fmt.Errorf("failed to checkpoint configMap for pod %s/%s: %v", pod.Namespace, pod.Name, err)
+		}
+
+		v.HostPath = &v1.HostPathVolumeSource{Path: path}
+		v.ConfigMap = nil
+	}
+	return pod, nil
+}
+
+// checkpointConfigMap will locally store configMap data.
+// The path to the configMap data becomes: checkpointSecretPath/namespace/podname/configMapName/configMap.file
+// Where each "configMap.file" is a key from the configMap.Data field.
+func checkpointConfigMap(client clientset.Interface, namespace, podName, configMapName string) (string, error) {
+	configMap, err := client.Core().ConfigMaps(namespace).Get(configMapName)
+	if err != nil {
+		return "", fmt.Errorf("failed to retrieve configMap %s/%s: %v", namespace, configMapName, err)
+	}
+
+	basePath := configMapPath(namespace, podName, configMapName)
+	if err := os.MkdirAll(basePath, 0700); err != nil {
+		return "", fmt.Errorf("failed to create configMap checkpoint path %s: %v", basePath, err)
+	}
+	// TODO(aaron): No need to store if already exists
+	for f, d := range configMap.Data {
+		if err := writeAndAtomicRename(filepath.Join(basePath, f), []byte(d), 0600); err != nil {
+			return "", fmt.Errorf("failed to write configMap %s: %v", configMap.Name, err)
+		}
+	}
+	return basePath, nil
+}
+
 func handleRemove(remove []string) {
 	for _, id := range remove {
 		// Remove inactive checkpoints
@@ -465,7 +515,11 @@ func handleRemove(remove []string) {
 		if err := os.RemoveAll(p); err != nil {
 			glog.Errorf("Failed to remove pod secrets from %s: %s", p, err)
 		}
-		// TODO(aaron): Remove configMaps when supported
+		// Remove ConfipMaps
+		p = PodFullNameToConfigMapPath(id)
+		if err := os.RemoveAll(p); err != nil {
+			glog.Errorf("Failed to remove pod configMaps from %s: %s", p, err)
+		}
 	}
 }
 
@@ -593,6 +647,15 @@ func secretPath(namespace, podName, secretName string) string {
 func PodFullNameToSecretPath(id string) string {
 	namespace, podname := path.Split(id)
 	return filepath.Join(checkpointSecretPath, namespace, podname)
+}
+
+func configMapPath(namespace, podName, configMapName string) string {
+	return filepath.Join(checkpointConfigMapPath, namespace, podName, configMapName)
+}
+
+func PodFullNameToConfigMapPath(id string) string {
+	namespace, podname := path.Split(id)
+	return filepath.Join(checkpointConfigMapPath, namespace, podname)
 }
 
 func writeAndAtomicRename(path string, data []byte, perm os.FileMode) error {

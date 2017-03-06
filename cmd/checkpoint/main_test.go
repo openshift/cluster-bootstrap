@@ -484,3 +484,12 @@ func TestPodIDToSecretPath(t *testing.T) {
 		t.Errorf("Expected %s Got %s", expected, got)
 	}
 }
+
+func TestPodIDToConfigMapPath(t *testing.T) {
+	id := "foo/bar"
+	expected := checkpointConfigMapPath + "/foo/bar"
+	got := PodFullNameToConfigMapPath(id)
+	if expected != got {
+		t.Errorf("Expected %s Got %s", expected, got)
+	}
+}
