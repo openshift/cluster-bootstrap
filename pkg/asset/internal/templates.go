@@ -200,6 +200,50 @@ spec:
         hostPath:
           path: /var/lock
 `)
+
+	KencTemplate = []byte(`apiVersion: "extensions/v1beta1"
+kind: DaemonSet
+metadata:
+  name: kenc
+  namespace: kube-system
+  labels:
+    k8s-app: kenc
+spec:
+  template:
+    metadata:
+      labels:
+        k8s-app: kenc
+      annotations:
+        checkpointer.alpha.coreos.com/checkpoint: "true"
+    spec:
+      nodeSelector:
+        master: "true"
+      hostNetwork: true
+      containers:
+      - image: quay.io/coreos/kenc:82343328b867a762ffca07c2877f0079a99c8f1a
+        name: kenc
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /etc/kubernetes/selfhosted-etcd
+          name: checkpoint-dir
+          readOnly: false
+        - mountPath: /var/lock
+          name: var-lock
+          readOnly: false
+        command:
+        - "/bin/sh"
+        - "-c"
+        - "/usr/bin/flock --exclusive --timeout=30 /var/lock/kenc.lock; kenc -r -m iptables && kenc -m iptables"
+      volumes:
+      - name: checkpoint-dir
+        hostPath:
+          path: /etc/kubernetes/checkpoint-iptables    
+      - name: var-lock
+        hostPath:
+          path: /var/lock
+`)
+
 	CheckpointerTemplate = []byte(`apiVersion: "extensions/v1beta1"
 kind: DaemonSet
 metadata:
