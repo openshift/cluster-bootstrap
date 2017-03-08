@@ -92,6 +92,8 @@ func makeAPIServerFlags(config Config) ([]string, error) {
 		"--allow-privileged=true",
 		"--tls-private-key-file=" + filepath.Join(config.AssetDir, asset.AssetPathAPIServerKey),
 		"--tls-cert-file=" + filepath.Join(config.AssetDir, asset.AssetPathAPIServerCert),
+		"--kubelet-client-key=" + filepath.Join(config.AssetDir, asset.AssetPathAPIServerKey),
+		"--kubelet-client-certificate=" + filepath.Join(config.AssetDir, asset.AssetPathAPIServerCert),
 		"--client-ca-file=" + filepath.Join(config.AssetDir, asset.AssetPathCACert),
 		"--authorization-mode=RBAC",
 		"--etcd-servers=" + config.EtcdServer.String(),

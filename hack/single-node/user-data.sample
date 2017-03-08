@@ -30,6 +30,8 @@ coreos:
         ExecStart=/usr/lib/coreos/kubelet-wrapper \
           --kubeconfig=/etc/kubernetes/kubeconfig \
           --require-kubeconfig \
+          --client-ca-file=/etc/kubernetes/ca.crt \
+          --anonymous-auth=false \
           --cni-conf-dir=/etc/kubernetes/cni/net.d \
           --network-plugin=cni \
           --lock-file=/var/run/lock/kubelet.lock \

@@ -34,6 +34,9 @@ function init_worker_node() {
     # Setup kubeconfig
     mkdir -p /etc/kubernetes
     cp ${KUBECONFIG} /etc/kubernetes/kubeconfig
+    # Pulled out of the kubeconfig in extract_master_endpoint. Other installations should
+    # place the root CA here manually.
+    cp /home/core/ca.crt /etc/kubernetes/ca.crt
 
     sed "s/{{apiserver}}/${MASTER_PRIV}/" /home/core/kubelet.worker > /etc/systemd/system/kubelet.service
     rm /home/core/kubelet.worker
