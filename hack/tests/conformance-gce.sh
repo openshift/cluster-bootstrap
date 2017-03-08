@@ -32,6 +32,7 @@ BOOTKUBE_VERSION=${BOOTKUBE_VERSION:-}
 COREOS_CHANNEL=${COREOS_CHANNEL:-'coreos-stable'}
 WORKER_COUNT=4
 GCE_PREFIX=${GCE_PREFIX:-'bootkube-ci'}
+SELF_HOST_ETCD=${SELF_HOST_ETCD:-false}
 
 function cleanup {
     gcloud compute instances delete --quiet --zone us-central1-a ${GCE_PREFIX}-m1 || true
@@ -64,7 +65,7 @@ function add_master {
 
     MASTER_IP=$(gcloud compute instances list ${GCE_PREFIX}-m1 --format=json | jq --raw-output '.[].networkInterfaces[].accessConfigs[].natIP')
     cd /build/bootkube/hack/quickstart && SSH_OPTS="-o StrictHostKeyChecking=no" \
-        CLUSTER_DIR=/build/cluster BOOTKUBE_REPO=${BOOTKUBE_REPO} BOOTKUBE_VERSION=${BOOTKUBE_VERSION} ./init-master.sh ${MASTER_IP}
+        CLUSTER_DIR=/build/cluster BOOTKUBE_REPO=${BOOTKUBE_REPO} BOOTKUBE_VERSION=${BOOTKUBE_VERSION} SELF_HOST_ETCD=${SELF_HOST_ETCD} ./init-master.sh ${MASTER_IP}
 }
 
 function add_workers {
@@ -111,6 +112,8 @@ else
         "--mount volume=keyfile,target=/build/keyfile " \
     )
 
+    #TODO(pb): See if there is a way to make the --inherit-env option replace
+    #passing all the variables manually.  
     sudo rkt run --insecure-options=image ${RKT_OPTS} docker://golang:1.7.4 --exec /bin/bash -- -c \
-        "IN_CONTAINER=true BOOTKUBE_REPO=${BOOTKUBE_REPO} BOOTKUBE_VERSION=${BOOTKUBE_VERSION} COREOS_CHANNEL=${COREOS_CHANNEL} /build/bootkube/hack/tests/$(basename $0)"
+        "IN_CONTAINER=true BOOTKUBE_REPO=${BOOTKUBE_REPO} BOOTKUBE_VERSION=${BOOTKUBE_VERSION} COREOS_CHANNEL=${COREOS_CHANNEL} GCE_PREFIX=${GCE_PREFIX} SELF_HOST_ETCD=${SELF_HOST_ETCD} /build/bootkube/hack/tests/$(basename $0)"
 fi
