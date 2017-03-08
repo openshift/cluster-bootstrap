@@ -156,12 +156,12 @@ Now, all self-hosted Kubernetes components have been upgraded to a new version o
 
 The on-host kubelet is started by systemd, and is used to launch, and be replaced by, the self-hosted kubelet. While the on-host kubelet is short-lived, it should be kept up to date with the self hosted components.
 
-On each host running a kubelet, modify the kubelet systemd unit to reference a new `KUBELET_VERSION` (an example snippet is below)
+On each host running a kubelet, modify the kubelet systemd unit to reference a new `KUBELET_IMAGE_TAG` (an example snippet is below)
 
 `/etc/systemd/system/kubelet.service`
 
     [Service]
-    Environment=KUBELET_VERSION=v1.4.3_coreos.0
+    Environment=KUBELET_IMAGE_TAG=v1.4.3_coreos.0
 
 Reload systemd daemon and restart the kubelet unit:
 

@@ -8,7 +8,7 @@
 ### Update hyperkube image
 
 - Update hyperkube image version in templates: `pkg/asset/internal/templates.go`
-- Update on-host kubelet versions (`KUBELET_VERSION`)
+- Update on-host kubelet versions (`KUBELET_IMAGE_TAG`)
     - hack/multi-node/user-data.sample
     - hack/single-node/user-data.sample
 
@@ -59,7 +59,7 @@ PUSH_IMAGE=true ./build/build-image.sh
 
 Note: the quickstart guides use the release images, so we should not update them until after building/pushing new release.
 
-Update on-host kubelet version (`KUBELET_VERSION`)
+Update on-host kubelet version (`KUBELET_IMAGE_TAG`)
 
  - hack/quickstart/kubelet.master
  - hack/quickstart/kubelet.worker
