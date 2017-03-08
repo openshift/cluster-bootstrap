@@ -27,7 +27,7 @@ $ gcloud compute firewall-rules create ${CLUSTER_PREFIX}-443 --target-tags=${CLU
 
 ### Bootstrap Master
 
-*Replace* `<node-ip>` with the EXTERNAL_IP from output of `gcloud compute instances list k8s-core1`.
+*Replace* `<node-ip>` with the EXTERNAL_IP from output of `gcloud compute instances list ${CLUSTER_PREFIX}-core1`.
 
 ```
 $ IDENT=~/.ssh/google_compute_engine ./init-master.sh <node-ip>
