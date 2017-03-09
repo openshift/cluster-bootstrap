@@ -20,6 +20,8 @@ end
 
 CONTROLLER_USER_DATA_PATH = File.expand_path("./cluster/user-data-controller")
 WORKER_USER_DATA_PATH = File.expand_path("./cluster/user-data-worker")
+KUBECONFIG_PATH = File.expand_path("cluster/auth/kubeconfig")
+CA_CERT_PATH = File.expand_path("cluster/tls/ca.crt")
 
 def etcdIP(num)
   return "172.17.4.#{num+50}"
@@ -131,6 +133,12 @@ Vagrant.configure("2") do |config|
 
       controller.vm.provision :file, source: CONTROLLER_USER_DATA_PATH, destination: "/tmp/vagrantfile-user-data"
       controller.vm.provision :shell, inline: "mv /tmp/vagrantfile-user-data /var/lib/coreos-vagrant/", privileged: true
+
+      controller.vm.provision :file, :source => KUBECONFIG_PATH, :destination => "/tmp/kubeconfig"
+      controller.vm.provision :shell, :inline => "mv /tmp/kubeconfig /etc/kubernetes/kubeconfig", :privileged => true
+
+      controller.vm.provision :file, :source => CA_CERT_PATH, :destination => "/tmp/ca.crt"
+      controller.vm.provision :shell, :inline => "mv /tmp/ca.crt /etc/kubernetes/ca.crt", :privileged => true
     end
   end
 
@@ -153,6 +161,12 @@ Vagrant.configure("2") do |config|
 
       worker.vm.provision :file, source: WORKER_USER_DATA_PATH, destination: "/tmp/vagrantfile-user-data"
       worker.vm.provision :shell, inline: "mv /tmp/vagrantfile-user-data /var/lib/coreos-vagrant/", privileged: true
+
+      worker.vm.provision :file, :source => KUBECONFIG_PATH, :destination => "/tmp/kubeconfig"
+      worker.vm.provision :shell, :inline => "mv /tmp/kubeconfig /etc/kubernetes/kubeconfig", :privileged => true
+
+      worker.vm.provision :file, :source => CA_CERT_PATH, :destination => "/tmp/ca.crt"
+      worker.vm.provision :shell, :inline => "mv /tmp/ca.crt /etc/kubernetes/ca.crt", :privileged => true
     end
   end
 end

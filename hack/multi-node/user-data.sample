@@ -41,9 +41,3 @@ coreos:
 
         [Install]
         WantedBy=multi-user.target
-
-write_files:
-  - path: "/etc/kubernetes/kubeconfig"
-    permissions: "0644"
-    owner: core
-    content: |
