@@ -46,6 +46,7 @@ func newDynamicAssets(conf Config) Assets {
 		assets = append(assets,
 			mustCreateAssetFromTemplate(AssetPathEtcdOperator, internal.EtcdOperatorTemplate, conf),
 			mustCreateAssetFromTemplate(AssetPathEtcdSvc, internal.EtcdSvcTemplate, conf),
+			mustCreateAssetFromTemplate(AssetPathKenc, internal.KencTemplate, conf),
 		)
 	}
 	return assets
