@@ -24,7 +24,7 @@ function extract_master_endpoint (){
     MASTER_PRIV=$(curl -k https://${MASTER_PUB}:443/api/v1/namespaces/default/endpoints/kubernetes \
         --cacert /home/core/ca.crt --cert /home/core/client.crt --key /home/core/client.key \
         | jq -r '.subsets[0].addresses[0].ip')
-    rm -f /home/core/ca.crt /home/core/client.crt /home/core/client.key
+    rm -f /home/core/client.crt /home/core/client.key
 }
 
 # Initialize a worker node
@@ -36,7 +36,7 @@ function init_worker_node() {
     cp ${KUBECONFIG} /etc/kubernetes/kubeconfig
     # Pulled out of the kubeconfig in extract_master_endpoint. Other installations should
     # place the root CA here manually.
-    cp /home/core/ca.crt /etc/kubernetes/ca.crt
+    mv /home/core/ca.crt /etc/kubernetes/ca.crt
 
     sed "s/{{apiserver}}/${MASTER_PRIV}/" /home/core/kubelet.worker > /etc/systemd/system/kubelet.service
     rm /home/core/kubelet.worker
