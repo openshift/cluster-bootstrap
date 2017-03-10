@@ -608,6 +608,13 @@ func handleRemove(remove []string) {
 		// Remove active checkpoints.
 		// We do this as the last step because we want to clean up
 		// resources before the checkpointer itself exits.
+		//
+		// TODO(yifan): Removing the pods after removing the secrets/configmaps
+		// might disturb other pods since they might want to use the configmap
+		// or secrets during termination.
+		//
+		// However, since we are not waiting for them to terminate anyway, so it's
+		// ok to just leave as is for now. We can handle this more gracefully later.
 		p = PodFullNameToActiveCheckpointPath(id)
 		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 			glog.Errorf("Failed to remove active checkpoint %s: %v", p, err)

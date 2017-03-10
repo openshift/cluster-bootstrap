@@ -247,31 +247,61 @@ spec:
 	CheckpointerTemplate = []byte(`apiVersion: "extensions/v1beta1"
 kind: DaemonSet
 metadata:
-  name: checkpoint-installer
+  name: pod-checkpointer
   namespace: kube-system
   labels:
-    k8s-app: pod-checkpoint-installer
+    k8s-app: pod-checkpointer
 spec:
   template:
     metadata:
       labels:
-        k8s-app: pod-checkpoint-installer
+        k8s-app: pod-checkpointer
+      annotations:
+        checkpointer.alpha.coreos.com/checkpoint: "true"
     spec:
       nodeSelector:
         master: "true"
       hostNetwork: true
       containers:
-      - name: checkpoint-installer
-        image: quay.io/coreos/pod-checkpointer:417b8f7552ccf3db192ba1e5472e524848f0eb5f
+      - name: checkpoint
+        image: quay.io/coreos/pod-checkpointer:f0631b5e25a21db9c68cff6c5e719c72c0181c4f
         command:
-        - /checkpoint-installer.sh
+        - /checkpoint
+        - --v=4
+        - --lock-file=/var/run/lock/pod-checkpointer.lock
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        imagePullPolicy: Always
         volumeMounts:
-        - mountPath: /etc/kubernetes/manifests
-          name: etc-k8s-manifests
+        - mountPath: /etc/kubernetes
+          name: etc-kubernetes
+        - mountPath: /srv/kubernetes
+          name: srv-kubernetes
+        - mountPath: /var/run
+          name: var-run
+      hostNetwork: true
+      restartPolicy: Always
       volumes:
-      - name: etc-k8s-manifests
+      - name: etc-kubernetes
         hostPath:
-          path: /etc/kubernetes/manifests
+          path: /etc/kubernetes
+      - name: srv-kubernetes
+        hostPath:
+          path: /srv/kubernetes
+      - name: var-run
+        hostPath:
+          path: /var/run
 `)
 	ControllerManagerTemplate = []byte(`apiVersion: extensions/v1beta1
 kind: Deployment
