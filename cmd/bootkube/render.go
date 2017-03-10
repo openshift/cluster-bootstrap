@@ -97,10 +97,6 @@ func validateRenderOpts(cmd *cobra.Command, args []string) error {
 }
 
 func flagsToAssetConfig() (c *asset.Config, err error) {
-	etcdServers, err := parseURLs(renderOpts.etcdServers)
-	if err != nil {
-		return nil, err
-	}
 	apiServers, err := parseURLs(renderOpts.apiServers)
 	if err != nil {
 		return nil, err
@@ -150,6 +146,21 @@ func flagsToAssetConfig() (c *asset.Config, err error) {
 	etcdServiceIP, err := offsetServiceIP(serviceNet, etcdOffset)
 	if err != nil {
 		return nil, err
+	}
+
+	var etcdServers []*url.URL
+	if renderOpts.selfHostedEtcd {
+		etcdServerUrl, err := url.Parse(fmt.Sprintf("http://%s:2379", etcdServiceIP))
+		if err != nil {
+			return nil, err
+		}
+
+		etcdServers = append(etcdServers, etcdServerUrl)
+	} else {
+		etcdServers, err = parseURLs(renderOpts.etcdServers)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// TODO: Find better option than asking users to make manual changes
