@@ -31,7 +31,11 @@ BOOTKUBE_REPO=${BOOTKUBE_REPO:-}
 BOOTKUBE_VERSION=${BOOTKUBE_VERSION:-}
 COREOS_CHANNEL=${COREOS_CHANNEL:-'coreos-stable'}
 WORKER_COUNT=4
+SELF_HOST_ETCD=${SELF_HOST_ETCD:-false}
+
 GCE_PREFIX=${GCE_PREFIX:-'bootkube-ci'}
+GCE_SERVICE_ACCOUNT=${GCE_SERVICE_ACCOUNT:-'bootkube-ci'}
+GCE_PROJECT=${GCE_PROJECT:-coreos-gce-testing}
 
 function cleanup {
     gcloud compute instances delete --quiet --zone us-central1-a ${GCE_PREFIX}-m1 || true
@@ -45,8 +49,8 @@ function cleanup {
 function init {
     curl https://sdk.cloud.google.com | bash
     source ~/.bashrc
-    gcloud config set project coreos-gce-testing
-    gcloud auth activate-service-account ${GCE_PREFIX}@coreos-gce-testing.iam.gserviceaccount.com --key-file=/build/keyfile
+    gcloud config set project ${GCE_PROJECT}
+    gcloud auth activate-service-account ${GCE_SERVICE_ACCOUNT}@${GCE_PROJECT}.iam.gserviceaccount.com --key-file=/build/keyfile
     apt-get update && apt-get install -y jq
 
     ssh-keygen -t rsa -f /root/.ssh/id_rsa -N ""
@@ -64,7 +68,7 @@ function add_master {
 
     MASTER_IP=$(gcloud compute instances list ${GCE_PREFIX}-m1 --format=json | jq --raw-output '.[].networkInterfaces[].accessConfigs[].natIP')
     cd /build/bootkube/hack/quickstart && SSH_OPTS="-o StrictHostKeyChecking=no" \
-        CLUSTER_DIR=/build/cluster BOOTKUBE_REPO=${BOOTKUBE_REPO} BOOTKUBE_VERSION=${BOOTKUBE_VERSION} ./init-master.sh ${MASTER_IP}
+        CLUSTER_DIR=/build/cluster BOOTKUBE_REPO=${BOOTKUBE_REPO} BOOTKUBE_VERSION=${BOOTKUBE_VERSION} SELF_HOST_ETCD=${SELF_HOST_ETCD} ./init-master.sh ${MASTER_IP}
 }
 
 function add_workers {
@@ -111,6 +115,8 @@ else
         "--mount volume=keyfile,target=/build/keyfile " \
     )
 
+    #TODO(pb): See if there is a way to make the --inherit-env option replace
+    #passing all the variables manually. 
     sudo rkt run --insecure-options=image ${RKT_OPTS} docker://golang:1.7.4 --exec /bin/bash -- -c \
-        "IN_CONTAINER=true BOOTKUBE_REPO=${BOOTKUBE_REPO} BOOTKUBE_VERSION=${BOOTKUBE_VERSION} COREOS_CHANNEL=${COREOS_CHANNEL} /build/bootkube/hack/tests/$(basename $0)"
+        "IN_CONTAINER=true BOOTKUBE_REPO=${BOOTKUBE_REPO} BOOTKUBE_VERSION=${BOOTKUBE_VERSION} COREOS_CHANNEL=${COREOS_CHANNEL} GCE_PREFIX=${GCE_PREFIX} GCE_SERVICE_ACCOUNT=${GCE_SERVICE_ACCOUNT} GCE_PROJECT=${GCE_PROJECT} SELF_HOST_ETCD=${SELF_HOST_ETCD} /build/bootkube/hack/tests/$(basename $0)"
 fi

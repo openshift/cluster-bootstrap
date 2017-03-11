@@ -6,6 +6,7 @@ REMOTE_PORT=${REMOTE_PORT:-22}
 CLUSTER_DIR=${CLUSTER_DIR:-cluster}
 IDENT=${IDENT:-${HOME}/.ssh/id_rsa}
 SSH_OPTS=${SSH_OPTS:-}
+SELF_HOST_ETCD=${SELF_HOST_ETCD:-false}
 
 BOOTKUBE_REPO=${BOOTKUBE_REPO:-quay.io/coreos/bootkube}
 BOOTKUBE_VERSION=${BOOTKUBE_VERSION:-v0.3.9}
@@ -37,16 +38,25 @@ function init_master_node() {
     systemctl daemon-reload
     systemctl stop update-engine; systemctl mask update-engine
 
+    etcd_render_flags=""
+    etcd_start_flags=""
+
     # Start etcd.
-    configure_etcd
-    systemctl enable etcd-member; sudo systemctl start etcd-member
+    if [ "$SELF_HOST_ETCD" = true ] ; then
+        echo "WARNING: THIS IS NOT YET FULLY WORKING - merely here to make ongoing testing easier"
+        etcd_render_flags="--etcd-servers=http://10.3.0.15:2379 --experimental-self-hosted-etcd"
+        etcd_start_flags="--etcd-server=http://${COREOS_PRIVATE_IPV4}:12379 --experimental-self-hosted-etcd"
+    else
+        configure_etcd
+        systemctl enable etcd-member; sudo systemctl start etcd-member
+    fi
 
     # Render cluster assets
     /usr/bin/rkt run \
         --volume home,kind=host,source=/home/core \
         --mount volume=home,target=/core \
         --trust-keys-from-https --net=host ${BOOTKUBE_REPO}:${BOOTKUBE_VERSION} --exec \
-        /bootkube -- render --asset-dir=/core/assets --api-servers=https://${COREOS_PUBLIC_IPV4}:443,https://${COREOS_PRIVATE_IPV4}:443
+        /bootkube -- render --asset-dir=/core/assets --api-servers=https://${COREOS_PUBLIC_IPV4}:443,https://${COREOS_PRIVATE_IPV4}:443 ${etcd_render_flags}
 
     # Move the local kubeconfig into expected location
     chown -R core:core /home/core/assets
@@ -61,8 +71,10 @@ function init_master_node() {
     /usr/bin/rkt run \
         --volume home,kind=host,source=/home/core \
         --mount volume=home,target=/core \
+        --volume manifests,kind=host,source=/etc/kubernetes/manifests \
+        --mount volume=manifests,target=/etc/kubernetes/manifests \
         --net=host ${BOOTKUBE_REPO}:${BOOTKUBE_VERSION} --exec \
-        /bootkube -- start --asset-dir=/core/assets
+        /bootkube -- start --asset-dir=/core/assets ${etcd_start_flags}
 }
 
 [ "$#" == 1 ] || usage
@@ -81,7 +93,7 @@ if [ "${REMOTE_HOST}" != "local" ]; then
 
     # Copy self to remote host so script can be executed in "local" mode
     scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${BASH_SOURCE[0]} core@${REMOTE_HOST}:/home/core/init-master.sh
-    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "sudo BOOTKUBE_REPO=${BOOTKUBE_REPO} BOOTKUBE_VERSION=${BOOTKUBE_VERSION} /home/core/init-master.sh local"
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "sudo BOOTKUBE_REPO=${BOOTKUBE_REPO} BOOTKUBE_VERSION=${BOOTKUBE_VERSION} SELF_HOST_ETCD=${SELF_HOST_ETCD} /home/core/init-master.sh local"
 
     # Copy assets from remote host to a local directory. These can be used to launch additional nodes & contain TLS assets
     mkdir ${CLUSTER_DIR}
