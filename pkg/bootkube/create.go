@@ -23,7 +23,7 @@ func CreateAssets(manifestDir string, timeout time.Duration) error {
 
 	upFn := func() (bool, error) {
 		if err := apiTest(); err != nil {
-			glog.Warningf("Unable to determine api-server version: %v", err)
+			glog.Warningf("Unable to determine api-server readiness: %v", err)
 			return false, nil
 		}
 		return true, nil
@@ -32,31 +32,32 @@ func CreateAssets(manifestDir string, timeout time.Duration) error {
 	createFn := func() (bool, error) {
 		err := createAssets(manifestDir)
 		if err != nil {
-			glog.Errorf("Error creating assets: %v", err)
-			// If error is "system namespace not found" we should retry
-			if apierrors.IsNotFound(err) {
-				details := err.(*apierrors.StatusError).Status().Details
-				if details.Name == api.NamespaceSystem && details.Kind == "namespaces" {
-					return false, nil // retry
-				}
-			}
-			UserOutput("\nError creating assets: %v\n", err)
+			err = fmt.Errorf("Error creating assets: %v", err)
+			glog.Error(err)
+			UserOutput("%v\n", err)
 			UserOutput("\nNOTE: Bootkube failed to create some cluster assets. It is important that manifest errors are resolved and resubmitted to the apiserver.\n")
 			UserOutput("For example, after resolving issues: kubectl create -f <failed-manifest>\n\n")
 		}
+
+		// Do not fail cluster creation due to missing assets as it is a recoverable situation
+		// See https://github.com/kubernetes-incubator/bootkube/pull/368/files#r105509074
 		return true, nil
 	}
 
 	UserOutput("Waiting for api-server...\n")
 	start := time.Now()
 	if err := wait.Poll(5*time.Second, timeout, upFn); err != nil {
-		return fmt.Errorf("API Server unavailable: %v", err)
+		err = fmt.Errorf("API Server is not ready: %v", err)
+		glog.Error(err)
+		return err
 	}
 
 	UserOutput("Creating self-hosted assets...\n")
 	timeout = timeout - time.Since(start)
-	if err := wait.Poll(5*time.Second, timeout, createFn); err != nil {
-		return fmt.Errorf("Failed to create assets: %v", err)
+	if err := wait.PollImmediate(5*time.Second, timeout, createFn); err != nil {
+		err = fmt.Errorf("Failed to create assets: %v", err)
+		glog.Error(err)
+		return err
 	}
 
 	return nil
@@ -138,6 +139,13 @@ func apiTest() error {
 		return err
 	}
 
+	// API Server is responding
 	_, err = client.Discovery().ServerVersion()
+	if err != nil {
+		return err
+	}
+
+	// System namespace has been created
+	_, err = client.Namespaces().Get(api.NamespaceSystem)
 	return err
 }
