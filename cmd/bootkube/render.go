@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kubernetes-incubator/bootkube/pkg/asset"
+	"github.com/kubernetes-incubator/bootkube/pkg/bootkube"
 	"github.com/kubernetes-incubator/bootkube/pkg/tlsutil"
 )
 
@@ -21,6 +22,7 @@ const (
 	dnsOffset            = 10
 	etcdOffset           = 15
 	defaultServiceBaseIP = "10.3.0.0"
+	defaultEtcdServers   = "http://127.0.0.1:2379"
 )
 
 var (
@@ -53,7 +55,7 @@ func init() {
 	cmdRender.Flags().StringVar(&renderOpts.assetDir, "asset-dir", "", "Output path for rendered assets")
 	cmdRender.Flags().StringVar(&renderOpts.caCertificatePath, "ca-certificate-path", "", "Path to an existing PEM encoded CA. If provided, TLS assets will be generated using this certificate authority.")
 	cmdRender.Flags().StringVar(&renderOpts.caPrivateKeyPath, "ca-private-key-path", "", "Path to an existing Certificate Authority RSA private key. Required if --ca-certificate is set.")
-	cmdRender.Flags().StringVar(&renderOpts.etcdServers, "etcd-servers", "http://127.0.0.1:2379", "List of etcd servers URLs including host:port, comma separated")
+	cmdRender.Flags().StringVar(&renderOpts.etcdServers, "etcd-servers", defaultEtcdServers, "List of etcd servers URLs including host:port, comma separated")
 	cmdRender.Flags().StringVar(&renderOpts.apiServers, "api-servers", "https://127.0.0.1:443", "List of API server URLs including host:port, commma seprated")
 	cmdRender.Flags().StringVar(&renderOpts.altNames, "api-server-alt-names", "", "List of SANs to use in api-server certificate. Example: 'IP=127.0.0.1,IP=127.0.0.2,DNS=localhost'. If empty, SANs will be extracted from the --api-servers flag.")
 	cmdRender.Flags().StringVar(&renderOpts.podCIDR, "pod-cidr", "10.2.0.0/16", "The CIDR range of cluster pods.")
@@ -97,10 +99,6 @@ func validateRenderOpts(cmd *cobra.Command, args []string) error {
 }
 
 func flagsToAssetConfig() (c *asset.Config, err error) {
-	etcdServers, err := parseURLs(renderOpts.etcdServers)
-	if err != nil {
-		return nil, err
-	}
 	apiServers, err := parseURLs(renderOpts.apiServers)
 	if err != nil {
 		return nil, err
@@ -150,6 +148,25 @@ func flagsToAssetConfig() (c *asset.Config, err error) {
 	etcdServiceIP, err := offsetServiceIP(serviceNet, etcdOffset)
 	if err != nil {
 		return nil, err
+	}
+
+	var etcdServers []*url.URL
+	if renderOpts.selfHostedEtcd {
+		etcdServerUrl, err := url.Parse(fmt.Sprintf("http://%s:2379", etcdServiceIP))
+		if err != nil {
+			return nil, err
+		}
+
+		etcdServers = append(etcdServers, etcdServerUrl)
+
+		if renderOpts.etcdServers != defaultEtcdServers {
+			bootkube.UserOutput("--experimental-self-hosted-etcd and --service-cidr set. Overriding --etcd-servers setting with %s\n", etcdServers)
+		}
+	} else {
+		etcdServers, err = parseURLs(renderOpts.etcdServers)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// TODO: Find better option than asking users to make manual changes
