@@ -232,9 +232,10 @@ spec:
           name: var-lock
           readOnly: false
         command:
-        - "/bin/sh"
-        - "-c"
-        - "/usr/bin/flock --exclusive --timeout=30 /var/lock/kenc.lock; kenc -r -m iptables && kenc -m iptables"
+        - /usr/bin/flock
+        - /var/lock/kenc.lock
+        - -c
+        - "kenc -r -m iptables && kenc -m iptables"
       volumes:
       - name: checkpoint-dir
         hostPath:
