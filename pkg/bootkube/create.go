@@ -31,7 +31,17 @@ func CreateAssets(manifestDir string, timeout time.Duration) error {
 
 	createFn := func() (bool, error) {
 		err := createAssets(manifestDir)
-		return true, err
+		if err != nil {
+			err = fmt.Errorf("Error creating assets: %v", err)
+			glog.Error(err)
+			UserOutput("%v\n", err)
+			UserOutput("\nNOTE: Bootkube failed to create some cluster assets. It is important that manifest errors are resolved and resubmitted to the apiserver.\n")
+			UserOutput("For example, after resolving issues: kubectl create -f <failed-manifest>\n\n")
+		}
+
+		// Do not fail cluster creation due to missing assets as it is a recoverable situation
+		// See https://github.com/kubernetes-incubator/bootkube/pull/368/files#r105509074
+		return true, nil
 	}
 
 	UserOutput("Waiting for api-server...\n")
@@ -45,11 +55,8 @@ func CreateAssets(manifestDir string, timeout time.Duration) error {
 	UserOutput("Creating self-hosted assets...\n")
 	timeout = timeout - time.Since(start)
 	if err := wait.PollImmediate(5*time.Second, timeout, createFn); err != nil {
-		err = fmt.Errorf("Error creating assets: %v", err)
+		err = fmt.Errorf("Failed to create assets: %v", err)
 		glog.Error(err)
-		UserOutput("%v\n", err)
-		UserOutput("\nNOTE: Bootkube failed to create some cluster assets. It is important that manifest errors are resolved and resubmitted to the apiserver.\n")
-		UserOutput("For example, after resolving issues: kubectl create -f <failed-manifest>\n\n")
 		return err
 	}
 
