@@ -9,9 +9,19 @@ if [ ${un} == 'Darwin' ]; then
     local_os="darwin"
 fi
 
+SELF_HOST_ETCD=${SELF_HOST_ETCD:-false}
+if [ ${SELF_HOST_ETCD} = "true" ]; then
+    echo "WARNING: THIS IS NOT YET FULLY WORKING - merely here to make ongoing testing easier"
+    etcd_render_flags="--experimental-self-hosted-etcd"
+    etcd_start_flags="--etcd-server=http://172.17.4.100:12379 --experimental-self-hosted-etcd"
+else
+    etcd_render_flags=""
+    etcd_start_flags=""
+fi
+
 # Render assets
 if [ ! -d "cluster" ]; then
-  ../../_output/bin/${local_os}/bootkube render --asset-dir=cluster --api-servers=https://172.17.4.100:443
+  ../../_output/bin/${local_os}/bootkube render --asset-dir=cluster --api-servers=https://172.17.4.100:443 ${etcd_render_flags}
   cp user-data.sample cluster/user-data
 fi
 
@@ -24,7 +34,7 @@ scp -q -F ssh_config -r cluster core@default:/home/core/cluster
 scp -q -F ssh_config ../../_output/bin/linux/bootkube core@default:/home/core
 
 # Run bootkube
-ssh -q -F ssh_config core@default "sudo GLOG_v=${GLOG_v} /home/core/bootkube start --asset-dir=/home/core/cluster 2>> /home/core/bootkube.log"
+ssh -q -F ssh_config core@default "sudo GLOG_v=${GLOG_v} /home/core/bootkube start --asset-dir=/home/core/cluster ${etcd_start_flags} 2>> /home/core/bootkube.log"
 
 echo
 echo "Bootstrap complete. Access your kubernetes cluster using:"
