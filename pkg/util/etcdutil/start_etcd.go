@@ -6,14 +6,21 @@ import (
 	"net/http"
 	"time"
 
+	"os"
+	"path/filepath"
+
 	"github.com/golang/glog"
 )
 
 const bootEtcdFilePath = "/etc/kubernetes/manifests/boot-etcd.yaml"
 
 func StartEtcd(endpoint string) error {
+	dir := filepath.Dir(bootEtcdFilePath)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("failed to create directory '%s': %v", dir, err)
+	}
 	if err := ioutil.WriteFile(bootEtcdFilePath, []byte(etcdPodYaml), 0600); err != nil {
-		return fmt.Errorf("fail to write file '/etc/kubernetes/manifests/boot-etcd.yaml': %v", err)
+		return fmt.Errorf("failed to write file '%s': %v", bootEtcdFilePath, err)
 	}
 	glog.Info("etcd server has been defined to run by kubelet. Please wait...")
 	return waitEtcdUp(endpoint)
