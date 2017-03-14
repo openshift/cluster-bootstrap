@@ -220,7 +220,7 @@ spec:
         master: "true"
       hostNetwork: true
       containers:
-      - image: quay.io/coreos/kenc:82343328b867a762ffca07c2877f0079a99c8f1a
+      - image: quay.io/coreos/kenc:48b6feceeee56c657ea9263f47b6ea091e8d3035
         name: kenc
         securityContext:
           privileged: true
@@ -601,7 +601,7 @@ spec:
     spec:
       containers:
       - name: etcd-operator
-        image: quay.io/coreos/etcd-operator:v0.2.1
+        image: quay.io/coreos/etcd-operator:v0.2.3
         env:
         - name: MY_POD_NAMESPACE
           valueFrom:
