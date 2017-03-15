@@ -27,7 +27,7 @@ ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --minimum-container-ttl-duration=3m0s \
   --cluster_dns=10.3.0.10 \
   --cluster_domain=cluster.local \
-  --config=/etc/kubernetes/manifests
+  --pod-manifest-path=/etc/kubernetes/manifests
 
 ExecStop=-/usr/bin/rkt stop --uuid-file=/var/run/kubelet-pod.uuid
 Restart=always
