@@ -240,10 +240,10 @@ func process(localRunningPods, localParentPods, apiParentPods, activeCheckpoints
 			if _, ok := apiParentPods[id]; !ok {
 				glog.V(4).Infof("API GC: should remove inactive checkpoint %s", id)
 
+				removeMap[id] = struct{}{}
 				if isPodCheckpointer(inactiveCheckpoints[id]) {
 					podCheckpointerID = id
-				} else {
-					removeMap[id] = struct{}{}
+					break
 				}
 
 				delete(inactiveCheckpoints, id)
@@ -256,14 +256,26 @@ func process(localRunningPods, localParentPods, apiParentPods, activeCheckpoints
 			if _, ok := apiParentPods[id]; !ok {
 				glog.V(4).Infof("API GC: should remove active checkpoint %s", id)
 
+				removeMap[id] = struct{}{}
 				if isPodCheckpointer(activeCheckpoints[id]) {
 					podCheckpointerID = id
-				} else {
-					removeMap[id] = struct{}{}
+					break
 				}
 
 				delete(activeCheckpoints, id)
 			}
+		}
+	}
+
+	// Remove all checkpoints if we need to remove the pod checkpointer itself.
+	if podCheckpointerID != "" {
+		for id := range inactiveCheckpoints {
+			removeMap[id] = struct{}{}
+			delete(inactiveCheckpoints, id)
+		}
+		for id := range activeCheckpoints {
+			removeMap[id] = struct{}{}
+			delete(activeCheckpoints, id)
 		}
 	}
 
@@ -293,8 +305,12 @@ func process(localRunningPods, localParentPods, apiParentPods, activeCheckpoints
 
 	// De-duped checkpoints to remove. If we decide to GC a checkpoint, we will clean up both inactive/active.
 	for k := range removeMap {
+		if k == podCheckpointerID {
+			continue
+		}
 		remove = append(remove, k)
 	}
+	// Put pod checkpoint at the last of the queue.
 	if podCheckpointerID != "" {
 		remove = append(remove, podCheckpointerID)
 	}
@@ -359,6 +375,11 @@ func writeCheckpointManifest(pod *v1.Pod) error {
 		return err
 	}
 	path := filepath.Join(inactiveCheckpointPath, pod.Namespace+"-"+pod.Name+".json")
+	// Make sure the inactive checkpoint path exists.
+	if err := os.MkdirAll(filepath.Dir(path), 0600); err != nil {
+		return err
+	}
+
 	oldb, err := ioutil.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return err
