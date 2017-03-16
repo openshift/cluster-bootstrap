@@ -601,7 +601,7 @@ spec:
     spec:
       containers:
       - name: etcd-operator
-        image: quay.io/coreos/etcd-operator:v0.2.3
+        image: quay.io/coreos/etcd-operator:v0.2.4
         env:
         - name: MY_POD_NAMESPACE
           valueFrom:
