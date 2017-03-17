@@ -404,14 +404,26 @@ func isPodCheckpointer(pod *v1.Pod) bool {
 }
 
 func sanitizeCheckpointPod(cp *v1.Pod) (*v1.Pod, error) {
-	// Clear ObjectMeta except for name/namespace
-	// NOTE(aaron): If we want to keep labels, we need to add a new label so the static pod
-	//              will not be adopted by higher-level parent (e.g. daemonset/deployment).
-	//              Otherwise you end up in situations where parent tries deleting mirror pods.
+	trueVar := true
+
+	// Keep same name, namespace, and labels as parent.
 	cp.ObjectMeta = metav1.ObjectMeta{
 		Name:        cp.Name,
 		Namespace:   cp.Namespace,
 		Annotations: make(map[string]string),
+		Labels:      cp.Labels,
+		// Set the ownerRef to the parent pod. We do this because:
+		// If the ownerRef stays the same (e.g. the original deployment), then the deployment controller will try to manage the static/mirror pod.
+		// If we clear the ownerRef, then a higher-level object will adopt this pod based on the label selector (e.g. the original deployment).
+		OwnerReferences: []metav1.OwnerReference{
+			{
+				APIVersion: cp.APIVersion,
+				Kind:       cp.Kind,
+				Name:       cp.Name,
+				UID:        cp.UID,
+				Controller: &trueVar,
+			},
+		},
 	}
 
 	// Track this checkpoint's parent pod

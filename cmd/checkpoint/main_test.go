@@ -286,10 +286,11 @@ func TestSanitizeCheckpointPod(t *testing.T) {
 		pod      *v1.Pod
 		expected *v1.Pod
 	}
+	trueVar := true
 
 	cases := []testCase{
 		{
-			desc: "Pod name and namespace are preserved & checkpoint annotation added",
+			desc: "Pod name and namespace are preserved, checkpoint annotation added, owner points to parent",
 			pod: &v1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "podname",
@@ -298,14 +299,15 @@ func TestSanitizeCheckpointPod(t *testing.T) {
 			},
 			expected: &v1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        "podname",
-					Namespace:   "podnamespace",
-					Annotations: map[string]string{checkpointParentAnnotation: "podname"},
+					Name:            "podname",
+					Namespace:       "podnamespace",
+					Annotations:     map[string]string{checkpointParentAnnotation: "podname"},
+					OwnerReferences: []metav1.OwnerReference{{Name: "podname", Controller: &trueVar}},
 				},
 			},
 		},
 		{
-			desc: "Existing annotations are removed, checkpoint annotation added",
+			desc: "Existing annotations are removed, checkpoint annotation added, owner points to parent",
 			pod: &v1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        "podname",
@@ -315,9 +317,10 @@ func TestSanitizeCheckpointPod(t *testing.T) {
 			},
 			expected: &v1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        "podname",
-					Namespace:   "podnamespace",
-					Annotations: map[string]string{checkpointParentAnnotation: "podname"},
+					Name:            "podname",
+					Namespace:       "podnamespace",
+					Annotations:     map[string]string{checkpointParentAnnotation: "podname"},
+					OwnerReferences: []metav1.OwnerReference{{Name: "podname", Controller: &trueVar}},
 				},
 			},
 		},
@@ -332,9 +335,10 @@ func TestSanitizeCheckpointPod(t *testing.T) {
 			},
 			expected: &v1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        "podname",
-					Namespace:   "podnamespace",
-					Annotations: map[string]string{checkpointParentAnnotation: "podname"},
+					Name:            "podname",
+					Namespace:       "podnamespace",
+					Annotations:     map[string]string{checkpointParentAnnotation: "podname"},
+					OwnerReferences: []metav1.OwnerReference{{Name: "podname", Controller: &trueVar}},
 				},
 			},
 		},
@@ -349,9 +353,60 @@ func TestSanitizeCheckpointPod(t *testing.T) {
 			},
 			expected: &v1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
+					Name:            "podname",
+					Namespace:       "podnamespace",
+					Annotations:     map[string]string{checkpointParentAnnotation: "podname"},
+					OwnerReferences: []metav1.OwnerReference{{Name: "podname", Controller: &trueVar}},
+				},
+			},
+		},
+		{
+			desc: "Labels are preserved",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "podname",
+					Namespace: "podnamespace",
+					Labels:    map[string]string{"foo": "bar"},
+				},
+			},
+			expected: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "podname",
+					Namespace:       "podnamespace",
+					Labels:          map[string]string{"foo": "bar"},
+					Annotations:     map[string]string{checkpointParentAnnotation: "podname"},
+					OwnerReferences: []metav1.OwnerReference{{Name: "podname", Controller: &trueVar}},
+				},
+			},
+		},
+		{
+			desc: "OwnerReference of checkpoint points to parent pod",
+			pod: &v1.Pod{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1",
+					Kind:       "Pod",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "podname",
+					Namespace: "podnamespace",
+					UID:       "pod-uid",
+					OwnerReferences: []metav1.OwnerReference{
+						{APIVersion: "v1", Kind: "Daemonset", Name: "daemonname", UID: "daemon-uid"},
+					},
+				},
+			},
+			expected: &v1.Pod{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1",
+					Kind:       "Pod",
+				},
+				ObjectMeta: metav1.ObjectMeta{
 					Name:        "podname",
 					Namespace:   "podnamespace",
 					Annotations: map[string]string{checkpointParentAnnotation: "podname"},
+					OwnerReferences: []metav1.OwnerReference{
+						{APIVersion: "v1", Kind: "Pod", Name: "podname", UID: "pod-uid", Controller: &trueVar},
+					},
 				},
 			},
 		},
@@ -360,12 +415,13 @@ func TestSanitizeCheckpointPod(t *testing.T) {
 	for _, tc := range cases {
 		got, err := sanitizeCheckpointPod(tc.pod)
 		if err != nil {
-			t.Errorf("Unexpected error: %v", err)
+			t.Errorf("\nUnexpected error: %v\n", err)
 		}
 		if !api.Semantic.DeepEqual(tc.expected, got) {
-			t.Errorf("For Test: %s\n\nExpected:\n%+v\nGot:\n%+v\n", tc.desc, tc.expected, got)
+			t.Errorf("\nFor Test: %s\n\nExpected:\n%#v\nGot:\n%#v\n", tc.desc, tc.expected, got)
 		}
 	}
+
 }
 
 func TestPodListToParentPods(t *testing.T) {
@@ -603,7 +659,7 @@ func TestCopyPod(t *testing.T) {
 		t.Errorf("Unexpected error: %v", err)
 	}
 	if !api.Semantic.DeepEqual(pod, *got) {
-		t.Errorf("Expected:\n%+v\nGot:\n%+v", pod, got)
+		t.Errorf("Expected:\n%#v\nGot:\n%#v", pod, got)
 	}
 }
 
