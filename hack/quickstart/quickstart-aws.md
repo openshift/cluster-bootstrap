@@ -22,7 +22,7 @@ Next, create the security group rules.
 ```
 $ aws ec2 authorize-security-group-ingress --region us-west-2 --group-name ${CLUSTER_PREFIX}-sg --protocol tcp --port 22 --cidr 0.0.0.0/0
 $ aws ec2 authorize-security-group-ingress --region us-west-2 --group-name ${CLUSTER_PREFIX}-sg --protocol tcp --port 443 --cidr 0.0.0.0/0
-$ aws ec2 authorize-security-group-ingress --region us-west-2 --group-name ${CLUSTER_PREFIX}-sg --protocol tcp --port 0-65535 --source-group k8s-sg
+$ aws ec2 authorize-security-group-ingress --region us-west-2 --group-name ${CLUSTER_PREFIX}-sg --protocol tcp --port 0-65535 --source-group ${CLUSTER_PREFIX}-sg
 ```
 
 ### Create a key-pair
@@ -54,7 +54,7 @@ $ aws ec2 describe-instances --region us-west-2 --instance-ids <INSTANCE_ID> --q
 We can then use the public-ip to initialize a master node:
 
 ```
-$ IDENT=k8s-key.pem ./init-master.sh <PUBLIC_IP>
+$ IDENT=${CLUSTER_PREFIX}-key.pem ./init-master.sh <PUBLIC_IP>
 ```
 
 After the master bootstrap is complete, you can continue to add worker nodes. Or cluster state can be inspected via kubectl:
@@ -68,7 +68,7 @@ $ kubectl --kubeconfig=cluster/auth/kubeconfig get nodes
 Run the `Launch Nodes` step for each additional node you wish to add, then using the public-ip, run:
 
 ```
-IDENT=k8s-key.pem ./init-worker.sh <PUBLIC_IP> cluster/auth/kubeconfig
+IDENT=${CLUSTER_PREFIX}-key.pem ./init-worker.sh <PUBLIC_IP> cluster/auth/kubeconfig
 ```
 
 **NOTE:** It can take a few minutes for each node to download all of the required assets / containers.
