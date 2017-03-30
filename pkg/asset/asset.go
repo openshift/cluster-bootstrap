@@ -38,7 +38,7 @@ const (
 	AssetPathKubeDNSDeployment           = "manifests/kube-dns-deployment.yaml"
 	AssetPathKubeDNSSvc                  = "manifests/kube-dns-svc.yaml"
 	AssetPathSystemNamespace             = "manifests/kube-system-ns.yaml"
-	AssetPathCheckpointer                = "manifests/pod-checkpoint-installer.yaml"
+	AssetPathCheckpointer                = "manifests/pod-checkpointer.yaml"
 	AssetPathEtcdOperator                = "manifests/etcd-operator.yaml"
 	AssetPathEtcdSvc                     = "manifests/etcd-service.yaml"
 	AssetPathKenc                        = "manifests/kenc.yaml"

@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/golang/glog"
@@ -26,7 +27,9 @@ import (
 )
 
 const (
-	nodeNameEnv = "NODE_NAME"
+	nodeNameEnv     = "NODE_NAME"
+	podNameEnv      = "POD_NAME"
+	podNamespaceEnv = "POD_NAMESPACE"
 
 	// We must use both the :10255/pods and :10250/runningpods/ endpoints, because /pods endpoint could have stale data.
 	// The /pods endpoint will only show the last cached status which has successfully been written to an apiserver.
@@ -48,16 +51,62 @@ const (
 	podSourceFile    = "file"
 )
 
-//TODO(aaron): The checkpointer should know how to GC itself because it runs as a static pod.
+var (
+	lockfilePath string
+
+	// TODO(yifan): Put these into a struct when necessary.
+	nodeName     string
+	podName      string
+	podNamespace string
+)
+
+func init() {
+	flag.StringVar(&lockfilePath, "lock-file", "/var/run/lock/pod-checkpointer.lock", "The path to lock file for checkpointer to use")
+	flag.Set("logtostderr", "true")
+}
+
+// flock tries to grab a flock on the given path.
+// If the lock is already acquired by other process, the function will block.
+// TODO(yifan): Maybe replace this with kubernetes/pkg/util/flock.Acquire() once
+// https://github.com/kubernetes/kubernetes/issues/42929 is solved, or maybe not.
+func flock(path string) error {
+	fd, err := syscall.Open(path, syscall.O_CREAT|syscall.O_RDWR, 0600)
+	if err != nil {
+		return err
+	}
+
+	// We don't need to close the fd since we should hold
+	// it until the process exits.
+
+	return syscall.Flock(fd, syscall.LOCK_EX)
+}
+
+// readDownwardAPI fills the node name, pod name, and pod namespace.
+func readDownwardAPI() {
+	nodeName = os.Getenv(nodeNameEnv)
+	if nodeName == "" {
+		glog.Fatalf("Missing required environment variable: %s", nodeNameEnv)
+	}
+	podName = os.Getenv(podNameEnv)
+	if podName == "" {
+		glog.Fatalf("Missing required environment variable: %s", podNameEnv)
+	}
+	podNamespace = os.Getenv(podNamespaceEnv)
+	if podNamespace == "" {
+		glog.Fatalf("Missing required environment variable: %s", podNamespaceEnv)
+	}
+}
 
 func main() {
-	flag.Set("logtostderr", "true")
 	flag.Parse()
 	defer glog.Flush()
 
-	nodeName := os.Getenv(nodeNameEnv)
-	if nodeName == "" {
-		glog.Fatalf("Missing required environment variable: %s", nodeNameEnv)
+	readDownwardAPI()
+
+	glog.Infof("Trying to acquire the flock at %q", lockfilePath)
+
+	if err := flock(lockfilePath); err != nil {
+		glog.Fatalf("Error when acquiring the flock: %v", err)
 	}
 
 	glog.Infof("Starting checkpointer for node: %s", nodeName)
@@ -104,10 +153,10 @@ func main() {
 		},
 	}
 
-	run(client, kubelet, nodeName)
+	run(client, kubelet)
 }
 
-func run(client clientset.Interface, kubelet *kubeletClient, nodeName string) {
+func run(client clientset.Interface, kubelet *kubeletClient) {
 	for {
 		time.Sleep(3 * time.Second)
 
@@ -138,9 +187,12 @@ func run(client clientset.Interface, kubelet *kubeletClient, nodeName string) {
 		inactiveCheckpoints := getFileCheckpoints(inactiveCheckpointPath)
 
 		start, stop, remove := process(localRunningPods, localParentPods, apiParentPods, activeCheckpoints, inactiveCheckpoints)
-		handleRemove(remove)
+
+		// Handle remove at last because we may still have some work to do
+		// before removing the checkpointer itself.
 		handleStop(stop)
 		handleStart(start)
+		handleRemove(remove)
 	}
 }
 
@@ -157,6 +209,10 @@ func run(client clientset.Interface, kubelet *kubeletClient, nodeName string) {
 // The removal of a checkpoint means its parent is no longer scheduled to this node, and we need to GC active / inactive
 // checkpoints as well as any secrets / configMaps which are no longer necessary.
 func process(localRunningPods, localParentPods, apiParentPods, activeCheckpoints, inactiveCheckpoints map[string]*v1.Pod) (start, stop, remove []string) {
+	// If this variable is filled, then it means we need to remove the pod-checkpointer's checkpoint.
+	// We treat the pod-checkpointer's checkpoint specially because we want to put it at the end of
+	// the remove queue.
+	var podCheckpointerID string
 
 	// We can only make some GC decisions if we've successfully contacted an apiserver.
 	// When apiParentPods == nil, that means we were not able to get an updated list of pods.
@@ -183,7 +239,13 @@ func process(localRunningPods, localParentPods, apiParentPods, activeCheckpoints
 			//       However, we don't know this, and as far as the checkpointer is concerned - that pod is no longer scheduled to this node.
 			if _, ok := apiParentPods[id]; !ok {
 				glog.V(4).Infof("API GC: should remove inactive checkpoint %s", id)
+
 				removeMap[id] = struct{}{}
+				if isPodCheckpointer(inactiveCheckpoints[id]) {
+					podCheckpointerID = id
+					break
+				}
+
 				delete(inactiveCheckpoints, id)
 			}
 		}
@@ -193,26 +255,49 @@ func process(localRunningPods, localParentPods, apiParentPods, activeCheckpoints
 			// If the active checkpoint does not have a parent in the api-server, we must assume it should no longer be running on this node.
 			if _, ok := apiParentPods[id]; !ok {
 				glog.V(4).Infof("API GC: should remove active checkpoint %s", id)
+
 				removeMap[id] = struct{}{}
+				if isPodCheckpointer(activeCheckpoints[id]) {
+					podCheckpointerID = id
+					break
+				}
+
 				delete(activeCheckpoints, id)
 			}
 		}
 	}
 
-	// Can make decisions about starting/stopping checkpoints just with local state.
+	// Remove all checkpoints if we need to remove the pod checkpointer itself.
+	if podCheckpointerID != "" {
+		for id := range inactiveCheckpoints {
+			removeMap[id] = struct{}{}
+			delete(inactiveCheckpoints, id)
+		}
+		for id := range activeCheckpoints {
+			removeMap[id] = struct{}{}
+			delete(activeCheckpoints, id)
+		}
+	}
 
-	// If there is an inactive checkpoint, and no parent is running, start the checkpoint
+	// Can make decisions about starting/stopping checkpoints just with local state.
+	//
+	// If there is an inactive checkpoint, and no parent pod is running, or the checkpoint
+	// is the pod-checkpointer, start the checkpoint.
 	for id := range inactiveCheckpoints {
-		if _, ok := localRunningPods[id]; !ok {
+		_, ok := localRunningPods[id]
+		if !ok || isPodCheckpointer(inactiveCheckpoints[id]) {
 			glog.V(4).Infof("Should start checkpoint %s", id)
 			start = append(start, id)
 		}
 	}
 
-	// If there is an active checkpoint and a running pod, stop the active checkpoint
-	// The parent may not be in a running state, but the kubelet is trying to start it so we should get out of the way.
+	// If there is an active checkpoint and a running parent pod, stop the active checkpoint
+	// unless this is the pod-checkpointer.
+	// The parent may not be in a running state, but the kubelet is trying to start it
+	// so we should get out of the way.
 	for id := range activeCheckpoints {
-		if _, ok := localRunningPods[id]; ok {
+		_, ok := localRunningPods[id]
+		if ok && !isPodCheckpointer(activeCheckpoints[id]) {
 			glog.V(4).Infof("Should stop checkpoint %s", id)
 			stop = append(stop, id)
 		}
@@ -220,7 +305,14 @@ func process(localRunningPods, localParentPods, apiParentPods, activeCheckpoints
 
 	// De-duped checkpoints to remove. If we decide to GC a checkpoint, we will clean up both inactive/active.
 	for k := range removeMap {
+		if k == podCheckpointerID {
+			continue
+		}
 		remove = append(remove, k)
+	}
+	// Put pod checkpoint at the last of the queue.
+	if podCheckpointerID != "" {
+		remove = append(remove, podCheckpointerID)
 	}
 
 	return start, stop, remove
@@ -283,6 +375,11 @@ func writeCheckpointManifest(pod *v1.Pod) error {
 		return err
 	}
 	path := filepath.Join(inactiveCheckpointPath, pod.Namespace+"-"+pod.Name+".json")
+	// Make sure the inactive checkpoint path exists.
+	if err := os.MkdirAll(filepath.Dir(path), 0600); err != nil {
+		return err
+	}
+
 	oldb, err := ioutil.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return err
@@ -293,6 +390,17 @@ func writeCheckpointManifest(pod *v1.Pod) error {
 	}
 	glog.Infof("Checkpointing manifest for %s", PodFullName(pod))
 	return writeAndAtomicRename(path, b, 0644)
+}
+
+// isPodCheckpointer returns true if the manifest is the pod checkpointer (has the same name as the parent).
+// For example, the pod.Name would be "pod-checkpointer".
+// The podName would be "pod-checkpointer" or "pod-checkpointer-172.17.4.201" where
+// "172.17.4.201" is the nodeName.
+func isPodCheckpointer(pod *v1.Pod) bool {
+	if pod.Namespace != podNamespace {
+		return false
+	}
+	return pod.Name == strings.TrimSuffix(podName, "-"+nodeName)
 }
 
 func sanitizeCheckpointPod(cp *v1.Pod) (*v1.Pod, error) {
@@ -497,28 +605,41 @@ func checkpointConfigMap(client clientset.Interface, namespace, podName, configM
 
 func handleRemove(remove []string) {
 	for _, id := range remove {
-		// Remove inactive checkpoints
 		glog.Infof("Removing checkpoint of: %s", id)
-		p := PodFullNameToInactiveCheckpointPath(id)
-		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
-			glog.Errorf("Failed to remove inactive checkpoint %s: %v", p, err)
-			continue
-		}
-		// Remove active checkpoints
-		p = PodFullNameToActiveCheckpointPath(id)
-		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
-			glog.Errorf("Failed to remove active checkpoint %s: %v", p, err)
-			continue
-		}
+
 		// Remove Secrets
-		p = PodFullNameToSecretPath(id)
+		p := PodFullNameToSecretPath(id)
 		if err := os.RemoveAll(p); err != nil {
 			glog.Errorf("Failed to remove pod secrets from %s: %s", p, err)
 		}
+
 		// Remove ConfipMaps
 		p = PodFullNameToConfigMapPath(id)
 		if err := os.RemoveAll(p); err != nil {
 			glog.Errorf("Failed to remove pod configMaps from %s: %s", p, err)
+		}
+
+		// Remove inactive checkpoints
+		p = PodFullNameToInactiveCheckpointPath(id)
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			glog.Errorf("Failed to remove inactive checkpoint %s: %v", p, err)
+			continue
+		}
+
+		// Remove active checkpoints.
+		// We do this as the last step because we want to clean up
+		// resources before the checkpointer itself exits.
+		//
+		// TODO(yifan): Removing the pods after removing the secrets/configmaps
+		// might disturb other pods since they might want to use the configmap
+		// or secrets during termination.
+		//
+		// However, since we are not waiting for them to terminate anyway, so it's
+		// ok to just leave as is for now. We can handle this more gracefully later.
+		p = PodFullNameToActiveCheckpointPath(id)
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			glog.Errorf("Failed to remove active checkpoint %s: %v", p, err)
+			continue
 		}
 	}
 }

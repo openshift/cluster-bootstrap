@@ -79,3 +79,8 @@ ConfigMaps are stored using a path of:
 ```
 /etc/kubernets/checkpoint-configmaps/<namespace>/<pod-name>/<configmap-name>
 ```
+### Self Checkpointing
+
+The pod checkpoint will also checkpoint itself to the disk to handle the absence of the API server.
+After a node reboot, the on-disk pod-checkpointer will take over the responsibility.
+Once it reaches the API server and finds out that it's no longer being scheduled, it will clean up itself.

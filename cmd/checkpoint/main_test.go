@@ -20,6 +20,7 @@ func TestProcess(t *testing.T) {
 		expectStart         []string
 		expectStop          []string
 		expectRemove        []string
+		podName             string
 	}
 
 	cases := []testCase{
@@ -104,9 +105,170 @@ func TestProcess(t *testing.T) {
 			activeCheckpoints: map[string]*v1.Pod{"AA": {}},
 			localParents:      map[string]*v1.Pod{"AA": {}},
 		},
+		{
+			desc:         "Inactive pod-checkpointer, local parent, local running, api parent: should start",
+			localRunning: map[string]*v1.Pod{"kube-system/pod-checkpointer": {}},
+			localParents: map[string]*v1.Pod{"kube-system/pod-checkpointer": {}},
+			apiParents:   map[string]*v1.Pod{"kube-system/pod-checkpointer": {}},
+			inactiveCheckpoints: map[string]*v1.Pod{
+				"kube-system/pod-checkpointer": {
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "pod-checkpointer",
+					},
+				},
+			},
+			expectStart: []string{"kube-system/pod-checkpointer"},
+		},
+		{
+			desc:         "Inactive pod-checkpointer, local parent, no local running, api not reachable: should start",
+			localParents: map[string]*v1.Pod{"kube-system/pod-checkpointer": {}},
+			inactiveCheckpoints: map[string]*v1.Pod{
+				"kube-system/pod-checkpointer": {
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "pod-checkpointer",
+					},
+				},
+			},
+			expectStart: []string{"kube-system/pod-checkpointer"},
+		},
+		{
+			desc:         "Inactive pod-checkpointer, no local parent, no api parent: should remove in the last",
+			localRunning: map[string]*v1.Pod{"kube-system/pod-checkpointer": {}, "AA": {}},
+			localParents: map[string]*v1.Pod{"BB": {}},
+			apiParents:   map[string]*v1.Pod{"BB": {}},
+			inactiveCheckpoints: map[string]*v1.Pod{
+				"kube-system/pod-checkpointer": {
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "pod-checkpointer",
+					},
+				},
+				"AA": {},
+			},
+			expectRemove: []string{"AA", "kube-system/pod-checkpointer"},
+		},
+		{
+			desc:         "Inactive pod-checkpointer, no local parent, no api parent: should remove all",
+			localRunning: map[string]*v1.Pod{"kube-system/pod-checkpointer": {}, "AA": {}},
+			localParents: map[string]*v1.Pod{"AA": {}},
+			apiParents:   map[string]*v1.Pod{"AA": {}},
+			inactiveCheckpoints: map[string]*v1.Pod{
+				"kube-system/pod-checkpointer": {
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "pod-checkpointer",
+					},
+				},
+				"AA": {},
+			},
+			expectRemove: []string{"AA", "kube-system/pod-checkpointer"},
+		},
+		{
+			desc:         "Active pod-checkpointer, no local parent, no api parent: should remove all",
+			localRunning: map[string]*v1.Pod{"kube-system/pod-checkpointer": {}, "AA": {}},
+			localParents: map[string]*v1.Pod{"AA": {}},
+			apiParents:   map[string]*v1.Pod{"AA": {}},
+			activeCheckpoints: map[string]*v1.Pod{
+				"kube-system/pod-checkpointer": {
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "pod-checkpointer",
+					},
+				},
+				"AA": {},
+			},
+			expectRemove: []string{"AA", "kube-system/pod-checkpointer"},
+		},
+		{
+			desc:         "Running as an on-disk checkpointer: Inactive pod-checkpointer, local parent, local running, api parent: should start",
+			podName:      "pod-checkpointer-mynode",
+			localRunning: map[string]*v1.Pod{"kube-system/pod-checkpointer": {}},
+			localParents: map[string]*v1.Pod{"kube-system/pod-checkpointer": {}},
+			apiParents:   map[string]*v1.Pod{"kube-system/pod-checkpointer": {}},
+			inactiveCheckpoints: map[string]*v1.Pod{
+				"kube-system/pod-checkpointer": {
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "pod-checkpointer",
+					},
+				},
+			},
+			expectStart: []string{"kube-system/pod-checkpointer"},
+		},
+		{
+			desc:         "Running as an on-disk checkpointer: Inactive pod-checkpointer, local parent, no local running, api not reachable: should start",
+			podName:      "pod-checkpointer-mynode",
+			localParents: map[string]*v1.Pod{"kube-system/pod-checkpointer": {}},
+			inactiveCheckpoints: map[string]*v1.Pod{
+				"kube-system/pod-checkpointer": {
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "pod-checkpointer",
+					},
+				},
+			},
+			expectStart: []string{"kube-system/pod-checkpointer"},
+		},
+		{
+			desc:         "Running as an on-disk checkpointer: Inactive pod-checkpointer, no local parent, no api parent: should remove in the last",
+			podName:      "pod-checkpointer-mynode",
+			localRunning: map[string]*v1.Pod{"kube-system/pod-checkpointer": {}, "AA": {}},
+			localParents: map[string]*v1.Pod{"BB": {}},
+			apiParents:   map[string]*v1.Pod{"BB": {}},
+			inactiveCheckpoints: map[string]*v1.Pod{
+				"kube-system/pod-checkpointer": {
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "pod-checkpointer",
+					},
+				},
+				"AA": {},
+			},
+			expectRemove: []string{"AA", "kube-system/pod-checkpointer"},
+		},
+		{
+			desc:         "Running as an on-disk checkpointer: Inactive pod-checkpointer, no local parent, no api parent: should remove all",
+			podName:      "pod-checkpointer-mynode",
+			localRunning: map[string]*v1.Pod{"kube-system/pod-checkpointer": {}, "AA": {}},
+			localParents: map[string]*v1.Pod{"AA": {}},
+			apiParents:   map[string]*v1.Pod{"AA": {}},
+			inactiveCheckpoints: map[string]*v1.Pod{
+				"kube-system/pod-checkpointer": {
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "pod-checkpointer",
+					},
+				},
+				"AA": {},
+			},
+			expectRemove: []string{"AA", "kube-system/pod-checkpointer"},
+		},
+		{
+			desc:         "Running as an on-disk checkpointer: Active pod-checkpointer, no local parent, no api parent: should remove all",
+			podName:      "pod-checkpointer-mynode",
+			localRunning: map[string]*v1.Pod{"kube-system/pod-checkpointer": {}, "AA": {}},
+			localParents: map[string]*v1.Pod{"AA": {}},
+			apiParents:   map[string]*v1.Pod{"AA": {}},
+			activeCheckpoints: map[string]*v1.Pod{
+				"kube-system/pod-checkpointer": {
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "pod-checkpointer",
+					},
+				},
+				"AA": {},
+			},
+			expectRemove: []string{"AA", "kube-system/pod-checkpointer"},
+		},
 	}
 
 	for _, tc := range cases {
+		nodeName, podName, podNamespace = "mynode", "pod-checkpointer", "kube-system"
+		if tc.podName != "" {
+			podName = tc.podName
+		}
 		gotStart, gotStop, gotRemove := process(tc.localRunning, tc.localParents, tc.apiParents, tc.activeCheckpoints, tc.inactiveCheckpoints)
 		if !reflect.DeepEqual(tc.expectStart, gotStart) ||
 			!reflect.DeepEqual(tc.expectStop, gotStop) ||

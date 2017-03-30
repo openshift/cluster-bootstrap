@@ -12,9 +12,6 @@ function image::build() {
     # Add assets for container build
     cp ${BOOTKUBE_ROOT}/_output/bin/linux/checkpoint ${TEMP_DIR}
     cp ${BOOTKUBE_ROOT}/image/checkpoint/Dockerfile ${TEMP_DIR}
-    cp ${BOOTKUBE_ROOT}/image/checkpoint/checkpoint-install.sh ${TEMP_DIR}
-    cp ${BOOTKUBE_ROOT}/image/checkpoint/checkpoint-pod.yaml ${TEMP_DIR}
-    sed -i "s#{{ REPO }}:{{ TAG }}#${IMAGE_REPO}:${VERSION}#" ${TEMP_DIR}/checkpoint-pod.yaml
 
     docker build -t ${IMAGE_REPO}:${VERSION} -f ${TEMP_DIR}/Dockerfile ${TEMP_DIR}
     rm -rf ${TEMP_DIR}
