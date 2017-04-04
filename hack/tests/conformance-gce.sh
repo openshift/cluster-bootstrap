@@ -47,7 +47,9 @@ function cleanup {
 }
 
 function init {
-    curl https://sdk.cloud.google.com | bash
+    curl https://storage.googleapis.com/cloud-sdk-release/google-cloud-sdk-148.0.1-linux-x86_64.tar.gz > google-cloud-sdk.tar.gz
+    tar xzf google-cloud-sdk.tar.gz
+    ./google-cloud-sdk/install.sh
     source ~/.bashrc
     gcloud config set project ${GCE_PROJECT}
     gcloud auth activate-service-account ${GCE_SERVICE_ACCOUNT}@${GCE_PROJECT}.iam.gserviceaccount.com --key-file=/build/keyfile
