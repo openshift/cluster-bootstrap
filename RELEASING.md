@@ -18,7 +18,7 @@
 
 ### Run conformance test
 
-Easiest is to use internal jenkins jobs (`bootkube-dev`)
+Easiest is to use internal jenkins jobs [bootkube-development](https://jenkins.coreos.systems/job/bootkube-development/)
 
 Or, manually:
 
