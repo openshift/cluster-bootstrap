@@ -85,6 +85,16 @@ func makeAPIServerFlags(config Config) ([]string, error) {
 	if err != nil {
 		return []string{}, err
 	}
+	etcdServers := config.EtcdServer.String()
+	if config.SelfHostedEtcd {
+		// When self-hosting etcd we also point to the (not yet started) permanent cluster since the
+		// bootstrap node will go away at some point.
+		etcdServiceURL, err := detectEtcdServiceURL(config.AssetDir)
+		if err != nil {
+			return nil, err
+		}
+		etcdServers += fmt.Sprintf(",%s", etcdServiceURL)
+	}
 	return []string{
 		"--bind-address=0.0.0.0",
 		"--secure-port=443",
@@ -96,7 +106,7 @@ func makeAPIServerFlags(config Config) ([]string, error) {
 		"--kubelet-client-certificate=" + filepath.Join(config.AssetDir, asset.AssetPathAPIServerCert),
 		"--client-ca-file=" + filepath.Join(config.AssetDir, asset.AssetPathCACert),
 		"--authorization-mode=RBAC",
-		"--etcd-servers=" + config.EtcdServer.String(),
+		"--etcd-servers=" + etcdServers,
 		"--service-cluster-ip-range=" + serviceCIDR,
 		"--service-account-key-file=" + filepath.Join(config.AssetDir, asset.AssetPathServiceAccountPubKey),
 		"--admission-control=NamespaceLifecycle,ServiceAccount",
