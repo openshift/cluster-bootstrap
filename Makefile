@@ -8,12 +8,25 @@ GOPATH_BIN:=$(shell echo ${GOPATH} | awk 'BEGIN { FS = ":" }; { print $1 }')/bin
 LDFLAGS=-X github.com/kubernetes-incubator/bootkube/pkg/version.Version=$(shell $(CURDIR)/build/git-version.sh)
 
 all: \
+	patch \
 	_output/bin/linux/bootkube \
 	_output/bin/darwin/bootkube \
-	_output/bin/linux/checkpoint
+	_output/bin/linux/checkpoint \
+	unpatch
 
-release: clean check \
-	_output/release/bootkube.tar.gz
+patch:
+	@echo "Patching etcd-operator vendor, this is a temporal fix for client-go vendor conflicts"
+	@git apply etcd-operator-vendor.patch
+
+unpatch:
+	@git apply -R etcd-operator-vendor.patch
+
+release: \
+	clean \
+	patch \
+	check \
+	_output/release/bootkube.tar.gz \
+	unpatch
 
 check:
 	@find . -name vendor -prune -o -name '*.go' -exec gofmt -s -d {} +
