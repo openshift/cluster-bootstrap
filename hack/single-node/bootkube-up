@@ -23,6 +23,9 @@ fi
 if [ ! -d "cluster" ]; then
   ../../_output/bin/${local_os}/bootkube render --asset-dir=cluster --api-servers=https://172.17.4.100:443 ${etcd_render_flags}
   cp user-data.sample cluster/user-data
+	if [ ${SELF_HOST_ETCD} = "false" ]; then
+		cat user-data-etcd.sample >> cluster/user-data
+	fi
 fi
 
 # Start the VM

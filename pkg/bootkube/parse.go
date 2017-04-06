@@ -91,6 +91,24 @@ func detectEtcdIP(assetDir string) (string, error) {
 	return service.Spec.ClusterIP, nil
 }
 
+// detectEtcdServiceURL deserializes the etcd-service URL.
+func detectEtcdServiceURL(assetDir string) (string, error) {
+	path := filepath.Join(assetDir, asset.AssetPathEtcdSvc)
+	b, err := ioutil.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("can't read file %s: %v", path, err)
+	}
+	var service v1.Service
+	err = yaml.Unmarshal(b, &service)
+	if err != nil {
+		return "", fmt.Errorf("can't unmarshal %s: %v", path, err)
+	}
+	if numPorts := len(service.Spec.Ports); numPorts != 1 {
+		return "", fmt.Errorf("expected 1 etcd cluster port, found: %d", numPorts)
+	}
+	return fmt.Sprintf("http://%s:%d", service.Spec.ClusterIP, service.Spec.Ports[0]), nil
+}
+
 func findFlag(flagName string, args []string) string {
 	for _, arg := range args {
 		if strings.HasPrefix(arg, flagName+"=") {
