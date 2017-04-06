@@ -8,12 +8,25 @@ GOPATH_BIN:=$(shell echo ${GOPATH} | awk 'BEGIN { FS = ":" }; { print $1 }')/bin
 LDFLAGS=-X github.com/kubernetes-incubator/bootkube/pkg/version.Version=$(shell $(CURDIR)/build/git-version.sh)
 
 all: \
+	patch \
 	_output/bin/linux/bootkube \
 	_output/bin/darwin/bootkube \
-	_output/bin/linux/checkpoint
+	_output/bin/linux/checkpoint \
+	unpatch
 
-release: clean check \
-	_output/release/bootkube.tar.gz
+patch:
+	@echo "Patching etcd-operator vendor, this is a temporal fix for client-go vendor conflicts"
+	@git apply etcd-operator-vendor.patch
+
+unpatch:
+	@git apply -R etcd-operator-vendor.patch
+
+release: \
+	clean \
+	patch \
+	check \
+	_output/release/bootkube.tar.gz \
+	unpatch
 
 check:
 	@find . -name vendor -prune -o -name '*.go' -exec gofmt -s -d {} +
@@ -54,7 +67,7 @@ conformance-%: clean all
 #TODO(aaron): the k8s.io/client-go upstream package is a symlink with relative path. Making note because we change symlink path.
 # This will naively try and create a vendor dir from a k8s release
 # USE: make vendor VENDOR_VERSION=vX.Y.Z
-VENDOR_VERSION = v1.5.5+coreos.0
+VENDOR_VERSION = v1.6.1+coreos.0
 ETCD_OPERATOR_VERSION = v0.2.4
 vendor:
 	@echo "Creating k8s vendor for: $(VENDOR_VERSION)"
@@ -66,6 +79,8 @@ vendor:
 	@cd $@/k8s.io/kubernetes/vendor && mv k8s.io/* $(abspath $@/k8s.io) && rmdir k8s.io
 	@mv $@/k8s.io/kubernetes/vendor/* $(abspath $@)
 	@cd $@/k8s.io/ && ln -sf kubernetes/staging/src/k8s.io/client-go client-go
+	@cd $@/k8s.io/ && ln -sf kubernetes/staging/src/k8s.io/apimachinery apimachinery
+	@cd $@/k8s.io/ && ln -sf kubernetes/staging/src/k8s.io/apiserver apiserver
 	@rm -rf $@/k8s.io/kubernetes/vendor $@/k8s.io/kubernetes/.git
 	@echo "vendoring etcd-operator spec: $(ETCD_OPERATOR_VERSION)"
 	@git clone https://github.com/coreos/etcd-operator /tmp/etcd-operator > /dev/null 2>&1

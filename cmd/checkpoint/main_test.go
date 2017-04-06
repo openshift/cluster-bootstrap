@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/v1"
 )
@@ -112,7 +113,7 @@ func TestProcess(t *testing.T) {
 			apiParents:   map[string]*v1.Pod{"kube-system/pod-checkpointer": {}},
 			inactiveCheckpoints: map[string]*v1.Pod{
 				"kube-system/pod-checkpointer": {
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "kube-system",
 						Name:      "pod-checkpointer",
 					},
@@ -125,7 +126,7 @@ func TestProcess(t *testing.T) {
 			localParents: map[string]*v1.Pod{"kube-system/pod-checkpointer": {}},
 			inactiveCheckpoints: map[string]*v1.Pod{
 				"kube-system/pod-checkpointer": {
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "kube-system",
 						Name:      "pod-checkpointer",
 					},
@@ -140,7 +141,7 @@ func TestProcess(t *testing.T) {
 			apiParents:   map[string]*v1.Pod{"BB": {}},
 			inactiveCheckpoints: map[string]*v1.Pod{
 				"kube-system/pod-checkpointer": {
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "kube-system",
 						Name:      "pod-checkpointer",
 					},
@@ -156,7 +157,7 @@ func TestProcess(t *testing.T) {
 			apiParents:   map[string]*v1.Pod{"AA": {}},
 			inactiveCheckpoints: map[string]*v1.Pod{
 				"kube-system/pod-checkpointer": {
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "kube-system",
 						Name:      "pod-checkpointer",
 					},
@@ -172,7 +173,7 @@ func TestProcess(t *testing.T) {
 			apiParents:   map[string]*v1.Pod{"AA": {}},
 			activeCheckpoints: map[string]*v1.Pod{
 				"kube-system/pod-checkpointer": {
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "kube-system",
 						Name:      "pod-checkpointer",
 					},
@@ -189,7 +190,7 @@ func TestProcess(t *testing.T) {
 			apiParents:   map[string]*v1.Pod{"kube-system/pod-checkpointer": {}},
 			inactiveCheckpoints: map[string]*v1.Pod{
 				"kube-system/pod-checkpointer": {
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "kube-system",
 						Name:      "pod-checkpointer",
 					},
@@ -203,7 +204,7 @@ func TestProcess(t *testing.T) {
 			localParents: map[string]*v1.Pod{"kube-system/pod-checkpointer": {}},
 			inactiveCheckpoints: map[string]*v1.Pod{
 				"kube-system/pod-checkpointer": {
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "kube-system",
 						Name:      "pod-checkpointer",
 					},
@@ -219,7 +220,7 @@ func TestProcess(t *testing.T) {
 			apiParents:   map[string]*v1.Pod{"BB": {}},
 			inactiveCheckpoints: map[string]*v1.Pod{
 				"kube-system/pod-checkpointer": {
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "kube-system",
 						Name:      "pod-checkpointer",
 					},
@@ -236,7 +237,7 @@ func TestProcess(t *testing.T) {
 			apiParents:   map[string]*v1.Pod{"AA": {}},
 			inactiveCheckpoints: map[string]*v1.Pod{
 				"kube-system/pod-checkpointer": {
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "kube-system",
 						Name:      "pod-checkpointer",
 					},
@@ -253,7 +254,7 @@ func TestProcess(t *testing.T) {
 			apiParents:   map[string]*v1.Pod{"AA": {}},
 			activeCheckpoints: map[string]*v1.Pod{
 				"kube-system/pod-checkpointer": {
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "kube-system",
 						Name:      "pod-checkpointer",
 					},
@@ -290,13 +291,13 @@ func TestSanitizeCheckpointPod(t *testing.T) {
 		{
 			desc: "Pod name and namespace are preserved & checkpoint annotation added",
 			pod: &v1.Pod{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "podname",
 					Namespace: "podnamespace",
 				},
 			},
 			expected: &v1.Pod{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:        "podname",
 					Namespace:   "podnamespace",
 					Annotations: map[string]string{checkpointParentAnnotation: "podname"},
@@ -306,14 +307,14 @@ func TestSanitizeCheckpointPod(t *testing.T) {
 		{
 			desc: "Existing annotations are removed, checkpoint annotation added",
 			pod: &v1.Pod{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:        "podname",
 					Namespace:   "podnamespace",
 					Annotations: map[string]string{"foo": "bar"},
 				},
 			},
 			expected: &v1.Pod{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:        "podname",
 					Namespace:   "podnamespace",
 					Annotations: map[string]string{checkpointParentAnnotation: "podname"},
@@ -323,14 +324,14 @@ func TestSanitizeCheckpointPod(t *testing.T) {
 		{
 			desc: "Pod status is reset",
 			pod: &v1.Pod{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "podname",
 					Namespace: "podnamespace",
 				},
 				Status: v1.PodStatus{Phase: "Pending"},
 			},
 			expected: &v1.Pod{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:        "podname",
 					Namespace:   "podnamespace",
 					Annotations: map[string]string{checkpointParentAnnotation: "podname"},
@@ -340,14 +341,14 @@ func TestSanitizeCheckpointPod(t *testing.T) {
 		{
 			desc: "Service acounts are cleared",
 			pod: &v1.Pod{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "podname",
 					Namespace: "podnamespace",
 				},
 				Spec: v1.PodSpec{ServiceAccountName: "foo", DeprecatedServiceAccount: "bar"},
 			},
 			expected: &v1.Pod{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:        "podname",
 					Namespace:   "podnamespace",
 					Annotations: map[string]string{checkpointParentAnnotation: "podname"},
@@ -368,10 +369,10 @@ func TestSanitizeCheckpointPod(t *testing.T) {
 }
 
 func TestPodListToParentPods(t *testing.T) {
-	parentAPod := v1.Pod{ObjectMeta: v1.ObjectMeta{Name: "A", Namespace: "A", Annotations: map[string]string{shouldCheckpointAnnotation: "true"}}}
-	parentBPod := v1.Pod{ObjectMeta: v1.ObjectMeta{Name: "B", Namespace: "B", Annotations: map[string]string{shouldCheckpointAnnotation: "true"}}}
-	checkpointPod := v1.Pod{ObjectMeta: v1.ObjectMeta{Name: "C", Namespace: "C", Annotations: map[string]string{checkpointParentAnnotation: "foo/bar"}}}
-	regularPod := v1.Pod{ObjectMeta: v1.ObjectMeta{Name: "D", Namespace: "D", Annotations: map[string]string{"meta": "data"}}}
+	parentAPod := v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "A", Namespace: "A", Annotations: map[string]string{shouldCheckpointAnnotation: "true"}}}
+	parentBPod := v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "B", Namespace: "B", Annotations: map[string]string{shouldCheckpointAnnotation: "true"}}}
+	checkpointPod := v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "C", Namespace: "C", Annotations: map[string]string{checkpointParentAnnotation: "foo/bar"}}}
+	regularPod := v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "D", Namespace: "D", Annotations: map[string]string{"meta": "data"}}}
 
 	type testCase struct {
 		desc     string
@@ -470,7 +471,7 @@ func TestIsRunning(t *testing.T) {
 
 func podWithAnnotations(a map[string]string) *v1.Pod {
 	return &v1.Pod{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:        "podname",
 			Namespace:   "podnamespace",
 			Annotations: a,
@@ -548,7 +549,7 @@ func TestIsCheckpoint(t *testing.T) {
 		{
 			desc: fmt.Sprintf("Pod is checkpoint and contains %s annotation key and value", checkpointParentAnnotation),
 			pod: &v1.Pod{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{checkpointParentAnnotation: "podnamespace/podname"},
 				},
 			},
@@ -557,7 +558,7 @@ func TestIsCheckpoint(t *testing.T) {
 		{
 			desc: fmt.Sprintf("Pod is checkpoint contains %s annotation key and no value", checkpointParentAnnotation),
 			pod: &v1.Pod{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{checkpointParentAnnotation: ""},
 				},
 			},
@@ -566,7 +567,7 @@ func TestIsCheckpoint(t *testing.T) {
 		{
 			desc: "Pod is not checkpoint & contains unrelated annotations",
 			pod: &v1.Pod{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{"foo": "bar"},
 				},
 			},
@@ -575,7 +576,7 @@ func TestIsCheckpoint(t *testing.T) {
 		{
 			desc: "Pod is not checkpoint & contains no annotations",
 			pod: &v1.Pod{
-				ObjectMeta: v1.ObjectMeta{},
+				ObjectMeta: metav1.ObjectMeta{},
 			},
 			expected: false,
 		},
@@ -591,7 +592,7 @@ func TestIsCheckpoint(t *testing.T) {
 
 func TestCopyPod(t *testing.T) {
 	pod := v1.Pod{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      "podname",
 			Namespace: "podnamespace",
 		},
@@ -608,7 +609,7 @@ func TestCopyPod(t *testing.T) {
 
 func TestPodID(t *testing.T) {
 	pod := &v1.Pod{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      "podname",
 			Namespace: "podnamespace",
 		},
