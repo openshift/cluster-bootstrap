@@ -3,14 +3,11 @@ package main
 import (
 	"errors"
 	"flag"
-	"fmt"
-	"net/url"
 
 	"github.com/spf13/cobra"
 
 	"github.com/kubernetes-incubator/bootkube/pkg/bootkube"
 	"github.com/kubernetes-incubator/bootkube/pkg/util"
-	"github.com/kubernetes-incubator/bootkube/pkg/util/etcdutil"
 )
 
 var (
@@ -24,36 +21,21 @@ var (
 	}
 
 	startOpts struct {
-		assetDir       string
-		etcdServer     string
-		selfHostedEtcd bool
+		assetDir        string
+		podManifestPath string
 	}
 )
 
 func init() {
 	cmdRoot.AddCommand(cmdStart)
-	cmdStart.Flags().StringVar(&startOpts.etcdServer, "etcd-server", "http://127.0.0.1:2379", "Single etcd node to use during bootkube bootstrap process.")
 	cmdStart.Flags().StringVar(&startOpts.assetDir, "asset-dir", "", "Path to the cluster asset directory. Expected layout genereted by the `bootkube render` command.")
-	cmdStart.Flags().BoolVar(&startOpts.selfHostedEtcd, "experimental-self-hosted-etcd", false, "Self hosted etcd mode. Includes starting the initial etcd member by bootkube.")
+	cmdStart.Flags().StringVar(&startOpts.podManifestPath, "pod-manifest-path", "/etc/kubernetes/manifests", "The location where the kubelet is configured to look for static pod manifests.")
 }
 
 func runCmdStart(cmd *cobra.Command, args []string) error {
-	etcdServer, err := url.Parse(startOpts.etcdServer)
-	if err != nil {
-		return fmt.Errorf("Invalid etcd etcdServer %q: %v", startOpts.etcdServer, err)
-	}
-
-	// TODO: this should likely move into bootkube.Run() eventually.
-	if startOpts.selfHostedEtcd {
-		if err := etcdutil.StartEtcd(startOpts.etcdServer); err != nil {
-			return fmt.Errorf("fail to start etcd: %v", err)
-		}
-	}
-
 	bk, err := bootkube.NewBootkube(bootkube.Config{
-		AssetDir:       startOpts.assetDir,
-		EtcdServer:     etcdServer,
-		SelfHostedEtcd: startOpts.selfHostedEtcd,
+		AssetDir:        startOpts.assetDir,
+		PodManifestPath: startOpts.podManifestPath,
 	})
 
 	if err != nil {
@@ -69,8 +51,8 @@ func runCmdStart(cmd *cobra.Command, args []string) error {
 }
 
 func validateStartOpts(cmd *cobra.Command, args []string) error {
-	if startOpts.etcdServer == "" {
-		return errors.New("missing required flag: --etcd-server")
+	if startOpts.podManifestPath == "" {
+		return errors.New("missing required flag: --pod-manifest-path")
 	}
 	if startOpts.assetDir == "" {
 		return errors.New("missing required flag: --asset-dir")

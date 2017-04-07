@@ -205,6 +205,61 @@ spec:
           path: /var/lock
 `)
 
+	BootstrapAPIServerTemplate = []byte(`apiVersion: v1
+kind: Pod
+metadata:
+  name: bootstrap-kube-apiserver
+  namespace: kube-system
+spec:
+  hostNetwork: true
+  containers:
+  - name: kube-apiserver
+    image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
+    command:
+    - /usr/bin/flock
+    - --exclusive
+    - --timeout=30
+    - /var/lock/api-server.lock
+    - /hyperkube
+    - apiserver
+    - --admission-control=NamespaceLifecycle,ServiceAccount
+    - --allow-privileged=true
+    - --authorization-mode=RBAC
+    - --bind-address=0.0.0.0
+    - --client-ca-file=/etc/kubernetes/secrets/ca.crt
+    - --etcd-servers={{ range $i, $e := .EtcdServers }}{{ if $i }},{{end}}{{ $e }}{{end}}{{ if .SelfHostedEtcd }},http://127.0.0.1:12379{{end}}
+    - --insecure-port=8080
+    - --kubelet-client-certificate=/etc/kubernetes/secrets/apiserver.crt
+    - --kubelet-client-key=/etc/kubernetes/secrets/apiserver.key
+    - --runtime-config=api/all=true
+    - --secure-port=443
+    - --service-account-key-file=/etc/kubernetes/secrets/service-account.pub
+    - --service-cluster-ip-range={{ .ServiceCIDR }}
+    - --storage-backend=etcd3
+    - --tls-cert-file=/etc/kubernetes/secrets/apiserver.crt
+    - --tls-private-key-file=/etc/kubernetes/secrets/apiserver.key
+    volumeMounts:
+    - mountPath: /etc/ssl/certs
+      name: ssl-certs-host
+      readOnly: true
+    - mountPath: /etc/kubernetes/secrets
+      name: secrets
+      readOnly: true
+    - mountPath: /var/lock
+      name: var-lock
+      readOnly: false
+  volumes:
+  - name: secrets
+    hostPath:
+      path: {{ .BootstrapSecretsDir }}
+  - name: ssl-certs-host
+    hostPath:
+      path: /usr/share/ca-certificates
+  - name: var-lock
+    hostPath:
+      path: /var/lock
+`)
+
 	KencTemplate = []byte(`apiVersion: "extensions/v1beta1"
 kind: DaemonSet
 metadata:
@@ -360,6 +415,42 @@ spec:
           path: /usr/share/ca-certificates
       dnsPolicy: Default # Don't use cluster DNS.
 `)
+
+	BootstrapControllerManagerTemplate = []byte(`apiVersion: v1
+kind: Pod
+metadata:
+  name: bootstrap-kube-controller-manager
+  namespace: kube-system
+spec:
+  hostNetwork: true
+  containers:
+  - name: kube-controller-manager
+    image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
+    command:
+    - ./hyperkube
+    - controller-manager
+    - --allocate-node-cidrs=true
+    - --cluster-cidr={{ .PodCIDR }}
+    - --configure-cloud-routes=false
+    - --leader-elect=true
+    - --master=http://127.0.0.1:8080
+    - --root-ca-file=/etc/kubernetes/secrets/ca.crt
+    - --service-account-private-key-file=/etc/kubernetes/secrets/service-account.key
+    volumeMounts:
+    - name: secrets
+      mountPath: /etc/kubernetes/secrets
+      readOnly: true
+    - name: ssl-host
+      mountPath: /etc/ssl/certs
+      readOnly: true
+  volumes:
+  - name: secrets
+    hostPath:
+      path: {{ .BootstrapSecretsDir }}
+  - name: ssl-host
+    hostPath:
+      path: /usr/share/ca-certificates
+`)
 	ControllerManagerDisruptionTemplate = []byte(`apiVersion: policy/v1beta1
 kind: PodDisruptionBudget
 metadata:
@@ -404,6 +495,23 @@ spec:
           initialDelaySeconds: 15
           timeoutSeconds: 15
 
+`)
+
+	BootstrapSchedulerTemplate = []byte(`apiVersion: v1
+kind: Pod
+metadata:
+  name: bootstrap-kube-scheduler
+  namespace: kube-system
+spec:
+  hostNetwork: true
+  containers:
+  - name: kube-scheduler
+    image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
+    command:
+    - ./hyperkube
+    - scheduler
+    - --leader-elect=true
+    - --master=http://127.0.0.1:8080
 `)
 	SchedulerDisruptionTemplate = []byte(`apiVersion: policy/v1beta1
 kind: PodDisruptionBudget
@@ -682,6 +790,37 @@ spec:
   - name: client
     port: 2379
     protocol: TCP
+`)
+
+	BootstrapEtcdTemplate = []byte(`apiVersion: v1
+kind: Pod
+metadata:
+  name: bootstrap-etcd
+  namespace: kube-system
+  labels:
+    k8s-app: boot-etcd
+spec:
+  hostNetwork: true
+  restartPolicy: Never
+  containers:
+  - name: etcd
+    image: quay.io/coreos/etcd:v3.1.0
+    command:
+    - /usr/local/bin/etcd
+    - --name=boot-etcd
+    - --listen-client-urls=http://0.0.0.0:12379
+    - --listen-peer-urls=http://0.0.0.0:12380
+    - --advertise-client-urls=http://$(MY_POD_IP):12379
+    - --initial-advertise-peer-urls=http://$(MY_POD_IP):12380
+    - --initial-cluster=boot-etcd=http://$(MY_POD_IP):12380
+    - --initial-cluster-token=bootkube
+    - --initial-cluster-state=new
+    - --data-dir=/var/etcd/data
+    env:
+      - name: MY_POD_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
 `)
 
 	KubeFlannelCfgTemplate = []byte(`apiVersion: v1

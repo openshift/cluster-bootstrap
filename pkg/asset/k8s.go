@@ -38,6 +38,9 @@ func newDynamicAssets(conf Config) Assets {
 		mustCreateAssetFromTemplate(AssetPathProxy, internal.ProxyTemplate, conf),
 		mustCreateAssetFromTemplate(AssetPathKubeFlannelCfg, internal.KubeFlannelCfgTemplate, conf),
 		mustCreateAssetFromTemplate(AssetPathKubeDNSSvc, internal.DNSSvcTemplate, conf),
+		mustCreateAssetFromTemplate(AssetPathBootstrapAPIServer, internal.BootstrapAPIServerTemplate, conf),
+		mustCreateAssetFromTemplate(AssetPathBootstrapControllerManager, internal.BootstrapControllerManagerTemplate, conf),
+		mustCreateAssetFromTemplate(AssetPathBootstrapScheduler, internal.BootstrapSchedulerTemplate, conf),
 	}
 	if conf.SelfHostKubelet {
 		assets = append(assets, mustCreateAssetFromTemplate(AssetPathKubelet, internal.KubeletTemplate, conf))
@@ -47,6 +50,7 @@ func newDynamicAssets(conf Config) Assets {
 			mustCreateAssetFromTemplate(AssetPathEtcdOperator, internal.EtcdOperatorTemplate, conf),
 			mustCreateAssetFromTemplate(AssetPathEtcdSvc, internal.EtcdSvcTemplate, conf),
 			mustCreateAssetFromTemplate(AssetPathKenc, internal.KencTemplate, conf),
+			mustCreateAssetFromTemplate(AssetPathBootstrapEtcd, internal.BootstrapEtcdTemplate, conf),
 		)
 	}
 	return assets

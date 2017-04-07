@@ -14,6 +14,7 @@ import (
 )
 
 const (
+	AssetPathSecrets                     = "tls"
 	AssetPathCAKey                       = "tls/ca.key"
 	AssetPathCACert                      = "tls/ca.crt"
 	AssetPathAPIServerKey                = "tls/apiserver.key"
@@ -43,30 +44,39 @@ const (
 	AssetPathEtcdSvc                     = "manifests/etcd-service.yaml"
 	AssetPathKenc                        = "manifests/kenc.yaml"
 	AssetPathKubeSystemSARoleBinding     = "manifests/kube-system-rbac-role-binding.yaml"
+	AssetPathBootstrapManifests          = "bootstrap-manifests"
+	AssetPathBootstrapAPIServer          = "bootstrap-manifests/bootstrap-apiserver.yaml"
+	AssetPathBootstrapControllerManager  = "bootstrap-manifests/bootstrap-controller-manager.yaml"
+	AssetPathBootstrapScheduler          = "bootstrap-manifests/bootstrap-scheduler.yaml"
+	AssetPathBootstrapEtcd               = "bootstrap-manifests/bootstrap-etcd.yaml"
+	BootstrapSecretsDir                  = "/tmp/bootkube/secrets"
 )
 
 // AssetConfig holds all configuration needed when generating
 // the default set of assets.
 type Config struct {
-	EtcdServers     []*url.URL
-	APIServers      []*url.URL
-	CACert          *x509.Certificate
-	CAPrivKey       *rsa.PrivateKey
-	AltNames        *tlsutil.AltNames
-	PodCIDR         *net.IPNet
-	ServiceCIDR     *net.IPNet
-	APIServiceIP    net.IP
-	DNSServiceIP    net.IP
-	ETCDServiceIP   net.IP
-	SelfHostKubelet bool
-	SelfHostedEtcd  bool
-	CloudProvider   string
+	EtcdServers         []*url.URL
+	APIServers          []*url.URL
+	CACert              *x509.Certificate
+	CAPrivKey           *rsa.PrivateKey
+	AltNames            *tlsutil.AltNames
+	PodCIDR             *net.IPNet
+	ServiceCIDR         *net.IPNet
+	APIServiceIP        net.IP
+	DNSServiceIP        net.IP
+	ETCDServiceIP       net.IP
+	SelfHostKubelet     bool
+	SelfHostedEtcd      bool
+	CloudProvider       string
+	BootstrapSecretsDir string
 }
 
 // NewDefaultAssets returns a list of default assets, optionally
 // configured via a user provided AssetConfig. Default assets include
 // TLS assets (certs, keys and secrets), and k8s component manifests.
 func NewDefaultAssets(conf Config) (Assets, error) {
+	conf.BootstrapSecretsDir = BootstrapSecretsDir
+
 	as := newStaticAssets()
 	as = append(as, newDynamicAssets(conf)...)
 

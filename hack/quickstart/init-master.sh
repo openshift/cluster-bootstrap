@@ -36,13 +36,11 @@ function init_master_node() {
     systemctl stop update-engine; systemctl mask update-engine
 
     etcd_render_flags=""
-    etcd_start_flags=""
 
     # Start etcd.
     if [ "$SELF_HOST_ETCD" = true ] ; then
         echo "WARNING: THIS IS NOT YET FULLY WORKING - merely here to make ongoing testing easier"
-        etcd_render_flags="--etcd-servers=http://10.3.0.15:2379 --experimental-self-hosted-etcd"
-        etcd_start_flags="--etcd-server=http://${COREOS_PRIVATE_IPV4}:12379 --experimental-self-hosted-etcd"
+        etcd_render_flags="--experimental-self-hosted-etcd"
     else
         configure_etcd
         systemctl enable etcd-member; sudo systemctl start etcd-member
@@ -61,7 +59,7 @@ function init_master_node() {
     systemctl enable kubelet; sudo systemctl start kubelet
 
     # Start bootkube to launch a self-hosted cluster
-    /home/core/bootkube start --asset-dir=/home/core/assets ${etcd_start_flags}
+    /home/core/bootkube start --asset-dir=/home/core/assets
 }
 
 [ "$#" == 1 ] || usage
