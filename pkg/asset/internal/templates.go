@@ -41,12 +41,14 @@ metadata:
   name: kubelet
   namespace: kube-system
   labels:
-    k8s-app: kubelet
+    tier: node
+    component: kubelet
 spec:
   template:
     metadata:
       labels:
-        k8s-app: kubelet
+        tier: node
+        component: kubelet
     spec:
       containers:
       - name: kubelet
@@ -133,12 +135,14 @@ metadata:
   name: kube-apiserver
   namespace: kube-system
   labels:
-    k8s-app: kube-apiserver
+    tier: control-plane
+    component: kube-apiserver
 spec:
   template:
     metadata:
       labels:
-        k8s-app: kube-apiserver
+        tier: control-plane
+        component: kube-apiserver
       annotations:
         checkpointer.alpha.coreos.com/checkpoint: "true"
     spec:
@@ -207,12 +211,14 @@ metadata:
   name: kenc
   namespace: kube-system
   labels:
-    k8s-app: kenc
+    tier: control-plane
+    component: kenc
 spec:
   template:
     metadata:
       labels:
-        k8s-app: kenc
+        tier: control-plane
+        component: kenc
       annotations:
         checkpointer.alpha.coreos.com/checkpoint: "true"
     spec:
@@ -251,12 +257,14 @@ metadata:
   name: pod-checkpointer
   namespace: kube-system
   labels:
-    k8s-app: pod-checkpointer
+    tier: control-plane
+    component: pod-checkpointer
 spec:
   template:
     metadata:
       labels:
-        k8s-app: pod-checkpointer
+        tier: control-plane
+        component: pod-checkpointer
       annotations:
         checkpointer.alpha.coreos.com/checkpoint: "true"
     spec:
@@ -310,13 +318,15 @@ metadata:
   name: kube-controller-manager
   namespace: kube-system
   labels:
-    k8s-app: kube-controller-manager
+    tier: control-plane
+    component: kube-controller-manager
 spec:
   replicas: 2
   template:
     metadata:
       labels:
-        k8s-app: kube-controller-manager
+        tier: control-plane
+        component: kube-controller-manager
     spec:
       nodeSelector:
         master: "true"
@@ -364,7 +374,8 @@ spec:
   minAvailable: 1
   selector:
     matchLabels:
-      k8s-app: kube-controller-manager
+      tier: control-plane
+      component: kube-controller-manager
 `)
 	SchedulerTemplate = []byte(`apiVersion: extensions/v1beta1
 kind: Deployment
@@ -372,13 +383,15 @@ metadata:
   name: kube-scheduler
   namespace: kube-system
   labels:
-    k8s-app: kube-scheduler
+    tier: control-plane
+    component: kube-scheduler
 spec:
   replicas: 2
   template:
     metadata:
       labels:
-        k8s-app: kube-scheduler
+        tier: control-plane
+        component: kube-scheduler
     spec:
       nodeSelector:
         master: "true"
@@ -406,7 +419,8 @@ spec:
   minAvailable: 1
   selector:
     matchLabels:
-      k8s-app: kube-scheduler
+      tier: control-plane
+      component: kube-scheduler
 `)
 	ProxyTemplate = []byte(`apiVersion: "extensions/v1beta1"
 kind: DaemonSet
@@ -414,12 +428,16 @@ metadata:
   name: kube-proxy
   namespace: kube-system
   labels:
-    k8s-app: kube-proxy
+    tier: node
+    component: kube-proxy
 spec:
   template:
     metadata:
       labels:
-        k8s-app: kube-proxy
+        tier: node
+        component: kube-proxy
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       hostNetwork: true
       containers:
