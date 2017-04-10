@@ -20,22 +20,21 @@ coreos:
         ExecStartPre=/bin/mkdir -p /var/lib/cni
         ExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/run/kubelet-pod.uuid
         ExecStart=/usr/lib/coreos/kubelet-wrapper \
-          --kubeconfig=/etc/kubernetes/kubeconfig \
-          --require-kubeconfig \
-          --client-ca-file=/etc/kubernetes/ca.crt \
-          --anonymous-auth=false \
-          --cni-conf-dir=/etc/kubernetes/cni/net.d \
-          --network-plugin=cni \
-          --lock-file=/var/run/lock/kubelet.lock \
-          --exit-on-lock-contention \
-          --pod-manifest-path=/etc/kubernetes/manifests \
           --allow-privileged \
-          --hostname-override=${COREOS_PUBLIC_IPV4} \
-          --node-labels=node-role.kubernetes.io/master \
-          --register-with-taints=node-role.kubernetes.io/master=:NoSchedule \
+          --anonymous-auth=false \
+          --client-ca-file=/etc/kubernetes/ca.crt \
           --cluster_dns=10.3.0.10 \
-          --cluster_domain=cluster.local
-
+          --cluster_domain=cluster.local \
+          --cni-conf-dir=/etc/kubernetes/cni/net.d \
+          --exit-on-lock-contention \
+          --hostname-override=${COREOS_PUBLIC_IPV4} \
+          --kubeconfig=/etc/kubernetes/kubeconfig \
+          --lock-file=/var/run/lock/kubelet.lock \
+          --network-plugin=cni \
+          --node-labels=node-role.kubernetes.io/master \
+          --pod-manifest-path=/etc/kubernetes/manifests \
+          --register-with-taints=node-role.kubernetes.io/master=:NoSchedule \
+          --require-kubeconfig
         ExecStop=-/usr/bin/rkt stop --uuid-file=/var/run/kubelet-pod.uuid
         Restart=always
         RestartSec=5
