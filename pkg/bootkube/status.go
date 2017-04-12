@@ -9,7 +9,6 @@ import (
 
 	"github.com/golang/glog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
@@ -21,7 +20,6 @@ import (
 )
 
 const (
-	appKey       = "k8s-app"
 	doesNotExist = "DoesNotExist"
 )
 
@@ -56,13 +54,11 @@ func NewStatusController(pods []string) (*statusController, error) {
 }
 
 func (s *statusController) Run() {
-	// TODO(aaron): statically define the selector so we can skip this
-	ls, err := labels.Parse(appKey)
-	if err != nil {
-		panic(err)
-	}
-
-	options := metav1.ListOptions{LabelSelector: ls.String()}
+	// TODO(yifan): Be more explicit about the labels so that we don't just
+	// reply on the prefix of the pod name when looking for the pods we are interested.
+	// E.g. For a scheduler pod, we will look for pods that has label `tier=control-plane`
+	// and `component=kube-scheduler`.
+	options := metav1.ListOptions{}
 	podStore, podController := cache.NewInformer(
 		&cache.ListWatch{
 			ListFunc: func(lo metav1.ListOptions) (runtime.Object, error) {
