@@ -49,7 +49,7 @@ function init_master_node() {
     fi
 
     # Render cluster assets
-    /home/core/bootkube -- render --asset-dir=/home/core/assets --api-servers=https://${COREOS_PUBLIC_IPV4}:443,https://${COREOS_PRIVATE_IPV4}:443 ${etcd_render_flags}
+    /home/core/bootkube render --asset-dir=/home/core/assets --api-servers=https://${COREOS_PUBLIC_IPV4}:443,https://${COREOS_PRIVATE_IPV4}:443 ${etcd_render_flags}
 
     # Move the local kubeconfig into expected location
     chown -R core:core /home/core/assets
@@ -61,7 +61,7 @@ function init_master_node() {
     systemctl enable kubelet; sudo systemctl start kubelet
 
     # Start bootkube to launch a self-hosted cluster
-    /home/core/bootkube -- start --asset-dir=/home/core/assets ${etcd_start_flags}
+    /home/core/bootkube start --asset-dir=/home/core/assets ${etcd_start_flags}
 }
 
 [ "$#" == 1 ] || usage
