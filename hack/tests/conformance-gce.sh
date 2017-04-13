@@ -14,8 +14,6 @@ set -euo pipefail
 #  - $KEY_FILE:   path to GCE service account keyfile
 #
 # OPTIONAL ENV VARS:
-#  - $BOOTKUBE_REPO:    container repo to use to launch bootkube. Default to value in quickstart/init-master.sh
-#  - $BOOTKUBE_VERSION: container version to use to launch bootkube. Default to value in quickstart/init-master.sh
 #  - $COREOS_VERSION:   CoreOS image version.
 #
 # PROCESS:
@@ -27,8 +25,6 @@ set -euo pipefail
 #     - Use the quickstart init-worker.sh script to join node to kubernetes cluster
 #   - Run conformance tests against the launched cluster
 #
-BOOTKUBE_REPO=${BOOTKUBE_REPO:-}
-BOOTKUBE_VERSION=${BOOTKUBE_VERSION:-}
 COREOS_CHANNEL=${COREOS_CHANNEL:-'coreos-stable'}
 WORKER_COUNT=4
 SELF_HOST_ETCD=${SELF_HOST_ETCD:-false}
@@ -70,7 +66,7 @@ function add_master {
 
     MASTER_IP=$(gcloud compute instances list ${GCE_PREFIX}-m1 --format=json | jq --raw-output '.[].networkInterfaces[].accessConfigs[].natIP')
     cd /build/bootkube/hack/quickstart && SSH_OPTS="-o StrictHostKeyChecking=no" \
-        CLUSTER_DIR=/build/cluster BOOTKUBE_REPO=${BOOTKUBE_REPO} BOOTKUBE_VERSION=${BOOTKUBE_VERSION} SELF_HOST_ETCD=${SELF_HOST_ETCD} ./init-master.sh ${MASTER_IP}
+        CLUSTER_DIR=/build/cluster SELF_HOST_ETCD=${SELF_HOST_ETCD} ./init-master.sh ${MASTER_IP}
 }
 
 function add_workers {
@@ -120,5 +116,5 @@ else
     #TODO(pb): See if there is a way to make the --inherit-env option replace
     #passing all the variables manually. 
     sudo rkt run --insecure-options=image ${RKT_OPTS} docker://golang:1.7.4 --exec /bin/bash -- -c \
-        "IN_CONTAINER=true BOOTKUBE_REPO=${BOOTKUBE_REPO} BOOTKUBE_VERSION=${BOOTKUBE_VERSION} COREOS_CHANNEL=${COREOS_CHANNEL} GCE_PREFIX=${GCE_PREFIX} GCE_SERVICE_ACCOUNT=${GCE_SERVICE_ACCOUNT} GCE_PROJECT=${GCE_PROJECT} SELF_HOST_ETCD=${SELF_HOST_ETCD} /build/bootkube/hack/tests/$(basename $0)"
+        "IN_CONTAINER=true COREOS_CHANNEL=${COREOS_CHANNEL} GCE_PREFIX=${GCE_PREFIX} GCE_SERVICE_ACCOUNT=${GCE_SERVICE_ACCOUNT} GCE_PROJECT=${GCE_PROJECT} SELF_HOST_ETCD=${SELF_HOST_ETCD} /build/bootkube/hack/tests/$(basename $0)"
 fi
