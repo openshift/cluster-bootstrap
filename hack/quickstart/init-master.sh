@@ -8,9 +8,6 @@ IDENT=${IDENT:-${HOME}/.ssh/id_rsa}
 SSH_OPTS=${SSH_OPTS:-}
 SELF_HOST_ETCD=${SELF_HOST_ETCD:-false}
 
-BOOTKUBE_REPO=${BOOTKUBE_REPO:-quay.io/coreos/bootkube}
-BOOTKUBE_VERSION=${BOOTKUBE_VERSION:-v0.3.13}
-
 function usage() {
     echo "USAGE:"
     echo "$0: <remote-host>"
@@ -52,11 +49,7 @@ function init_master_node() {
     fi
 
     # Render cluster assets
-    /usr/bin/rkt run \
-        --volume home,kind=host,source=/home/core \
-        --mount volume=home,target=/core \
-        --trust-keys-from-https --net=host ${BOOTKUBE_REPO}:${BOOTKUBE_VERSION} --exec \
-        /bootkube -- render --asset-dir=/core/assets --api-servers=https://${COREOS_PUBLIC_IPV4}:443,https://${COREOS_PRIVATE_IPV4}:443 ${etcd_render_flags}
+    /home/core/bootkube -- render --asset-dir=/home/core/assets --api-servers=https://${COREOS_PUBLIC_IPV4}:443,https://${COREOS_PRIVATE_IPV4}:443 ${etcd_render_flags}
 
     # Move the local kubeconfig into expected location
     chown -R core:core /home/core/assets
@@ -68,13 +61,7 @@ function init_master_node() {
     systemctl enable kubelet; sudo systemctl start kubelet
 
     # Start bootkube to launch a self-hosted cluster
-    /usr/bin/rkt run \
-        --volume home,kind=host,source=/home/core \
-        --mount volume=home,target=/core \
-        --volume manifests,kind=host,source=/etc/kubernetes/manifests \
-        --mount volume=manifests,target=/etc/kubernetes/manifests \
-        --net=host ${BOOTKUBE_REPO}:${BOOTKUBE_VERSION} --exec \
-        /bootkube -- start --asset-dir=/core/assets ${etcd_start_flags}
+    /home/core/bootkube -- start --asset-dir=/home/core/assets ${etcd_start_flags}
 }
 
 [ "$#" == 1 ] || usage
@@ -84,16 +71,19 @@ function init_master_node() {
     exit 1
 }
 
-# This script can execute on a remote host by copying itself + kubelet service unit to remote host.
+# This script can execute on a remote host by copying itself + bootkube binary + kubelet service unit to remote host.
 # After assets are available on the remote host, the script will execute itself in "local" mode.
 if [ "${REMOTE_HOST}" != "local" ]; then
     # Set up the kubelet.service on remote host
     scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} kubelet.master core@${REMOTE_HOST}:/home/core/kubelet.master
     ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "sudo mv /home/core/kubelet.master /etc/systemd/system/kubelet.service"
 
+    # Copy bootkube binary to remote host.
+    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ../../_output/bin/linux/bootkube core@${REMOTE_HOST}:/home/core/bootkube
+
     # Copy self to remote host so script can be executed in "local" mode
     scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${BASH_SOURCE[0]} core@${REMOTE_HOST}:/home/core/init-master.sh
-    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "sudo BOOTKUBE_REPO=${BOOTKUBE_REPO} BOOTKUBE_VERSION=${BOOTKUBE_VERSION} SELF_HOST_ETCD=${SELF_HOST_ETCD} /home/core/init-master.sh local"
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "sudo SELF_HOST_ETCD=${SELF_HOST_ETCD} /home/core/init-master.sh local"
 
     # Copy assets from remote host to a local directory. These can be used to launch additional nodes & contain TLS assets
     mkdir ${CLUSTER_DIR}

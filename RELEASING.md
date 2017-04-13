@@ -11,6 +11,8 @@
 - Update on-host kubelet versions (`KUBELET_IMAGE_TAG`)
     - hack/multi-node/user-data.sample
     - hack/single-node/user-data.sample
+    - hack/quickstart/kubelet.master
+    - hack/quickstart/kubelet.worker
 
 ### Update conformance test k8s version
 
@@ -54,20 +56,6 @@ Or, manually:
 git checkout vX.Y.Z
 PUSH_IMAGE=true ./build/build-image.sh
 ```
-
-# Updating quickstart guides
-
-Note: the quickstart guides use the release images, so we should not update them until after building/pushing new release.
-
-Update on-host kubelet version (`KUBELET_IMAGE_TAG`)
-
- - hack/quickstart/kubelet.master
- - hack/quickstart/kubelet.worker
-
-Update the bootkube image version (to latest release)
-
-- hack/quickstart/init-master.sh (`BOOTKUBE_VERSION`)
-
 # Updating checkpointer
 
 This only needs to happen when changes have been made to the checkpointer code / container.
