@@ -25,16 +25,19 @@ function configure_etcd() {
 [Service]
 Environment="ETCD_IMAGE_TAG=v3.1.0"
 Environment="ETCD_NAME=controller"
-Environment="ETCD_INITIAL_CLUSTER=controller=http://${COREOS_PRIVATE_IPV4}:2380"
-Environment="ETCD_INITIAL_ADVERTISE_PEER_URLS=http://${COREOS_PRIVATE_IPV4}:2380"
+Environment="ETCD_INITIAL_CLUSTER=controller=https://${COREOS_PRIVATE_IPV4}:2380"
+Environment="ETCD_INITIAL_ADVERTISE_PEER_URLS=https://${COREOS_PRIVATE_IPV4}:2380"
 Environment="ETCD_ADVERTISE_CLIENT_URLS=https://${COREOS_PRIVATE_IPV4}:2379"
-Environment="ETCD_SSL_DIR=/etc/etcd/tls"
 Environment="ETCD_LISTEN_CLIENT_URLS=https://0.0.0.0:2379"
-Environment="ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380"
+Environment="ETCD_LISTEN_PEER_URLS=https://0.0.0.0:2380"
+Environment="ETCD_SSL_DIR=/etc/etcd/tls"
 Environment="ETCD_TRUSTED_CA_FILE=/etc/ssl/certs/etcd-ca.crt"
-Environment="ETCD_CERT_FILE=/etc/ssl/certs/etcd-server.crt"
-Environment="ETCD_KEY_FILE=/etc/ssl/certs/etcd-server.key"
+Environment="ETCD_CERT_FILE=/etc/ssl/certs/etcd-client.crt"
+Environment="ETCD_KEY_FILE=/etc/ssl/certs/etcd-client.key"
 Environment="ETCD_CLIENT_CERT_AUTH=true"
+Environment="ETCD_PEER_TRUSTED_CA_FILE=/etc/ssl/certs/etcd-ca.crt"
+Environment="ETCD_PEER_CERT_FILE=/etc/ssl/certs/etcd-peer.crt"
+Environment="ETCD_PEER_KEY_FILE=/etc/ssl/certs/etcd-peer.key"
 EOF
     }
 }
@@ -48,7 +51,7 @@ function init_master_node() {
         echo "WARNING: THIS IS NOT YET FULLY WORKING - merely here to make ongoing testing easier"
         etcd_render_flags="--experimental-self-hosted-etcd"
     else
-        etcd_render_flags="--etcd-use-tls --etcd-servers=https://${COREOS_PRIVATE_IPV4}:2379"
+        etcd_render_flags="--etcd-servers=https://${COREOS_PRIVATE_IPV4}:2379"
     fi
 
     # Render cluster assets

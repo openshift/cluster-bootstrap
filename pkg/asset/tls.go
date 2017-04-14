@@ -115,24 +115,40 @@ func newKubeletKeyAndCert(caCert *x509.Certificate, caPrivKey *rsa.PrivateKey) (
 	return key, cert, err
 }
 
-func newEtcdTLSAssets(etcdCACert, etcdServerCert *x509.Certificate, etcdServerKey *rsa.PrivateKey, caCert *x509.Certificate, caPrivKey *rsa.PrivateKey, etcdServers []*url.URL) ([]Asset, error) {
+func newEtcdTLSAssets(etcdCACert, etcdClientCert *x509.Certificate, etcdClientKey *rsa.PrivateKey, caCert *x509.Certificate, caPrivKey *rsa.PrivateKey, etcdServers []*url.URL) ([]Asset, error) {
+	var assets []Asset
 	if etcdCACert == nil {
+		// Use the master CA to generate etcd assets.
+		etcdCACert = caCert
+
+		// Create an etcd client cert.
 		var err error
-		etcdServerKey, etcdServerCert, err = newEtcdServerKeyAndCert(caCert, caPrivKey, etcdServers)
+		etcdClientKey, etcdClientCert, err = newEtcdKeyAndCert(caCert, caPrivKey, "etcd-client", etcdServers)
 		if err != nil {
 			return nil, err
 		}
-		etcdCACert = caCert
+
+		// Create an etcd peer cert (not consumed by self-hosted components).
+		etcdPeerKey, etcdPeerCert, err := newEtcdKeyAndCert(caCert, caPrivKey, "etcd-peer", etcdServers)
+		if err != nil {
+			return nil, err
+		}
+		assets = append(assets, []Asset{
+			{Name: AssetPathEtcdPeerKey, Data: tlsutil.EncodePrivateKeyPEM(etcdPeerKey)},
+			{Name: AssetPathEtcdPeerCert, Data: tlsutil.EncodeCertificatePEM(etcdPeerCert)},
+		}...)
 	}
 
-	return []Asset{
+	assets = append(assets, []Asset{
 		{Name: AssetPathEtcdCA, Data: tlsutil.EncodeCertificatePEM(etcdCACert)},
-		{Name: AssetPathEtcdServerKey, Data: tlsutil.EncodePrivateKeyPEM(etcdServerKey)},
-		{Name: AssetPathEtcdServerCert, Data: tlsutil.EncodeCertificatePEM(etcdServerCert)},
-	}, nil
+		{Name: AssetPathEtcdClientKey, Data: tlsutil.EncodePrivateKeyPEM(etcdClientKey)},
+		{Name: AssetPathEtcdClientCert, Data: tlsutil.EncodeCertificatePEM(etcdClientCert)},
+	}...)
+
+	return assets, nil
 }
 
-func newEtcdServerKeyAndCert(caCert *x509.Certificate, caPrivKey *rsa.PrivateKey, etcdServers []*url.URL) (*rsa.PrivateKey, *x509.Certificate, error) {
+func newEtcdKeyAndCert(caCert *x509.Certificate, caPrivKey *rsa.PrivateKey, commonName string, etcdServers []*url.URL) (*rsa.PrivateKey, *x509.Certificate, error) {
 	key, err := tlsutil.NewPrivateKey()
 	if err != nil {
 		return nil, nil, err
@@ -147,7 +163,7 @@ func newEtcdServerKeyAndCert(caCert *x509.Certificate, caPrivKey *rsa.PrivateKey
 		}
 	}
 	config := tlsutil.CertConfig{
-		CommonName:   "etcd-server",
+		CommonName:   commonName,
 		Organization: []string{"etcd"},
 		AltNames:     altNames,
 	}

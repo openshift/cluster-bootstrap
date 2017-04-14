@@ -20,8 +20,10 @@ const (
 	AssetPathAPIServerKey                = "tls/apiserver.key"
 	AssetPathAPIServerCert               = "tls/apiserver.crt"
 	AssetPathEtcdCA                      = "tls/etcd-ca.crt"
-	AssetPathEtcdServerCert              = "tls/etcd-server.crt"
-	AssetPathEtcdServerKey               = "tls/etcd-server.key"
+	AssetPathEtcdClientCert              = "tls/etcd-client.crt"
+	AssetPathEtcdClientKey               = "tls/etcd-client.key"
+	AssetPathEtcdPeerCert                = "tls/etcd-peer.crt"
+	AssetPathEtcdPeerKey                 = "tls/etcd-peer.key"
 	AssetPathServiceAccountPrivKey       = "tls/service-account.key"
 	AssetPathServiceAccountPubKey        = "tls/service-account.pub"
 	AssetPathKubeletKey                  = "tls/kubelet.key"
@@ -59,10 +61,9 @@ const (
 // the default set of assets.
 type Config struct {
 	EtcdCACert          *x509.Certificate
-	EtcdServerCert      *x509.Certificate
-	EtcdServerKey       *rsa.PrivateKey
+	EtcdClientCert      *x509.Certificate
+	EtcdClientKey       *rsa.PrivateKey
 	EtcdServers         []*url.URL
-	EtcdUseTLS          bool
 	APIServers          []*url.URL
 	CACert              *x509.Certificate
 	CAPrivKey           *rsa.PrivateKey
@@ -71,7 +72,7 @@ type Config struct {
 	ServiceCIDR         *net.IPNet
 	APIServiceIP        net.IP
 	DNSServiceIP        net.IP
-	ETCDServiceIP       net.IP
+	EtcdServiceIP       net.IP
 	SelfHostKubelet     bool
 	SelfHostedEtcd      bool
 	CloudProvider       string
@@ -107,8 +108,8 @@ func NewDefaultAssets(conf Config) (Assets, error) {
 	as = append(as, tlsAssets...)
 
 	// etcd TLS assets.
-	if conf.EtcdUseTLS {
-		etcdTLSAssets, err := newEtcdTLSAssets(conf.EtcdCACert, conf.EtcdServerCert, conf.EtcdServerKey, conf.CACert, conf.CAPrivKey, conf.EtcdServers)
+	if !conf.SelfHostedEtcd {
+		etcdTLSAssets, err := newEtcdTLSAssets(conf.EtcdCACert, conf.EtcdClientCert, conf.EtcdClientKey, conf.CACert, conf.CAPrivKey, conf.EtcdServers)
 		if err != nil {
 			return Assets{}, err
 		}
@@ -123,7 +124,7 @@ func NewDefaultAssets(conf Config) (Assets, error) {
 	as = append(as, kubeConfig)
 
 	// K8S APIServer secret
-	apiSecret, err := newAPIServerSecretAsset(as, conf.EtcdUseTLS)
+	apiSecret, err := newAPIServerSecretAsset(as, conf.SelfHostedEtcd)
 	if err != nil {
 		return Assets{}, err
 	}
