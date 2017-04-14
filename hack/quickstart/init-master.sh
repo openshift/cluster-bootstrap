@@ -16,6 +16,10 @@ function usage() {
 
 function configure_etcd() {
     [ -f "/etc/systemd/system/etcd-member.service.d/10-etcd-member.conf" ] || {
+        mkdir -p /etc/etcd/tls
+        cp /home/core/assets/tls/etcd* /etc/etcd/tls
+        chown -R etcd:etcd /etc/etcd
+        chmod -R u=rX,g=,o= /etc/etcd
         mkdir -p /etc/systemd/system/etcd-member.service.d
         cat << EOF > /etc/systemd/system/etcd-member.service.d/10-etcd-member.conf
 [Service]
@@ -23,9 +27,14 @@ Environment="ETCD_IMAGE_TAG=v3.1.0"
 Environment="ETCD_NAME=controller"
 Environment="ETCD_INITIAL_CLUSTER=controller=http://${COREOS_PRIVATE_IPV4}:2380"
 Environment="ETCD_INITIAL_ADVERTISE_PEER_URLS=http://${COREOS_PRIVATE_IPV4}:2380"
-Environment="ETCD_ADVERTISE_CLIENT_URLS=http://${COREOS_PRIVATE_IPV4}:2379"
-Environment="ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379"
+Environment="ETCD_ADVERTISE_CLIENT_URLS=https://${COREOS_PRIVATE_IPV4}:2379"
+Environment="ETCD_SSL_DIR=/etc/etcd/tls"
+Environment="ETCD_LISTEN_CLIENT_URLS=https://0.0.0.0:2379"
 Environment="ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380"
+Environment="ETCD_TRUSTED_CA_FILE=/etc/ssl/certs/etcd-ca.crt"
+Environment="ETCD_CERT_FILE=/etc/ssl/certs/etcd-server.crt"
+Environment="ETCD_KEY_FILE=/etc/ssl/certs/etcd-server.key"
+Environment="ETCD_CLIENT_CERT_AUTH=true"
 EOF
     }
 }
@@ -35,25 +44,28 @@ function init_master_node() {
     systemctl daemon-reload
     systemctl stop update-engine; systemctl mask update-engine
 
-    etcd_render_flags=""
-
-    # Start etcd.
     if [ "$SELF_HOST_ETCD" = true ] ; then
         echo "WARNING: THIS IS NOT YET FULLY WORKING - merely here to make ongoing testing easier"
         etcd_render_flags="--experimental-self-hosted-etcd"
     else
-        configure_etcd
-        systemctl enable etcd-member; sudo systemctl start etcd-member
+        etcd_render_flags="--etcd-use-tls --etcd-servers=https://${COREOS_PRIVATE_IPV4}:2379"
     fi
 
     # Render cluster assets
-    /home/core/bootkube render --asset-dir=/home/core/assets --api-servers=https://${COREOS_PUBLIC_IPV4}:443,https://${COREOS_PRIVATE_IPV4}:443 ${etcd_render_flags}
+    /home/core/bootkube render --asset-dir=/home/core/assets ${etcd_render_flags} \
+      --api-servers=https://${COREOS_PUBLIC_IPV4}:443,https://${COREOS_PRIVATE_IPV4}:443
 
     # Move the local kubeconfig into expected location
     chown -R core:core /home/core/assets
     mkdir -p /etc/kubernetes
     cp /home/core/assets/auth/kubeconfig /etc/kubernetes/
     cp /home/core/assets/tls/ca.crt /etc/kubernetes/ca.crt
+
+    # Start etcd.
+    if [ "$SELF_HOST_ETCD" = false ] ; then
+        configure_etcd
+        systemctl enable etcd-member; sudo systemctl start etcd-member
+    fi
 
     # Start the kubelet
     systemctl enable kubelet; sudo systemctl start kubelet

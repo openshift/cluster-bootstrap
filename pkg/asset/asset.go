@@ -19,6 +19,9 @@ const (
 	AssetPathCACert                      = "tls/ca.crt"
 	AssetPathAPIServerKey                = "tls/apiserver.key"
 	AssetPathAPIServerCert               = "tls/apiserver.crt"
+	AssetPathEtcdCA                      = "tls/etcd-ca.crt"
+	AssetPathEtcdServerCert              = "tls/etcd-server.crt"
+	AssetPathEtcdServerKey               = "tls/etcd-server.key"
 	AssetPathServiceAccountPrivKey       = "tls/service-account.key"
 	AssetPathServiceAccountPubKey        = "tls/service-account.pub"
 	AssetPathKubeletKey                  = "tls/kubelet.key"
@@ -55,7 +58,11 @@ const (
 // AssetConfig holds all configuration needed when generating
 // the default set of assets.
 type Config struct {
+	EtcdCACert          *x509.Certificate
+	EtcdServerCert      *x509.Certificate
+	EtcdServerKey       *rsa.PrivateKey
 	EtcdServers         []*url.URL
+	EtcdUseTLS          bool
 	APIServers          []*url.URL
 	CACert              *x509.Certificate
 	CAPrivKey           *rsa.PrivateKey
@@ -83,12 +90,30 @@ func NewDefaultAssets(conf Config) (Assets, error) {
 	// Add kube-apiserver service IP
 	conf.AltNames.IPs = append(conf.AltNames.IPs, conf.APIServiceIP)
 
+	// Create a CA if none was provided.
+	if conf.CACert == nil {
+		var err error
+		conf.CAPrivKey, conf.CACert, err = newCACert()
+		if err != nil {
+			return Assets{}, err
+		}
+	}
+
 	// TLS assets
 	tlsAssets, err := newTLSAssets(conf.CACert, conf.CAPrivKey, *conf.AltNames)
 	if err != nil {
 		return Assets{}, err
 	}
 	as = append(as, tlsAssets...)
+
+	// etcd TLS assets.
+	if conf.EtcdUseTLS {
+		etcdTLSAssets, err := newEtcdTLSAssets(conf.EtcdCACert, conf.EtcdServerCert, conf.EtcdServerKey, conf.CACert, conf.CAPrivKey, conf.EtcdServers)
+		if err != nil {
+			return Assets{}, err
+		}
+		as = append(as, etcdTLSAssets...)
+	}
 
 	// K8S kubeconfig
 	kubeConfig, err := newKubeConfigAsset(as, conf)
@@ -98,7 +123,7 @@ func NewDefaultAssets(conf Config) (Assets, error) {
 	as = append(as, kubeConfig)
 
 	// K8S APIServer secret
-	apiSecret, err := newAPIServerSecretAsset(as)
+	apiSecret, err := newAPIServerSecretAsset(as, conf.EtcdUseTLS)
 	if err != nil {
 		return Assets{}, err
 	}

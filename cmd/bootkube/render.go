@@ -18,11 +18,12 @@ import (
 )
 
 const (
-	apiOffset            = 1
-	dnsOffset            = 10
-	etcdOffset           = 15
-	defaultServiceBaseIP = "10.3.0.0"
-	defaultEtcdServers   = "http://127.0.0.1:2379"
+	apiOffset             = 1
+	dnsOffset             = 10
+	etcdOffset            = 15
+	defaultServiceBaseIP  = "10.3.0.0"
+	defaultEtcdServers    = "http://127.0.0.1:2379"
+	defaultEtcdTLSServers = "https://127.0.0.1:2379"
 )
 
 var (
@@ -36,17 +37,21 @@ var (
 	}
 
 	renderOpts struct {
-		assetDir          string
-		caCertificatePath string
-		caPrivateKeyPath  string
-		etcdServers       string
-		apiServers        string
-		altNames          string
-		podCIDR           string
-		serviceCIDR       string
-		selfHostKubelet   bool
-		cloudProvider     string
-		selfHostedEtcd    bool
+		assetDir            string
+		caCertificatePath   string
+		caPrivateKeyPath    string
+		etcdCAPath          string
+		etcdCertificatePath string
+		etcdPrivateKeyPath  string
+		etcdServers         string
+		etcdUseTLS          bool
+		apiServers          string
+		altNames            string
+		podCIDR             string
+		serviceCIDR         string
+		selfHostKubelet     bool
+		cloudProvider       string
+		selfHostedEtcd      bool
 	}
 )
 
@@ -55,6 +60,9 @@ func init() {
 	cmdRender.Flags().StringVar(&renderOpts.assetDir, "asset-dir", "", "Output path for rendered assets")
 	cmdRender.Flags().StringVar(&renderOpts.caCertificatePath, "ca-certificate-path", "", "Path to an existing PEM encoded CA. If provided, TLS assets will be generated using this certificate authority.")
 	cmdRender.Flags().StringVar(&renderOpts.caPrivateKeyPath, "ca-private-key-path", "", "Path to an existing Certificate Authority RSA private key. Required if --ca-certificate is set.")
+	cmdRender.Flags().StringVar(&renderOpts.etcdCAPath, "etcd-ca-path", "", "Path to an existing PEM encoded CA that will be used for TLS-enabled communication between the apiserver and etcd. Must be used in conjunction with --etcd-certificate-path and --etcd-private-key-path, and must have etcd configured to use TLS with matching secrets.")
+	cmdRender.Flags().StringVar(&renderOpts.etcdCertificatePath, "etcd-certificate-path", "", "Path to an existing server certificate that will be used for TLS-enabled communication between the apiserver and etcd. Must be used in conjunction with --etcd-ca-path and --etcd-private-key-path, and must have etcd configured to use TLS with matching secrets.")
+	cmdRender.Flags().StringVar(&renderOpts.etcdPrivateKeyPath, "etcd-private-key-path", "", "Path to an existing server private key that will be used for TLS-enabled communication between the apiserver and etcd. Must be used in conjunction with --etcd-ca-path and --etcd-certificate-path, and must have etcd configured to use TLS with matching secrets.")
 	cmdRender.Flags().StringVar(&renderOpts.etcdServers, "etcd-servers", defaultEtcdServers, "List of etcd servers URLs including host:port, comma separated")
 	cmdRender.Flags().StringVar(&renderOpts.apiServers, "api-servers", "https://127.0.0.1:443", "List of API server URLs including host:port, commma seprated")
 	cmdRender.Flags().StringVar(&renderOpts.altNames, "api-server-alt-names", "", "List of SANs to use in api-server certificate. Example: 'IP=127.0.0.1,IP=127.0.0.2,DNS=localhost'. If empty, SANs will be extracted from the --api-servers flag.")
@@ -63,6 +71,7 @@ func init() {
 	cmdRender.Flags().BoolVar(&renderOpts.selfHostKubelet, "experimental-self-hosted-kubelet", false, "(Experimental) Create a self-hosted kubelet daemonset.")
 	cmdRender.Flags().StringVar(&renderOpts.cloudProvider, "cloud-provider", "", "The provider for cloud services.  Empty string for no provider")
 	cmdRender.Flags().BoolVar(&renderOpts.selfHostedEtcd, "experimental-self-hosted-etcd", false, "(Experimental) Create self-hosted etcd assets.")
+	cmdRender.Flags().BoolVar(&renderOpts.etcdUseTLS, "etcd-use-tls", false, "If true, uses TLS for etcd. Implicitly true if --etcd-ca-path,--etcd-certificate-path,--etcd-private-key-path are set. If true but those flags are not set etcd TLS certificates will be generated. Not supported if --experimental-self-hosted-etcd=true.")
 }
 
 func runCmdRender(cmd *cobra.Command, args []string) error {
@@ -85,6 +94,16 @@ func validateRenderOpts(cmd *cobra.Command, args []string) error {
 	}
 	if renderOpts.caPrivateKeyPath != "" && renderOpts.caCertificatePath == "" {
 		return errors.New("You must provide the --ca-certificate-path flag when --ca-private-key-path is provided.")
+	}
+	if (renderOpts.etcdCAPath != "" || renderOpts.etcdCertificatePath != "" || renderOpts.etcdPrivateKeyPath != "") && (renderOpts.etcdCAPath == "" || renderOpts.etcdCertificatePath == "" || renderOpts.etcdPrivateKeyPath == "") {
+		return errors.New("You must specify either all or none of --etcd-ca-path, --etcd-certificate-path, and --etcd-private-key-path")
+	}
+	if renderOpts.etcdCAPath != "" && !renderOpts.etcdUseTLS {
+		bootkube.UserOutput("etcd TLS certificates specified. Overriding --etcd-use-tls=true\n")
+		renderOpts.etcdUseTLS = true
+	}
+	if renderOpts.etcdUseTLS && renderOpts.selfHostedEtcd {
+		return errors.New("Cannot use --etcd-use-tls with --experimental-self-hosted-etcd")
 	}
 	if renderOpts.assetDir == "" {
 		return errors.New("Missing required flag: --asset-dir")
@@ -163,7 +182,34 @@ func flagsToAssetConfig() (c *asset.Config, err error) {
 			bootkube.UserOutput("--experimental-self-hosted-etcd and --service-cidr set. Overriding --etcd-servers setting with %s\n", etcdServers)
 		}
 	} else {
+		if renderOpts.etcdUseTLS && renderOpts.etcdServers == defaultEtcdServers {
+			renderOpts.etcdServers = defaultEtcdTLSServers
+		}
 		etcdServers, err = parseURLs(renderOpts.etcdServers)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if renderOpts.etcdUseTLS {
+		for _, url := range etcdServers {
+			if url.Scheme != "https" {
+				return nil, fmt.Errorf("--etcd-use-tls=true but insecure etcd server endpoint specified: %s\n", url)
+			}
+		}
+	}
+
+	var etcdCACert *x509.Certificate
+	if renderOpts.etcdCAPath != "" {
+		etcdCACert, err = parseCertFromDisk(renderOpts.etcdCAPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var etcdServerCert *x509.Certificate
+	var etcdServerKey *rsa.PrivateKey
+	if renderOpts.etcdCertificatePath != "" {
+		etcdServerKey, etcdServerCert, err = parseCertAndPrivateKeyFromDisk(renderOpts.etcdCertificatePath, renderOpts.etcdPrivateKeyPath)
 		if err != nil {
 			return nil, err
 		}
@@ -175,7 +221,11 @@ func flagsToAssetConfig() (c *asset.Config, err error) {
 	}
 
 	return &asset.Config{
+		EtcdCACert:      etcdCACert,
+		EtcdServerCert:  etcdServerCert,
+		EtcdServerKey:   etcdServerKey,
 		EtcdServers:     etcdServers,
+		EtcdUseTLS:      renderOpts.etcdUseTLS,
 		CACert:          caCert,
 		CAPrivKey:       caPrivKey,
 		APIServers:      apiServers,
@@ -202,15 +252,23 @@ func parseCertAndPrivateKeyFromDisk(caCertPath, privKeyPath string) (*rsa.Privat
 		return nil, nil, fmt.Errorf("unable to parse CA private key: %v", err)
 	}
 	// Parse CA Cert.
+	cert, err := parseCertFromDisk(caCertPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	return key, cert, nil
+}
+
+func parseCertFromDisk(caCertPath string) (*x509.Certificate, error) {
 	capem, err := ioutil.ReadFile(caCertPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error reading ca cert file at %s: %v", caCertPath, err)
+		return nil, fmt.Errorf("error reading ca cert file at %s: %v", caCertPath, err)
 	}
 	cert, err := tlsutil.ParsePEMEncodedCACert(capem)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to parse CA Cert: %v", err)
+		return nil, fmt.Errorf("unable to parse CA Cert: %v", err)
 	}
-	return key, cert, nil
+	return cert, nil
 }
 
 func parseURLs(s string) ([]*url.URL, error) {
