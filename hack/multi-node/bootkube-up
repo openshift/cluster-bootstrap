@@ -22,7 +22,7 @@ if [ ! -d "cluster" ]; then
   ../../_output/bin/${local_os}/bootkube render --asset-dir=cluster --api-servers=https://172.17.4.101:443 ${etcd_render_flags}
   cp user-data.sample cluster/user-data-worker
   cp user-data.sample cluster/user-data-controller
-  sed -i.bak -e '/--node-labels=node-role.kubernetes.io\/master/d' cluster/user-data-worker
+  sed -i.bak -e '/node-role.kubernetes.io\/master/d' cluster/user-data-worker
 fi
 
 # Start the VM
