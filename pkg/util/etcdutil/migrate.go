@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -21,7 +20,6 @@ import (
 )
 
 const (
-	apiserverAddr   = "http://127.0.0.1:8080"
 	etcdClusterName = "kube-etcd"
 )
 
@@ -30,7 +28,7 @@ var (
 	waitBootEtcdRemovedTime    = 300 * time.Second
 )
 
-func Migrate(etcdServiceIP string) error {
+func Migrate(apiserverAddr, etcdServiceIP string) error {
 	kubecli, err := clientset.NewForConfig(&restclient.Config{
 		Host: apiserverAddr,
 	})
@@ -65,7 +63,7 @@ func Migrate(etcdServiceIP string) error {
 		return fmt.Errorf("wait boot etcd deleted failed: %v", err)
 	}
 	glog.Info("the boot etcd is removed from the migration cluster")
-	return os.Remove(bootEtcdFilePath)
+	return nil
 }
 
 func listETCDCluster(ns string, restClient restclient.Interface) restclient.Result {

@@ -2,18 +2,10 @@ package bootkube
 
 import (
 	"fmt"
-	"net/url"
 	"path/filepath"
 	"time"
 
-	"github.com/spf13/pflag"
-	apiapp "k8s.io/kubernetes/cmd/kube-apiserver/app"
-	apiserver "k8s.io/kubernetes/cmd/kube-apiserver/app/options"
-	cmapp "k8s.io/kubernetes/cmd/kube-controller-manager/app"
-	controller "k8s.io/kubernetes/cmd/kube-controller-manager/app/options"
-	schedapp "k8s.io/kubernetes/plugin/cmd/kube-scheduler/app"
-	scheduler "k8s.io/kubernetes/plugin/cmd/kube-scheduler/app/options"
-
+	"github.com/coreos/etcd/pkg/fileutil"
 	"github.com/kubernetes-incubator/bootkube/pkg/asset"
 	"github.com/kubernetes-incubator/bootkube/pkg/util/etcdutil"
 )
@@ -31,141 +23,69 @@ var requiredPods = []string{
 }
 
 type Config struct {
-	AssetDir       string
-	EtcdServer     *url.URL
-	SelfHostedEtcd bool
+	AssetDir        string
+	PodManifestPath string
 }
 
 type bootkube struct {
-	selfHostedEtcd bool
-	assetDir       string
-	apiServer      *apiserver.ServerRunOptions
-	controller     *controller.CMServer
-	scheduler      *scheduler.SchedulerServer
+	selfHostedEtcd  bool
+	podManifestPath string
+	assetDir        string
 }
 
 func NewBootkube(config Config) (*bootkube, error) {
-	apiServer := apiserver.NewServerRunOptions()
-	fs := pflag.NewFlagSet("apiserver", pflag.ExitOnError)
-	apiServer.AddFlags(fs)
-	flags, err := makeAPIServerFlags(config)
-	if err != nil {
-		return nil, err
-	}
-	fs.Parse(flags)
-
-	cmServer := controller.NewCMServer()
-	fs = pflag.NewFlagSet("controllermanager", pflag.ExitOnError)
-	cmServer.AddFlags(fs, cmapp.KnownControllers(), cmapp.ControllersDisabledByDefault.List())
-	flags, err = makeControllerManagerFlags(config)
-	if err != nil {
-		return nil, err
-	}
-	fs.Parse(flags)
-
-	schedServer := scheduler.NewSchedulerServer()
-	fs = pflag.NewFlagSet("scheduler", pflag.ExitOnError)
-	schedServer.AddFlags(fs)
-	fs.Parse([]string{
-		"--master=" + insecureAPIAddr,
-		"--leader-elect=true",
-	})
-
 	return &bootkube{
-		apiServer:      apiServer,
-		controller:     cmServer,
-		scheduler:      schedServer,
-		assetDir:       config.AssetDir,
-		selfHostedEtcd: config.SelfHostedEtcd,
-	}, nil
-}
-
-func makeAPIServerFlags(config Config) ([]string, error) {
-	serviceCIDR, err := detectServiceCIDR(config.AssetDir)
-	if err != nil {
-		return []string{}, err
-	}
-	etcdServers := config.EtcdServer.String()
-	if config.SelfHostedEtcd {
-		// When self-hosting etcd we also point to the (not yet started) permanent cluster since the
-		// bootstrap node will go away at some point.
-		etcdServiceURL, err := detectEtcdServiceURL(config.AssetDir)
-		if err != nil {
-			return nil, err
-		}
-		etcdServers += fmt.Sprintf(",%s", etcdServiceURL)
-	}
-	return []string{
-		"--bind-address=0.0.0.0",
-		"--secure-port=443",
-		"--insecure-port=8080",
-		"--allow-privileged=true",
-		"--tls-private-key-file=" + filepath.Join(config.AssetDir, asset.AssetPathAPIServerKey),
-		"--tls-cert-file=" + filepath.Join(config.AssetDir, asset.AssetPathAPIServerCert),
-		"--kubelet-client-key=" + filepath.Join(config.AssetDir, asset.AssetPathAPIServerKey),
-		"--kubelet-client-certificate=" + filepath.Join(config.AssetDir, asset.AssetPathAPIServerCert),
-		"--client-ca-file=" + filepath.Join(config.AssetDir, asset.AssetPathCACert),
-		"--authorization-mode=RBAC",
-		"--etcd-servers=" + etcdServers,
-		"--service-cluster-ip-range=" + serviceCIDR,
-		"--service-account-key-file=" + filepath.Join(config.AssetDir, asset.AssetPathServiceAccountPubKey),
-		"--admission-control=NamespaceLifecycle,ServiceAccount",
-		"--runtime-config=api/all=true",
-		"--storage-backend=etcd3",
-	}, nil
-}
-
-func makeControllerManagerFlags(config Config) ([]string, error) {
-	podCIDR, err := detectPodCIDR(config.AssetDir)
-	if err != nil {
-		return []string{}, err
-	}
-	return []string{
-		"--master=" + insecureAPIAddr,
-		"--service-account-private-key-file=" + filepath.Join(config.AssetDir, asset.AssetPathServiceAccountPrivKey),
-		"--root-ca-file=" + filepath.Join(config.AssetDir, asset.AssetPathCACert),
-		"--allocate-node-cidrs=true",
-		"--cluster-cidr=" + podCIDR,
-		"--configure-cloud-routes=false",
-		"--leader-elect=true",
+		assetDir:        config.AssetDir,
+		podManifestPath: config.PodManifestPath,
+		selfHostedEtcd:  fileutil.Exist(filepath.Join(config.AssetDir, asset.AssetPathBootstrapEtcd)),
 	}, nil
 }
 
 func (b *bootkube) Run() error {
-	UserOutput("Running temporary bootstrap control plane...\n")
+	defer func() {
+		// Always clean up the bootstrap control plane and secrets.
+		if err := CleanupBootstrapControlPlane(b.assetDir, b.podManifestPath); err != nil {
+			UserOutput("Error cleaning up temporary bootstrap control plane: %v\n", err)
+		}
+	}()
 
-	errch := make(chan error)
-	go func() { errch <- apiapp.Run(b.apiServer) }()
-	go func() { errch <- cmapp.Run(b.controller) }()
-	go func() { errch <- schedapp.Run(b.scheduler) }()
-	go func() {
-		if err := CreateAssets(filepath.Join(b.assetDir, asset.AssetPathManifests), assetTimeout); err != nil {
-			errch <- err
+	var err error
+	defer func() {
+		// Always report errors.
+		if err != nil {
+			UserOutput("Error: %v\n", err)
 		}
 	}()
-	go func() {
-		if b.selfHostedEtcd {
-			requiredPods = append(requiredPods, "etcd-operator")
-			etcdServiceIP, err := detectEtcdIP(b.assetDir)
-			if err != nil {
-				errch <- err
-				return
-			}
-			if err := WaitUntilPodsRunning(requiredPods, assetTimeout); err != nil {
-				errch <- err
-				return
-			}
-			errch <- etcdutil.Migrate(etcdServiceIP)
-		} else {
-			errch <- WaitUntilPodsRunning(requiredPods, assetTimeout)
-		}
-	}()
-	// If any of the bootkube services exit, it means it is unrecoverable and we should exit.
-	err := <-errch
-	if err != nil {
-		UserOutput("Error: %v\n", err)
+
+	if err = CreateBootstrapControlPlane(b.assetDir, b.podManifestPath); err != nil {
+		return err
 	}
-	return err
+
+	if err = CreateAssets(filepath.Join(b.assetDir, asset.AssetPathManifests), assetTimeout); err != nil {
+		return err
+	}
+
+	if b.selfHostedEtcd {
+		requiredPods = append(requiredPods, "etcd-operator")
+	}
+
+	if err = WaitUntilPodsRunning(requiredPods, assetTimeout); err != nil {
+		return err
+	}
+
+	if b.selfHostedEtcd {
+		UserOutput("Migrating to self-hosted etcd cluster...\n")
+		var etcdServiceIP string
+		etcdServiceIP, err = detectEtcdIP(b.assetDir)
+		if err != nil {
+			return err
+		}
+		if err = etcdutil.Migrate(insecureAPIAddr, etcdServiceIP); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // All bootkube printing to stdout should go through this fmt.Printf wrapper.
