@@ -323,6 +323,22 @@ spec:
         tier: control-plane
         component: kube-controller-manager
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: tier
+                  operator: In
+                  values:
+                  - control-plane
+                - key: component
+                  operator: In
+                  values:
+                  - kube-contoller-manager
+              topologyKey: kubernetes.io/hostname
       nodeSelector:
         master: "true"
       containers:
@@ -388,6 +404,22 @@ spec:
         tier: control-plane
         component: kube-scheduler
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: tier
+                  operator: In
+                  values:
+                  - control-plane
+                - key: component
+                  operator: In
+                  values:
+                  - kube-scheduler
+              topologyKey: kubernetes.io/hostname
       nodeSelector:
         master: "true"
       containers:
