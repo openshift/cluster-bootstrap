@@ -147,7 +147,7 @@ spec:
         checkpointer.alpha.coreos.com/checkpoint: "true"
     spec:
       nodeSelector:
-        master: "true"
+        node-role.kubernetes.io/master: ""
       hostNetwork: true
       containers:
       - name: kube-apiserver
@@ -278,7 +278,7 @@ spec:
         checkpointer.alpha.coreos.com/checkpoint: "true"
     spec:
       nodeSelector:
-        master: "true"
+        node-role.kubernetes.io/master: ""
       hostNetwork: true
       containers:
       - image: quay.io/coreos/kenc:48b6feceeee56c657ea9263f47b6ea091e8d3035
@@ -324,7 +324,7 @@ spec:
         checkpointer.alpha.coreos.com/checkpoint: "true"
     spec:
       nodeSelector:
-        master: "true"
+        node-role.kubernetes.io/master: ""
       hostNetwork: true
       containers:
       - name: checkpoint
@@ -395,7 +395,7 @@ spec:
                   - kube-contoller-manager
               topologyKey: kubernetes.io/hostname
       nodeSelector:
-        master: "true"
+        node-role.kubernetes.io/master: ""
       containers:
       - name: kube-controller-manager
         image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
@@ -512,7 +512,7 @@ spec:
                   - kube-scheduler
               topologyKey: kubernetes.io/hostname
       nodeSelector:
-        master: "true"
+        node-role.kubernetes.io/master: ""
       containers:
       - name: kube-scheduler
         image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
