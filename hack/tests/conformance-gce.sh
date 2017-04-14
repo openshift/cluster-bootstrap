@@ -115,6 +115,6 @@ else
 
     #TODO(pb): See if there is a way to make the --inherit-env option replace
     #passing all the variables manually. 
-    sudo rkt run --insecure-options=image ${RKT_OPTS} docker://golang:1.7.4 --exec /bin/bash -- -c \
+    sudo rkt run --insecure-options=image ${RKT_OPTS} docker://golang:1.7.5 --exec /bin/bash -- -c \
         "IN_CONTAINER=true COREOS_CHANNEL=${COREOS_CHANNEL} GCE_PREFIX=${GCE_PREFIX} GCE_SERVICE_ACCOUNT=${GCE_SERVICE_ACCOUNT} GCE_PROJECT=${GCE_PROJECT} SELF_HOST_ETCD=${SELF_HOST_ETCD} /build/bootkube/hack/tests/$(basename $0)"
 fi
