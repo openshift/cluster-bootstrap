@@ -126,7 +126,7 @@ func createMigratedEtcdCluster(restclient restclient.Interface, host, podIP stri
     "version": "v3.1.0",
     "pod": {
       "nodeSelector": {
-        "master": "true"
+        "node-role.kubernetes.io/master": ""
       }
     },
     "selfHosted": {
