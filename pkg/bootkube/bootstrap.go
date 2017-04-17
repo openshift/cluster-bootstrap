@@ -18,7 +18,7 @@ func CreateBootstrapControlPlane(assetDir string, podManifestPath string) error 
 	if err := os.RemoveAll(asset.BootstrapSecretsDir); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(asset.BootstrapSecretsDir, os.FileMode(0700)); err != nil {
+	if err := os.Mkdir(asset.BootstrapSecretsDir, os.FileMode(0700)); err != nil {
 		return err
 	}
 	secretsDir := filepath.Join(assetDir, asset.AssetPathSecrets)
