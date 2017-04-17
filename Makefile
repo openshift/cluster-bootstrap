@@ -8,25 +8,14 @@ GOPATH_BIN:=$(shell echo ${GOPATH} | awk 'BEGIN { FS = ":" }; { print $1 }')/bin
 LDFLAGS=-X github.com/kubernetes-incubator/bootkube/pkg/version.Version=$(shell $(CURDIR)/build/git-version.sh)
 
 all: \
-	patch \
 	_output/bin/linux/bootkube \
 	_output/bin/darwin/bootkube \
 	_output/bin/linux/checkpoint \
-	unpatch
-
-patch:
-	@echo "Patching etcd-operator vendor, this is a temporal fix for client-go vendor conflicts"
-	@git apply etcd-operator-vendor.patch
-
-unpatch:
-	@git apply -R etcd-operator-vendor.patch
 
 release: \
 	clean \
-	patch \
 	check \
 	_output/release/bootkube.tar.gz \
-	unpatch
 
 check:
 	@find . -name vendor -prune -o -name '*.go' -exec gofmt -s -d {} +
@@ -67,6 +56,9 @@ conformance-%: clean all
 #TODO(aaron): the k8s.io/client-go upstream package is a symlink with relative path. Making note because we change symlink path.
 # This will naively try and create a vendor dir from a k8s release
 # USE: make vendor VENDOR_VERSION=vX.Y.Z
+
+#TODO(aaron): Remove etcd-operator-vendor.patch once etcd-operator bumps client-go version
+
 VENDOR_VERSION = v1.6.1+coreos.0
 ETCD_OPERATOR_VERSION = v0.2.4
 vendor:
@@ -88,6 +80,7 @@ vendor:
 	@mkdir -p $@/github.com/coreos/etcd-operator/pkg/
 	@cp -r /tmp/etcd-operator/pkg/spec $@/github.com/coreos/etcd-operator/pkg/
 	@rm -rf /tmp/etcd-operator
+	@git apply etcd-operator-vendor.patch
 
 clean:
 	rm -rf _output
