@@ -171,7 +171,7 @@ spec:
         - --bind-address=0.0.0.0
         - --client-ca-file=/etc/kubernetes/secrets/ca.crt
         - --cloud-provider={{ .CloudProvider  }}
-{{- if not .SelfHostedEtcd }}
+{{- if .EtcdUseTLS }}
         - --etcd-cafile=/etc/kubernetes/secrets/etcd-ca.crt
         - --etcd-certfile=/etc/kubernetes/secrets/etcd-client.crt
         - --etcd-keyfile=/etc/kubernetes/secrets/etcd-client.key
@@ -236,7 +236,7 @@ spec:
     - --authorization-mode=RBAC
     - --bind-address=0.0.0.0
     - --client-ca-file=/etc/kubernetes/secrets/ca.crt
-{{- if not .SelfHostedEtcd }}
+{{- if .EtcdUseTLS }}
     - --etcd-cafile=/etc/kubernetes/secrets/etcd-ca.crt
     - --etcd-certfile=/etc/kubernetes/secrets/etcd-client.crt
     - --etcd-keyfile=/etc/kubernetes/secrets/etcd-client.key

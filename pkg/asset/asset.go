@@ -64,6 +64,7 @@ type Config struct {
 	EtcdClientCert      *x509.Certificate
 	EtcdClientKey       *rsa.PrivateKey
 	EtcdServers         []*url.URL
+	EtcdUseTLS          bool
 	APIServers          []*url.URL
 	CACert              *x509.Certificate
 	CAPrivKey           *rsa.PrivateKey
@@ -108,7 +109,7 @@ func NewDefaultAssets(conf Config) (Assets, error) {
 	as = append(as, tlsAssets...)
 
 	// etcd TLS assets.
-	if !conf.SelfHostedEtcd {
+	if conf.EtcdUseTLS {
 		etcdTLSAssets, err := newEtcdTLSAssets(conf.EtcdCACert, conf.EtcdClientCert, conf.EtcdClientKey, conf.CACert, conf.CAPrivKey, conf.EtcdServers)
 		if err != nil {
 			return Assets{}, err
@@ -124,7 +125,7 @@ func NewDefaultAssets(conf Config) (Assets, error) {
 	as = append(as, kubeConfig)
 
 	// K8S APIServer secret
-	apiSecret, err := newAPIServerSecretAsset(as, conf.SelfHostedEtcd)
+	apiSecret, err := newAPIServerSecretAsset(as, conf.EtcdUseTLS)
 	if err != nil {
 		return Assets{}, err
 	}

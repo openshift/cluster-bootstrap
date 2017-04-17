@@ -178,10 +178,12 @@ func flagsToAssetConfig() (c *asset.Config, err error) {
 		if err != nil {
 			return nil, err
 		}
-		for _, url := range etcdServers {
-			if url.Scheme != "https" {
-				return nil, fmt.Errorf("etcd endpoints must use https, got: %s\n", url)
-			}
+	}
+
+	etcdUseTLS := false
+	for _, url := range etcdServers {
+		if url.Scheme == "https" {
+			etcdUseTLS = true
 		}
 	}
 
@@ -201,6 +203,10 @@ func flagsToAssetConfig() (c *asset.Config, err error) {
 		}
 	}
 
+	if etcdUseTLS && etcdCACert == nil {
+		bootkube.UserOutput("NOTE: --etcd-servers=%s but -etcd-ca-path, --etcd-certificate-path, and --etcd-private-key-path were not set. Bootkube will create etcd certificates under '%s/tls'. You must configure etcd to use these certificates before invoking 'bootkube run'.\n", renderOpts.etcdServers, renderOpts.assetDir)
+	}
+
 	// TODO: Find better option than asking users to make manual changes
 	if serviceNet.IP.String() != defaultServiceBaseIP {
 		fmt.Printf("You have selected a non-default service CIDR %s - be sure your kubelet service file uses --cluster-dns=%s\n", serviceNet.String(), dnsServiceIP.String())
@@ -211,6 +217,7 @@ func flagsToAssetConfig() (c *asset.Config, err error) {
 		EtcdClientCert:  etcdClientCert,
 		EtcdClientKey:   etcdClientKey,
 		EtcdServers:     etcdServers,
+		EtcdUseTLS:      etcdUseTLS,
 		CACert:          caCert,
 		CAPrivKey:       caPrivKey,
 		APIServers:      apiServers,

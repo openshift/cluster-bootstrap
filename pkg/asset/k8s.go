@@ -87,14 +87,14 @@ func newKubeConfigAsset(assets Assets, conf Config) (Asset, error) {
 	})
 }
 
-func newAPIServerSecretAsset(assets Assets, selfHostedEtcd bool) (Asset, error) {
+func newAPIServerSecretAsset(assets Assets, etcdUseTLS bool) (Asset, error) {
 	secretAssets := []string{
 		AssetPathAPIServerKey,
 		AssetPathAPIServerCert,
 		AssetPathServiceAccountPubKey,
 		AssetPathCACert,
 	}
-	if !selfHostedEtcd {
+	if etcdUseTLS {
 		secretAssets = append(secretAssets, []string{
 			AssetPathEtcdCA,
 			AssetPathEtcdClientCert,
