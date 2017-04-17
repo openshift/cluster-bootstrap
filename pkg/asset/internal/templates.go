@@ -175,7 +175,6 @@ spec:
         - --insecure-port=8080
         - --kubelet-client-certificate=/etc/kubernetes/secrets/apiserver.crt
         - --kubelet-client-key=/etc/kubernetes/secrets/apiserver.key
-        - --runtime-config=api/all=true
         - --secure-port=443
         - --service-account-key-file=/etc/kubernetes/secrets/service-account.pub
         - --service-cluster-ip-range={{ .ServiceCIDR }}
@@ -235,7 +234,6 @@ spec:
     - --insecure-port=8080
     - --kubelet-client-certificate=/etc/kubernetes/secrets/apiserver.crt
     - --kubelet-client-key=/etc/kubernetes/secrets/apiserver.key
-    - --runtime-config=api/all=true
     - --secure-port=443
     - --service-account-key-file=/etc/kubernetes/secrets/service-account.pub
     - --service-cluster-ip-range={{ .ServiceCIDR }}
