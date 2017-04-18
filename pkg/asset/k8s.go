@@ -87,12 +87,19 @@ func newKubeConfigAsset(assets Assets, conf Config) (Asset, error) {
 	})
 }
 
-func newAPIServerSecretAsset(assets Assets) (Asset, error) {
+func newAPIServerSecretAsset(assets Assets, etcdUseTLS bool) (Asset, error) {
 	secretAssets := []string{
 		AssetPathAPIServerKey,
 		AssetPathAPIServerCert,
 		AssetPathServiceAccountPubKey,
 		AssetPathCACert,
+	}
+	if etcdUseTLS {
+		secretAssets = append(secretAssets, []string{
+			AssetPathEtcdCA,
+			AssetPathEtcdClientCert,
+			AssetPathEtcdClientKey,
+		}...)
 	}
 
 	secretYAML, err := secretFromAssets(secretAPIServerName, secretNamespace, secretAssets, assets)

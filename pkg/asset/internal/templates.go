@@ -171,6 +171,11 @@ spec:
         - --bind-address=0.0.0.0
         - --client-ca-file=/etc/kubernetes/secrets/ca.crt
         - --cloud-provider={{ .CloudProvider  }}
+{{- if .EtcdUseTLS }}
+        - --etcd-cafile=/etc/kubernetes/secrets/etcd-ca.crt
+        - --etcd-certfile=/etc/kubernetes/secrets/etcd-client.crt
+        - --etcd-keyfile=/etc/kubernetes/secrets/etcd-client.key
+{{- end }}
         - --etcd-servers={{ range $i, $e := .EtcdServers }}{{ if $i }},{{end}}{{ $e }}{{end}}
         - --insecure-port=8080
         - --kubelet-client-certificate=/etc/kubernetes/secrets/apiserver.crt
@@ -230,6 +235,11 @@ spec:
     - --authorization-mode=RBAC
     - --bind-address=0.0.0.0
     - --client-ca-file=/etc/kubernetes/secrets/ca.crt
+{{- if .EtcdUseTLS }}
+    - --etcd-cafile=/etc/kubernetes/secrets/etcd-ca.crt
+    - --etcd-certfile=/etc/kubernetes/secrets/etcd-client.crt
+    - --etcd-keyfile=/etc/kubernetes/secrets/etcd-client.key
+{{- end }}
     - --etcd-servers={{ range $i, $e := .EtcdServers }}{{ if $i }},{{end}}{{ $e }}{{end}}{{ if .SelfHostedEtcd }},http://127.0.0.1:12379{{end}}
     - --insecure-port=8080
     - --kubelet-client-certificate=/etc/kubernetes/secrets/apiserver.crt
@@ -832,7 +842,7 @@ spec:
   selector:
     app: etcd
     etcd_cluster: kube-etcd
-  clusterIP: {{ .ETCDServiceIP }}
+  clusterIP: {{ .EtcdServiceIP }}
   ports:
   - name: client
     port: 2379
