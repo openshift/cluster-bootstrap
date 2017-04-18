@@ -284,23 +284,23 @@ spec:
 	KencTemplate = []byte(`apiVersion: "extensions/v1beta1"
 kind: DaemonSet
 metadata:
-  name: kenc
+  name: kube-etcd-network-checkpointer
   namespace: kube-system
   labels:
     tier: control-plane
-    component: kenc
+    component: kube-etcd-network-checkpointer
 spec:
   template:
     metadata:
       labels:
         tier: control-plane
-        component: kenc
+        component: kube-etcd-network-checkpointer
       annotations:
         checkpointer.alpha.coreos.com/checkpoint: "true"
     spec:
       containers:
       - image: quay.io/coreos/kenc:48b6feceeee56c657ea9263f47b6ea091e8d3035
-        name: kenc
+        name: kube-etcd-network-checkpointer
         securityContext:
           privileged: true
         volumeMounts:
