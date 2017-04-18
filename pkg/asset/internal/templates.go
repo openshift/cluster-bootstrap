@@ -99,6 +99,11 @@ spec:
           mountPath: /rootfs
       hostNetwork: true
       hostPID: true
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Equal
+        value: ""
+        effect: NoSchedule
       volumes:
       - name: dev
         hostPath:
@@ -147,12 +152,6 @@ spec:
         checkpointer.alpha.coreos.com/checkpoint: "true"
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
-      tolerations:
-      - key: "CriticalAddonsOnly"
-        operator: "Exists"
-      nodeSelector:
-        node-role.kubernetes.io/master: ""
-      hostNetwork: true
       containers:
       - name: kube-apiserver
         image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
@@ -201,6 +200,16 @@ spec:
         - mountPath: /var/lock
           name: var-lock
           readOnly: false
+      hostNetwork: true
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - key: node-role.kubernetes.io/master
+        operator: Equal
+        value: ""
+        effect: NoSchedule
       volumes:
       - name: ssl-certs-host
         hostPath:
@@ -219,7 +228,6 @@ metadata:
   name: bootstrap-kube-apiserver
   namespace: kube-system
 spec:
-  hostNetwork: true
   containers:
   - name: kube-apiserver
     image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
@@ -260,6 +268,7 @@ spec:
     - mountPath: /var/lock
       name: var-lock
       readOnly: false
+  hostNetwork: true
   volumes:
   - name: secrets
     hostPath:
@@ -289,9 +298,6 @@ spec:
       annotations:
         checkpointer.alpha.coreos.com/checkpoint: "true"
     spec:
-      nodeSelector:
-        node-role.kubernetes.io/master: ""
-      hostNetwork: true
       containers:
       - image: quay.io/coreos/kenc:48b6feceeee56c657ea9263f47b6ea091e8d3035
         name: kenc
@@ -309,6 +315,14 @@ spec:
         - /var/lock/kenc.lock
         - -c
         - "kenc -r -m iptables && kenc -m iptables"
+      hostNetwork: true
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Equal
+        value: ""
+        effect: NoSchedule
       volumes:
       - name: checkpoint-dir
         hostPath:
@@ -335,9 +349,6 @@ spec:
       annotations:
         checkpointer.alpha.coreos.com/checkpoint: "true"
     spec:
-      nodeSelector:
-        node-role.kubernetes.io/master: ""
-      hostNetwork: true
       containers:
       - name: checkpoint
         image: quay.io/coreos/pod-checkpointer:8a6356146761b512cc18ab77c8a421676f641c88
@@ -365,7 +376,14 @@ spec:
         - mountPath: /var/run
           name: var-run
       hostNetwork: true
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
       restartPolicy: Always
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Equal
+        value: ""
+        effect: NoSchedule
       volumes:
       - name: etc-kubernetes
         hostPath:
@@ -392,9 +410,6 @@ spec:
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
-      tolerations:
-      - key: "CriticalAddonsOnly"
-        operator: "Exists"
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -411,8 +426,6 @@ spec:
                   values:
                   - kube-contoller-manager
               topologyKey: kubernetes.io/hostname
-      nodeSelector:
-        node-role.kubernetes.io/master: ""
       containers:
       - name: kube-controller-manager
         image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
@@ -439,6 +452,15 @@ spec:
         - name: ssl-host
           mountPath: /etc/ssl/certs
           readOnly: true
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - key: node-role.kubernetes.io/master
+        operator: Equal
+        value: ""
+        effect: NoSchedule
       volumes:
       - name: secrets
         secret:
@@ -455,7 +477,6 @@ metadata:
   name: bootstrap-kube-controller-manager
   namespace: kube-system
 spec:
-  hostNetwork: true
   containers:
   - name: kube-controller-manager
     image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
@@ -476,6 +497,7 @@ spec:
     - name: ssl-host
       mountPath: /etc/ssl/certs
       readOnly: true
+  hostNetwork: true
   volumes:
   - name: secrets
     hostPath:
@@ -514,9 +536,6 @@ spec:
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
-      tolerations:
-      - key: "CriticalAddonsOnly"
-        operator: "Exists"
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -533,8 +552,6 @@ spec:
                   values:
                   - kube-scheduler
               topologyKey: kubernetes.io/hostname
-      nodeSelector:
-        node-role.kubernetes.io/master: ""
       containers:
       - name: kube-scheduler
         image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
@@ -548,7 +565,15 @@ spec:
             port: 10251  # Note: Using default port. Update if --port option is set differently.
           initialDelaySeconds: 15
           timeoutSeconds: 15
-
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - key: node-role.kubernetes.io/master
+        operator: Equal
+        value: ""
+        effect: NoSchedule
 `)
 
 	BootstrapSchedulerTemplate = []byte(`apiVersion: v1
@@ -557,7 +582,6 @@ metadata:
   name: bootstrap-kube-scheduler
   namespace: kube-system
 spec:
-  hostNetwork: true
   containers:
   - name: kube-scheduler
     image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
@@ -566,6 +590,7 @@ spec:
     - scheduler
     - --leader-elect=true
     - --master=http://127.0.0.1:8080
+  hostNetwork: true
 `)
 	SchedulerDisruptionTemplate = []byte(`apiVersion: policy/v1beta1
 kind: PodDisruptionBudget
@@ -596,10 +621,6 @@ spec:
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
-      tolerations:
-      - key: "CriticalAddonsOnly"
-        operator: "Exists"
-      hostNetwork: true
       containers:
       - name: kube-proxy
         image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
@@ -624,6 +645,14 @@ spec:
         - name: etc-kubernetes
           mountPath: /etc/kubernetes
           readOnly: true
+      hostNetwork: true
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - key: node-role.kubernetes.io/master
+        operator: Equal
+        value: ""
+        effect: NoSchedule
       volumes:
       - hostPath:
           path: /usr/share/ca-certificates
@@ -659,14 +688,6 @@ spec:
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
-      tolerations:
-      - key: "CriticalAddonsOnly"
-        operator: "Exists"
-      volumes:
-      - name: kube-dns-config
-        configMap:
-          name: kube-dns
-          optional: true
       containers:
       - name: kubedns
         image: gcr.io/google_containers/k8s-dns-kube-dns-amd64:1.14.1
@@ -782,6 +803,20 @@ spec:
             memory: 20Mi
             cpu: 10m
       dnsPolicy: Default  # Don't use cluster DNS.
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - key: node-role.kubernetes.io/master
+        operator: Equal
+        value: ""
+        effect: NoSchedule
+      volumes:
+      - name: kube-dns-config
+        configMap:
+          name: kube-dns
+          optional: true
 `)
 	DNSSvcTemplate = []byte(`apiVersion: v1
 kind: Service
@@ -831,6 +866,11 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Equal
+        value: ""
+        effect: NoSchedule
 `)
 
 	EtcdSvcTemplate = []byte(`apiVersion: v1
@@ -857,8 +897,6 @@ metadata:
   labels:
     k8s-app: boot-etcd
 spec:
-  hostNetwork: true
-  restartPolicy: Never
   containers:
   - name: etcd
     image: quay.io/coreos/etcd:v3.1.0
@@ -878,6 +916,8 @@ spec:
         valueFrom:
           fieldRef:
             fieldPath: status.podIP
+  hostNetwork: true
+  restartPolicy: Never
 `)
 
 	KubeFlannelCfgTemplate = []byte(`apiVersion: v1
@@ -921,7 +961,6 @@ spec:
         tier: node
         app: flannel
     spec:
-      hostNetwork: true
       containers:
       - name: kube-flannel
         image: quay.io/coreos/flannel:v0.7.0-amd64
@@ -956,6 +995,12 @@ spec:
           mountPath: /etc/cni/net.d
         - name: flannel-cfg
           mountPath: /etc/kube-flannel/
+      hostNetwork: true
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Equal
+        value: ""
+        effect: NoSchedule
       volumes:
         - name: run
           hostPath:
