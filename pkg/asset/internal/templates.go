@@ -101,8 +101,7 @@ spec:
       hostPID: true
       tolerations:
       - key: node-role.kubernetes.io/master
-        operator: Equal
-        value: ""
+        operator: Exists
         effect: NoSchedule
       volumes:
       - name: dev
@@ -207,8 +206,7 @@ spec:
       - key: CriticalAddonsOnly
         operator: Exists
       - key: node-role.kubernetes.io/master
-        operator: Equal
-        value: ""
+        operator: Exists
         effect: NoSchedule
       volumes:
       - name: ssl-certs-host
@@ -320,8 +318,7 @@ spec:
         node-role.kubernetes.io/master: ""
       tolerations:
       - key: node-role.kubernetes.io/master
-        operator: Equal
-        value: ""
+        operator: Exists
         effect: NoSchedule
       volumes:
       - name: checkpoint-dir
@@ -381,8 +378,7 @@ spec:
       restartPolicy: Always
       tolerations:
       - key: node-role.kubernetes.io/master
-        operator: Equal
-        value: ""
+        operator: Exists
         effect: NoSchedule
       volumes:
       - name: etc-kubernetes
@@ -458,8 +454,7 @@ spec:
       - key: CriticalAddonsOnly
         operator: Exists
       - key: node-role.kubernetes.io/master
-        operator: Equal
-        value: ""
+        operator: Exists
         effect: NoSchedule
       volumes:
       - name: secrets
@@ -571,8 +566,7 @@ spec:
       - key: CriticalAddonsOnly
         operator: Exists
       - key: node-role.kubernetes.io/master
-        operator: Equal
-        value: ""
+        operator: Exists
         effect: NoSchedule
 `)
 
@@ -650,8 +644,7 @@ spec:
       - key: CriticalAddonsOnly
         operator: Exists
       - key: node-role.kubernetes.io/master
-        operator: Equal
-        value: ""
+        operator: Exists
         effect: NoSchedule
       volumes:
       - hostPath:
@@ -809,8 +802,7 @@ spec:
       - key: CriticalAddonsOnly
         operator: Exists
       - key: node-role.kubernetes.io/master
-        operator: Equal
-        value: ""
+        operator: Exists
         effect: NoSchedule
       volumes:
       - name: kube-dns-config
@@ -868,8 +860,7 @@ spec:
               fieldPath: metadata.name
       tolerations:
       - key: node-role.kubernetes.io/master
-        operator: Equal
-        value: ""
+        operator: Exists
         effect: NoSchedule
 `)
 
@@ -998,8 +989,7 @@ spec:
       hostNetwork: true
       tolerations:
       - key: node-role.kubernetes.io/master
-        operator: Equal
-        value: ""
+        operator: Exists
         effect: NoSchedule
       volumes:
         - name: run
