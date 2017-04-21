@@ -20,10 +20,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/pkg/api"
+	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/v1"
-	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
 )
 
 const (
@@ -118,7 +118,7 @@ func main() {
 	if err != nil {
 		glog.Fatalf("Failed to load kubeconfig: %v", err)
 	}
-	client := clientset.NewForConfigOrDie(kubeConfig)
+	client := kubernetes.NewForConfigOrDie(kubeConfig)
 
 	load := func(rawData []byte, filepath string) []byte {
 		if len(rawData) > 0 {
@@ -156,7 +156,7 @@ func main() {
 	run(client, kubelet)
 }
 
-func run(client clientset.Interface, kubelet *kubeletClient) {
+func run(client kubernetes.Interface, kubelet *kubeletClient) {
 	for {
 		time.Sleep(3 * time.Second)
 
@@ -323,7 +323,7 @@ func process(localRunningPods, localParentPods, apiParentPods, activeCheckpoints
 // - sanitize their podSpec, removing unnecessary information
 // - store the manifest on disk in an "inactive" checkpoint location
 //TODO(aaron): Add support for checkpointing configMaps
-func createCheckpointsForValidParents(client clientset.Interface, pods map[string]*v1.Pod) {
+func createCheckpointsForValidParents(client kubernetes.Interface, pods map[string]*v1.Pod) {
 	for _, pod := range pods {
 		// This merely check that the last kubelet pod state thinks this pod was running. It's possible that
 		// state is actually stale (only as recent as last successful contact with api-server). However, this
@@ -473,7 +473,7 @@ func getFileCheckpoints(path string) map[string]*v1.Pod {
 }
 
 // getAPIParentPods will retrieve all pods from apiserver that are parents & should be checkpointed
-func getAPIParentPods(client clientset.Interface, nodeName string) map[string]*v1.Pod {
+func getAPIParentPods(client kubernetes.Interface, nodeName string) map[string]*v1.Pod {
 	opts := metav1.ListOptions{
 		FieldSelector: fields.OneTermEqualSelector(api.PodHostField, nodeName).String(),
 	}
@@ -533,7 +533,7 @@ func (c *kubeletClient) localRunningPods() (map[string]*v1.Pod, error) {
 }
 
 // checkpointSecretVolumes ensures that all pod secrets are checkpointed locally, then converts the secret volume to a hostpath.
-func checkpointSecretVolumes(client clientset.Interface, pod *v1.Pod) (*v1.Pod, error) {
+func checkpointSecretVolumes(client kubernetes.Interface, pod *v1.Pod) (*v1.Pod, error) {
 	for i := range pod.Spec.Volumes {
 		v := &pod.Spec.Volumes[i]
 		if v.Secret == nil {
@@ -555,7 +555,7 @@ func checkpointSecretVolumes(client clientset.Interface, pod *v1.Pod) (*v1.Pod, 
 // checkpointSecret will locally store secret data.
 // The path to the secret data becomes: checkpointSecretPath/namespace/podname/secretName/secret.file
 // Where each "secret.file" is a key from the secret.Data field.
-func checkpointSecret(client clientset.Interface, namespace, podName, secretName string) (string, error) {
+func checkpointSecret(client kubernetes.Interface, namespace, podName, secretName string) (string, error) {
 	secret, err := client.Core().Secrets(namespace).Get(secretName, metav1.GetOptions{})
 	if err != nil {
 		return "", fmt.Errorf("failed to retrieve secret %s/%s: %v", namespace, secretName, err)
@@ -575,7 +575,7 @@ func checkpointSecret(client clientset.Interface, namespace, podName, secretName
 }
 
 // checkpointConfigMapVolumes ensures that all pod configMaps are checkpointed locally, then converts the configMap volume to a hostpath.
-func checkpointConfigMapVolumes(client clientset.Interface, pod *v1.Pod) (*v1.Pod, error) {
+func checkpointConfigMapVolumes(client kubernetes.Interface, pod *v1.Pod) (*v1.Pod, error) {
 	for i := range pod.Spec.Volumes {
 		v := &pod.Spec.Volumes[i]
 		if v.ConfigMap == nil {
@@ -596,7 +596,7 @@ func checkpointConfigMapVolumes(client clientset.Interface, pod *v1.Pod) (*v1.Po
 // checkpointConfigMap will locally store configMap data.
 // The path to the configMap data becomes: checkpointSecretPath/namespace/podname/configMapName/configMap.file
 // Where each "configMap.file" is a key from the configMap.Data field.
-func checkpointConfigMap(client clientset.Interface, namespace, podName, configMapName string) (string, error) {
+func checkpointConfigMap(client kubernetes.Interface, namespace, podName, configMapName string) (string, error) {
 	configMap, err := client.Core().ConfigMaps(namespace).Get(configMapName, metav1.GetOptions{})
 	if err != nil {
 		return "", fmt.Errorf("failed to retrieve configMap %s/%s: %v", namespace, configMapName, err)
