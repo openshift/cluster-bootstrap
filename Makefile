@@ -53,34 +53,9 @@ conformance-%: clean all
 	@sleep 30 # Give addons a little time to start
 	@cd hack/$*-node && ./conformance-test.sh
 
-#TODO(aaron): the k8s.io/client-go upstream package is a symlink with relative path. Making note because we change symlink path.
-# This will naively try and create a vendor dir from a k8s release
-# USE: make vendor VENDOR_VERSION=vX.Y.Z
-
-#TODO(aaron): Remove etcd-operator-vendor.patch once etcd-operator bumps client-go version
-
-VENDOR_VERSION = v1.6.1+coreos.0
-ETCD_OPERATOR_VERSION = v0.2.4
 vendor:
-	@echo "Creating k8s vendor for: $(VENDOR_VERSION)"
-	@rm -rf vendor
-	@mkdir -p $@/k8s.io/kubernetes
-	@git clone https://github.com/coreos/kubernetes $@/k8s.io/kubernetes > /dev/null 2>&1
-	@cd $@/k8s.io/kubernetes && git checkout $(VENDOR_VERSION) > /dev/null 2>&1
-	@cd $@/k8s.io/kubernetes && rm -rf docs examples hack cluster Godeps
-	@cd $@/k8s.io/kubernetes/vendor && mv k8s.io/* $(abspath $@/k8s.io) && rmdir k8s.io
-	@mv $@/k8s.io/kubernetes/vendor/* $(abspath $@)
-	@cd $@/k8s.io/ && ln -sf kubernetes/staging/src/k8s.io/client-go client-go
-	@cd $@/k8s.io/ && ln -sf kubernetes/staging/src/k8s.io/apimachinery apimachinery
-	@cd $@/k8s.io/ && ln -sf kubernetes/staging/src/k8s.io/apiserver apiserver
-	@rm -rf $@/k8s.io/kubernetes/vendor $@/k8s.io/kubernetes/.git
-	@echo "vendoring etcd-operator spec: $(ETCD_OPERATOR_VERSION)"
-	@git clone https://github.com/coreos/etcd-operator /tmp/etcd-operator > /dev/null 2>&1
-	@cd /tmp/etcd-operator && git checkout $(ETCD_OPERATOR_VERSION) > /dev/null 2>&1
-	@mkdir -p $@/github.com/coreos/etcd-operator/pkg/
-	@cp -r /tmp/etcd-operator/pkg/spec $@/github.com/coreos/etcd-operator/pkg/
-	@rm -rf /tmp/etcd-operator
-	@git apply etcd-operator-vendor.patch
+	@glide update --strip-vendor
+	@glide-vc
 
 clean:
 	rm -rf _output
