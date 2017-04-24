@@ -52,7 +52,7 @@ spec:
     spec:
       containers:
       - name: kubelet
-        image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
+        image: quay.io/coreos/hyperkube:v1.6.2_coreos.0
         command:
         - ./hyperkube
         - kubelet
@@ -153,7 +153,7 @@ spec:
     spec:
       containers:
       - name: kube-apiserver
-        image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
+        image: quay.io/coreos/hyperkube:v1.6.2_coreos.0
         command:
         - /usr/bin/flock
         - --exclusive
@@ -229,7 +229,7 @@ metadata:
 spec:
   containers:
   - name: kube-apiserver
-    image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
+    image: quay.io/coreos/hyperkube:v1.6.2_coreos.0
     command:
     - /usr/bin/flock
     - --exclusive
@@ -432,7 +432,7 @@ spec:
               topologyKey: kubernetes.io/hostname
       containers:
       - name: kube-controller-manager
-        image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
+        image: quay.io/coreos/hyperkube:v1.6.2_coreos.0
         command:
         - ./hyperkube
         - controller-manager
@@ -482,7 +482,7 @@ metadata:
 spec:
   containers:
   - name: kube-controller-manager
-    image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
+    image: quay.io/coreos/hyperkube:v1.6.2_coreos.0
     command:
     - ./hyperkube
     - controller-manager
@@ -557,7 +557,7 @@ spec:
               topologyKey: kubernetes.io/hostname
       containers:
       - name: kube-scheduler
-        image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
+        image: quay.io/coreos/hyperkube:v1.6.2_coreos.0
         command:
         - ./hyperkube
         - scheduler
@@ -586,7 +586,7 @@ metadata:
 spec:
   containers:
   - name: kube-scheduler
-    image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
+    image: quay.io/coreos/hyperkube:v1.6.2_coreos.0
     command:
     - ./hyperkube
     - scheduler
@@ -633,7 +633,7 @@ spec:
     spec:
       containers:
       - name: kube-proxy
-        image: quay.io/coreos/hyperkube:v1.6.1_coreos.0
+        image: quay.io/coreos/hyperkube:v1.6.2_coreos.0
         command:
         - /hyperkube
         - proxy
