@@ -1,0 +1,35 @@
+package: github.com/kubernetes-incubator/bootkube
+import:
+- package: github.com/coreos/etcd-operator
+  subpackages:
+  - pkg/spec
+- package: github.com/coreos/etcd
+  subpackages:
+  - clientv3
+  - pkg/fileutil
+- package: github.com/ghodss/yaml
+- package: github.com/golang/glog
+- package: github.com/spf13/cobra
+- package: k8s.io/apimachinery
+  version: 75b8dd260ef0469d96d578705a87cffd0e09dab8
+  subpackages:
+  - pkg/api/errors
+  - pkg/apis/meta/v1
+  - pkg/fields
+  - pkg/runtime
+  - pkg/util/wait
+  - pkg/watch
+- package: k8s.io/client-go
+  version: v3.0.0-beta.0
+  subpackages:
+  - kubernetes
+  - pkg/api
+  - pkg/api/v1
+  - rest
+  - tools/cache
+  - tools/clientcmd
+- package: k8s.io/kubernetes
+  version: v1.6.2
+  subpackages:
+  - pkg/kubectl/cmd/util
+  - pkg/kubectl/resource
