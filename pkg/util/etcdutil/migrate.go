@@ -126,11 +126,18 @@ func createMigratedEtcdCluster(restclient restclient.Interface, podIP string) er
   },
   "spec": {
     "size": 1,
-    "version": "v3.1.0",
+    "version": "v3.1.6",
     "pod": {
       "nodeSelector": {
         "node-role.kubernetes.io/master": ""
-      }
+      },
+      "tolerations": [
+        {
+          "key": "node-role.kubernetes.io/master",
+          "operator": "Exists",
+          "effect": "NoSchedule"
+        }
+      ]
     },
     "selfHosted": {
       "bootMemberClientEndpoint": "http://%s:12379"
