@@ -1,26 +1,29 @@
 # Preparing a bootkube release
 
-### Update kubernetes vendor code
+## Updating Kubernetes Version
 
-- Bump `VENDOR_VERSION` in `Makefile`
+### Updating Kubernetes vendor code
+
+Vendoring currently relies on the [glide](https://github.com/Masterminds/glide) and [glide-vc](https://github.com/sgotti/glide-vc) tools.
+
+- Update pinned versions in `glide.yaml`
 - Run `make vendor`
 
-### Update hyperkube image
+### Updating hyperkube image / Kubernetes version
 
-- Update hyperkube image version in templates: `pkg/asset/internal/templates.go`
+- Update hyperkube image for manifests in templates:
+    - `pkg/asset/internal/templates.go`
+- Update conformance test version: (`CONFORMANCE_VERSION`)
+    -  `hack/tests/conformance-test.sh`
 - Update on-host kubelet versions (`KUBELET_IMAGE_TAG`)
-    - hack/multi-node/user-data.sample
-    - hack/single-node/user-data.sample
-    - hack/quickstart/kubelet.master
-    - hack/quickstart/kubelet.worker
+    - `hack/multi-node/user-data.sample`
+    - `hack/single-node/user-data.sample`
+    - `hack/quickstart/kubelet.master`
+    - `hack/quickstart/kubelet.worker`
 
-### Update conformance test k8s version
+## Run conformance test
 
-- hack/tests/conformance-test.sh (`CONFORMANCE_VERSION`)
-
-### Run conformance test
-
-Easiest is to use internal jenkins jobs [bootkube-development](https://jenkins.coreos.systems/job/bootkube-development/)
+Easiest is to use internal jenkins job: [bootkube-development](https://jenkins.coreos.systems/job/bootkube-development/)
 
 Or, manually:
 
@@ -48,25 +51,30 @@ git push origin vX.Y.Z
 
 ### Cut a release image
 
-Easiest is to use internal jenkins jobs (`bootkube-release`using release tag). This job will push the image to the quay.io/coreos/bootkube repo, and archive a tarball of binary releases (manually upload to github release)
+Easiest is to use internal jenkins job: [bootkube-release](https://jenkins.coreos.systems/view/Kubernetes/job/bootkube-release/).
+This job will push the image to the quay.io/coreos/bootkube repo, and archive a tarball of binary releases (manually upload to github release)
 
 Or, manually:
 
 ```
 git checkout vX.Y.Z
+make release
 PUSH_IMAGE=true ./build/build-image.sh
 ```
+
 # Updating checkpointer
 
 This only needs to happen when changes have been made to the checkpointer code / container.
 
 ### Build a new checkpointer image
 
-Easiest is to use internal jenkin jobs
+Easiest is to use internal jenkin job: [checkpointer-release](https://jenkins.coreos.systems/view/Kubernetes/job/checkpointer-release/)
 
 Or, manually:
 
 ```
+git checkout master # Checkpointer releases should only be built from commits reachable by master
+make release
 BUILD_IMAGE=checkpoint PUSH_IMAGE=true ./build/build-image.sh
 ```
 
