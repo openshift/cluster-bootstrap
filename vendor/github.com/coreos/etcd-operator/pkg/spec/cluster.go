@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	defaultVersion = "3.1.2"
+	defaultVersion = "3.1.4"
 
 	TPRKind        = "cluster"
 	TPRKindPlural  = "clusters"
@@ -45,15 +45,15 @@ func TPRName() string {
 
 type Cluster struct {
 	metav1.TypeMeta `json:",inline"`
-	Metadata        v1.ObjectMeta `json:"metadata,omitempty"`
-	Spec            ClusterSpec   `json:"spec"`
-	Status          ClusterStatus `json:"status"`
+	Metadata        metav1.ObjectMeta `json:"metadata,omitempty"`
+	Spec            ClusterSpec       `json:"spec"`
+	Status          ClusterStatus     `json:"status"`
 }
 
 func (c *Cluster) AsOwner() metav1.OwnerReference {
 	trueVar := true
 	// TODO: In 1.6 this is gonna be "k8s.io/kubernetes/pkg/apis/meta/v1"
-	// Both api.OwnerReference and metav1.OwnerReference are combined into that.
+	// Both api.OwnerReference and metatypes.OwnerReference are combined into that.
 	return metav1.OwnerReference{
 		APIVersion: c.APIVersion,
 		Kind:       c.Kind,
@@ -74,10 +74,10 @@ type ClusterSpec struct {
 	// The etcd-operator will eventually make the etcd cluster version
 	// equal to the expected version.
 	//
-	// The version must follow the [semver]( http://semver.org) format, for example "3.1.2".
+	// The version must follow the [semver]( http://semver.org) format, for example "3.1.4".
 	// Only etcd released versions are supported: https://github.com/coreos/etcd/releases
 	//
-	// If version is not set, default is "3.1.2".
+	// If version is not set, default is "3.1.4".
 	Version string `json:"version"`
 
 	// Paused is to pause the control of the operator for the etcd cluster.
@@ -100,7 +100,7 @@ type ClusterSpec struct {
 	SelfHosted *SelfHostedPolicy `json:"selfHosted,omitempty"`
 
 	// etcd cluster TLS configuration
-	TLS *TLSPolicy `json:"TLS"`
+	TLS *TLSPolicy `json:"TLS,omitempty"`
 }
 
 // RestorePolicy defines the policy to restore cluster form existing backup if not nil.
@@ -127,6 +127,9 @@ type PodPolicy struct {
 	// Resources is the resource requirements for the etcd container.
 	// This field cannot be updated once the cluster is created.
 	Resources v1.ResourceRequirements `json:"resources"`
+
+	// Tolerations specifies the pod's tolerations.
+	Tolerations []v1.Toleration `json:"tolerations"`
 }
 
 func (c *ClusterSpec) Validate() error {
@@ -136,6 +139,11 @@ func (c *ClusterSpec) Validate() error {
 	if c.Backup != nil && c.Restore != nil {
 		if c.Backup.StorageType != c.Restore.StorageType {
 			return errors.New("spec: backup and restore storage types are different")
+		}
+	}
+	if c.Backup != nil {
+		if err := c.Backup.Validate(); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -164,7 +172,7 @@ type ClusterCondition struct {
 
 	Reason string `json:"reason"`
 
-	TransitionTime time.Time `json:"transitionTime"`
+	TransitionTime string `json:"transitionTime"`
 }
 
 type ClusterConditionType string
@@ -266,7 +274,7 @@ func (cs *ClusterStatus) AppendScalingUpCondition(from, to int) {
 	c := ClusterCondition{
 		Type:           ClusterConditionScalingUp,
 		Reason:         scalingReason(from, to),
-		TransitionTime: time.Now(),
+		TransitionTime: time.Now().Format(time.RFC3339),
 	}
 	cs.appendCondition(c)
 }
@@ -275,7 +283,7 @@ func (cs *ClusterStatus) AppendScalingDownCondition(from, to int) {
 	c := ClusterCondition{
 		Type:           ClusterConditionScalingDown,
 		Reason:         scalingReason(from, to),
-		TransitionTime: time.Now(),
+		TransitionTime: time.Now().Format(time.RFC3339),
 	}
 	cs.appendCondition(c)
 }
@@ -283,7 +291,7 @@ func (cs *ClusterStatus) AppendScalingDownCondition(from, to int) {
 func (cs *ClusterStatus) AppendRecoveringCondition() {
 	c := ClusterCondition{
 		Type:           ClusterConditionRecovering,
-		TransitionTime: time.Now(),
+		TransitionTime: time.Now().Format(time.RFC3339),
 	}
 	cs.appendCondition(c)
 }
@@ -294,7 +302,7 @@ func (cs *ClusterStatus) AppendUpgradingCondition(to string, member string) {
 	c := ClusterCondition{
 		Type:           ClusterConditionUpgrading,
 		Reason:         reason,
-		TransitionTime: time.Now(),
+		TransitionTime: time.Now().Format(time.RFC3339),
 	}
 	cs.appendCondition(c)
 }
@@ -305,7 +313,7 @@ func (cs *ClusterStatus) AppendRemovingDeadMember(name string) {
 	c := ClusterCondition{
 		Type:           ClusterConditionRemovingDeadMember,
 		Reason:         reason,
-		TransitionTime: time.Now(),
+		TransitionTime: time.Now().Format(time.RFC3339),
 	}
 	cs.appendCondition(c)
 }
@@ -313,7 +321,7 @@ func (cs *ClusterStatus) AppendRemovingDeadMember(name string) {
 func (cs *ClusterStatus) SetReadyCondition() {
 	c := ClusterCondition{
 		Type:           ClusterConditionReady,
-		TransitionTime: time.Now(),
+		TransitionTime: time.Now().Format(time.RFC3339),
 	}
 
 	if len(cs.Conditions) == 0 {
