@@ -4,7 +4,7 @@
         - name: 10-version.conf
           content: |
             [Service]
-            Environment="ETCD_IMAGE_TAG=v3.1.0"
+            Environment="ETCD_IMAGE_TAG=v3.1.6"
             Environment="ETCD_NAME=default"
             Environment="ETCD_INITIAL_CLUSTER=default=https://127.0.0.1:2380"
             Environment="ETCD_INITIAL_ADVERTISE_PEER_URLS=https://127.0.0.1:2380"
