@@ -255,6 +255,7 @@ spec:
     - --secure-port=443
     - --service-account-key-file=/etc/kubernetes/secrets/service-account.pub
     - --service-cluster-ip-range={{ .ServiceCIDR }}
+    - --cloud-provider={{ .CloudProvider }}
     - --storage-backend=etcd3
     - --tls-ca-file=/etc/kubernetes/secrets/ca.crt
     - --tls-cert-file=/etc/kubernetes/secrets/apiserver.crt
@@ -488,6 +489,7 @@ spec:
     - controller-manager
     - --allocate-node-cidrs=true
     - --cluster-cidr={{ .PodCIDR }}
+    - --cloud-provider={{ .CloudProvider }}
     - --configure-cloud-routes=false
     - --kubeconfig=/etc/kubernetes/kubeconfig
     - --leader-elect=true
