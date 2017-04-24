@@ -864,7 +864,7 @@ spec:
     spec:
       containers:
       - name: etcd-operator
-        image: quay.io/coreos/etcd-operator:v0.2.4
+        image: quay.io/coreos/etcd-operator:v0.2.5
         env:
         - name: MY_POD_NAMESPACE
           valueFrom:
@@ -906,7 +906,7 @@ metadata:
 spec:
   containers:
   - name: etcd
-    image: quay.io/coreos/etcd:v3.1.0
+    image: quay.io/coreos/etcd:v3.1.6
     command:
     - /usr/local/bin/etcd
     - --name=boot-etcd
