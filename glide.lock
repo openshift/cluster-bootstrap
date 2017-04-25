@@ -1,5 +1,5 @@
-hash: d186421bf014af73d5608a2d53ced8f6de889da2aad7a900c5608724a7bdb779
-updated: 2017-04-21T16:24:35.930200789-07:00
+hash: 7f6b3974e6d5f8b08b4265d930c20c068ad9a8c4e5f44d6bd50334719bd6ffb4
+updated: 2017-04-24T17:31:52.909952284-07:00
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -16,7 +16,7 @@ imports:
   - mvcc/mvccpb
   - pkg/fileutil
 - name: github.com/coreos/etcd-operator
-  version: 7f1258989020b751b989a04097f011543dc66a5a
+  version: e6c62c0ce5e7fffbe8824fa06b0c1d5f70e2653b
   subpackages:
   - pkg/spec
 - name: github.com/coreos/go-oidc
