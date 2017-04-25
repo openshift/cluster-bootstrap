@@ -2,12 +2,12 @@ package bootkube
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/coreos/etcd/pkg/fileutil"
 	"github.com/kubernetes-incubator/bootkube/pkg/asset"
 	"github.com/kubernetes-incubator/bootkube/pkg/util/etcdutil"
 )
@@ -29,7 +29,6 @@ type Config struct {
 }
 
 type bootkube struct {
-	selfHostedEtcd  bool
 	podManifestPath string
 	assetDir        string
 }
@@ -38,7 +37,6 @@ func NewBootkube(config Config) (*bootkube, error) {
 	return &bootkube{
 		assetDir:        config.AssetDir,
 		podManifestPath: config.PodManifestPath,
-		selfHostedEtcd:  fileutil.Exist(filepath.Join(config.AssetDir, asset.AssetPathBootstrapEtcd)),
 	}, nil
 }
 
@@ -72,7 +70,12 @@ func (b *bootkube) Run() error {
 		return err
 	}
 
-	if b.selfHostedEtcd {
+	selfHostedEtcd, err := detectSelfHostedEtcd(b.assetDir, asset.AssetPathBootstrapEtcd)
+	if err != nil {
+		return err
+	}
+
+	if selfHostedEtcd {
 		requiredPods = append(requiredPods, "etcd-operator")
 	}
 
@@ -80,7 +83,7 @@ func (b *bootkube) Run() error {
 		return err
 	}
 
-	if b.selfHostedEtcd {
+	if selfHostedEtcd {
 		UserOutput("Migrating to self-hosted etcd cluster...\n")
 		var etcdServiceIP string
 		etcdServiceIP, err = detectEtcdIP(b.assetDir)
@@ -101,4 +104,17 @@ func (b *bootkube) Run() error {
 // should go to stderr.
 func UserOutput(format string, a ...interface{}) {
 	fmt.Printf(format, a...)
+}
+
+// detectSelfHostedEtcd returns true if the asset dir contains assets for bootstrap etcd.
+func detectSelfHostedEtcd(assetDir, assetPathBootstrapEtcd string) (bool, error) {
+	etcdAssetsPath := filepath.Join(assetDir, assetPathBootstrapEtcd)
+	_, err := os.Stat(etcdAssetsPath)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
 }
