@@ -357,7 +357,7 @@ spec:
     spec:
       containers:
       - name: checkpoint
-        image: quay.io/coreos/pod-checkpointer:20cf8b9a6018731a0770192f30dfa7a1941521e3
+        image: quay.io/coreos/pod-checkpointer:2cad4cac4186611a79de1969e3ea4924f02f459e
         command:
         - /checkpoint
         - --v=4
