@@ -217,7 +217,7 @@ func process(localRunningPods, localParentPods, apiParentPods, activeCheckpoints
 	// We can only make some GC decisions if we've successfully contacted an apiserver.
 	// When apiParentPods == nil, that means we were not able to get an updated list of pods.
 	removeMap := make(map[string]struct{})
-	if apiParentPods != nil {
+	if len(apiParentPods) != 0 {
 
 		// Scan for inacive checkpoints we should GC
 		for id := range inactiveCheckpoints {
