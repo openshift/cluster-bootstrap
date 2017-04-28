@@ -32,11 +32,11 @@ var (
 func Migrate(kubeConfig clientcmd.ClientConfig, etcdServiceIP string) error {
 	config, err := kubeConfig.ClientConfig()
 	if err != nil {
-		return fmt.Errorf("fail to create kube client: %v", err)
+		return fmt.Errorf("failed to create kube client config: %v", err)
 	}
 	kubecli, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return fmt.Errorf("fail to create kube client: %v", err)
+		return fmt.Errorf("failed to create kube client: %v", err)
 	}
 	restClient := kubecli.CoreV1().RESTClient()
 
@@ -44,7 +44,7 @@ func Migrate(kubeConfig clientcmd.ClientConfig, etcdServiceIP string) error {
 	if err != nil {
 		return err
 	}
-	glog.Infof("etcd cluster TPR is setup")
+	glog.Infof("created etcd cluster TPR")
 
 	ip, err := getBootEtcdPodIP(kubecli)
 	if err != nil {
@@ -53,19 +53,19 @@ func Migrate(kubeConfig clientcmd.ClientConfig, etcdServiceIP string) error {
 	glog.Infof("boot-etcd pod IP is: %s", ip)
 
 	if err := createMigratedEtcdCluster(restClient, ip); err != nil {
-		return fmt.Errorf("fail to create migrated etcd cluster: %v", err)
+		return fmt.Errorf("failed to create etcd cluster for migration: %v", err)
 	}
-	glog.Infof("etcd cluster for migration is created")
+	glog.Infof("created etcd cluster for migration")
 
 	if err := waitEtcdClusterRunning(restClient); err != nil {
-		return fmt.Errorf("wait etcd cluster running failed: %v", err)
+		return fmt.Errorf("failed to wait for etcd cluster's status to be running: %v", err)
 	}
 	glog.Info("etcd cluster for migration is now running")
 
 	if err := waitBootEtcdRemoved(etcdServiceIP); err != nil {
-		return fmt.Errorf("wait boot etcd deleted failed: %v", err)
+		return fmt.Errorf("failed to wait for boot-etcd to be removed: %v", err)
 	}
-	glog.Info("the boot etcd is removed from the migration cluster")
+	glog.Info("removed boot-etcd from the etcd cluster")
 	return nil
 }
 
@@ -86,7 +86,7 @@ func waitEtcdTPRReady(restClient restclient.Interface, interval, timeout time.Du
 		return true, nil
 	})
 	if err != nil {
-		return fmt.Errorf("fail to wait etcd TPR to be ready: %v", err)
+		return fmt.Errorf("failed to wait for etcd TPR to be ready: %v", err)
 	}
 	return nil
 }
@@ -98,7 +98,7 @@ func getBootEtcdPodIP(kubecli kubernetes.Interface) (string, error) {
 			LabelSelector: "k8s-app=boot-etcd",
 		})
 		if err != nil {
-			glog.Errorf("fail to list 'boot-etcd' pod: %v", err)
+			glog.Errorf("failed to list 'boot-etcd' pod: %v", err)
 			return false, err
 		}
 		if len(podList.Items) < 1 {
@@ -158,7 +158,7 @@ func waitEtcdClusterRunning(restclient restclient.Interface) error {
 	err := wait.Poll(10*time.Second, waitEtcdClusterRunningTime, func() (bool, error) {
 		b, err := restclient.Get().RequestURI(makeEtcdClusterURI(etcdClusterName)).DoRaw()
 		if err != nil {
-			return false, fmt.Errorf("fail to get etcdcluster: %v", err)
+			return false, fmt.Errorf("failed to get etcd cluster TPR: %v", err)
 		}
 
 		e := &spec.Cluster{}
@@ -186,7 +186,7 @@ func waitBootEtcdRemoved(etcdServiceIP string) error {
 		}
 		etcdcli, err := clientv3.New(cfg)
 		if err != nil {
-			glog.Errorf("fail to create etcd client, will retry: %v", err)
+			glog.Errorf("failed to create etcd client, will retry: %v", err)
 			return false, nil
 		}
 
@@ -195,12 +195,12 @@ func waitBootEtcdRemoved(etcdServiceIP string) error {
 		cancel()
 		etcdcli.Close()
 		if err != nil {
-			glog.Errorf("fail to list member, will retry: %v", err)
+			glog.Errorf("failed to list etcd members, will retry: %v", err)
 			return false, nil
 		}
 
 		if len(m.Members) != 1 {
-			glog.Info("Still waiting boot etcd to be deletd...")
+			glog.Info("still waiting for boot-etcd to be deleted...")
 			return false, nil
 		}
 		return true, nil
