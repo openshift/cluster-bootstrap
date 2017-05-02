@@ -22,7 +22,6 @@ contexts:
 
 	KubeSystemSARoleBindingTemplate = []byte(`apiVersion: rbac.authorization.k8s.io/v1alpha1
 kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1alpha1
 metadata:
   name: system:default-sa
 subjects:
