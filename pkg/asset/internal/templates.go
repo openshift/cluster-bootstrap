@@ -41,13 +41,13 @@ metadata:
   namespace: kube-system
   labels:
     tier: node
-    component: kubelet
+    k8s-app: kubelet
 spec:
   template:
     metadata:
       labels:
         tier: node
-        component: kubelet
+        k8s-app: kubelet
     spec:
       containers:
       - name: kubelet
@@ -139,13 +139,13 @@ metadata:
   namespace: kube-system
   labels:
     tier: control-plane
-    component: kube-apiserver
+    k8s-app: kube-apiserver
 spec:
   template:
     metadata:
       labels:
         tier: control-plane
-        component: kube-apiserver
+        k8s-app: kube-apiserver
       annotations:
         checkpointer.alpha.coreos.com/checkpoint: "true"
         scheduler.alpha.kubernetes.io/critical-pod: ''
@@ -294,13 +294,13 @@ metadata:
   namespace: kube-system
   labels:
     tier: control-plane
-    component: kube-etcd-network-checkpointer
+    k8s-app: kube-etcd-network-checkpointer
 spec:
   template:
     metadata:
       labels:
         tier: control-plane
-        component: kube-etcd-network-checkpointer
+        k8s-app: kube-etcd-network-checkpointer
       annotations:
         checkpointer.alpha.coreos.com/checkpoint: "true"
     spec:
@@ -344,13 +344,13 @@ metadata:
   namespace: kube-system
   labels:
     tier: control-plane
-    component: pod-checkpointer
+    k8s-app: pod-checkpointer
 spec:
   template:
     metadata:
       labels:
         tier: control-plane
-        component: pod-checkpointer
+        k8s-app: pod-checkpointer
       annotations:
         checkpointer.alpha.coreos.com/checkpoint: "true"
     spec:
@@ -403,14 +403,14 @@ metadata:
   namespace: kube-system
   labels:
     tier: control-plane
-    component: kube-controller-manager
+    k8s-app: kube-controller-manager
 spec:
   replicas: 2
   template:
     metadata:
       labels:
         tier: control-plane
-        component: kube-controller-manager
+        k8s-app: kube-controller-manager
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
@@ -425,7 +425,7 @@ spec:
                   operator: In
                   values:
                   - control-plane
-                - key: component
+                - key: k8s-app
                   operator: In
                   values:
                   - kube-contoller-manager
@@ -520,7 +520,7 @@ spec:
   selector:
     matchLabels:
       tier: control-plane
-      component: kube-controller-manager
+      k8s-app: kube-controller-manager
 `)
 	SchedulerTemplate = []byte(`apiVersion: extensions/v1beta1
 kind: Deployment
@@ -529,14 +529,14 @@ metadata:
   namespace: kube-system
   labels:
     tier: control-plane
-    component: kube-scheduler
+    k8s-app: kube-scheduler
 spec:
   replicas: 2
   template:
     metadata:
       labels:
         tier: control-plane
-        component: kube-scheduler
+        k8s-app: kube-scheduler
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
@@ -551,7 +551,7 @@ spec:
                   operator: In
                   values:
                   - control-plane
-                - key: component
+                - key: k8s-app
                   operator: In
                   values:
                   - kube-scheduler
@@ -613,7 +613,7 @@ spec:
   selector:
     matchLabels:
       tier: control-plane
-      component: kube-scheduler
+      k8s-app: kube-scheduler
 `)
 	ProxyTemplate = []byte(`apiVersion: "extensions/v1beta1"
 kind: DaemonSet
@@ -622,13 +622,13 @@ metadata:
   namespace: kube-system
   labels:
     tier: node
-    component: kube-proxy
+    k8s-app: kube-proxy
 spec:
   template:
     metadata:
       labels:
         tier: node
-        component: kube-proxy
+        k8s-app: kube-proxy
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
@@ -935,7 +935,7 @@ metadata:
   namespace: kube-system
   labels:
     tier: node
-    app: flannel
+    k8s-app: flannel
 data:
   cni-conf.json: |
     {
@@ -961,13 +961,13 @@ metadata:
   namespace: kube-system
   labels:
     tier: node
-    app: flannel
+    k8s-app: flannel
 spec:
   template:
     metadata:
       labels:
         tier: node
-        app: flannel
+        k8s-app: flannel
     spec:
       containers:
       - name: kube-flannel
