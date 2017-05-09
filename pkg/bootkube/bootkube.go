@@ -41,18 +41,20 @@ func NewBootkube(config Config) (*bootkube, error) {
 }
 
 func (b *bootkube) Run() error {
-	defer func() {
-		// Always clean up the bootstrap control plane and secrets.
-		if err := CleanupBootstrapControlPlane(b.assetDir, b.podManifestPath); err != nil {
-			UserOutput("Error cleaning up temporary bootstrap control plane: %v\n", err)
-		}
-	}()
-
 	// TODO(diegs): create and share a single client rather than the kubeconfig once all uses of it
 	// are migrated to client-go.
 	kubeConfig = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		&clientcmd.ClientConfigLoadingRules{ExplicitPath: filepath.Join(b.assetDir, asset.AssetPathKubeConfig)},
 		&clientcmd.ConfigOverrides{})
+
+	bcp := NewBootstrapControlPlane(b.assetDir, b.podManifestPath)
+
+	defer func() {
+		// Always tear down the bootstrap control plane and clean up manifests and secrets.
+		if err := bcp.Teardown(); err != nil {
+			UserOutput("Error tearing down temporary bootstrap control plane: %v\n", err)
+		}
+	}()
 
 	var err error
 	defer func() {
@@ -62,7 +64,7 @@ func (b *bootkube) Run() error {
 		}
 	}()
 
-	if err = CreateBootstrapControlPlane(b.assetDir, b.podManifestPath); err != nil {
+	if err = bcp.Start(); err != nil {
 		return err
 	}
 
