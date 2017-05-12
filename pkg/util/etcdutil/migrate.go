@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kubernetes-incubator/bootkube/pkg/asset"
+
 	"github.com/coreos/etcd-operator/pkg/spec"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/golang/glog"
@@ -29,7 +31,7 @@ var (
 	waitBootEtcdRemovedTime    = 300 * time.Second
 )
 
-func Migrate(kubeConfig clientcmd.ClientConfig, etcdServiceIP string) error {
+func Migrate(kubeConfig clientcmd.ClientConfig) error {
 	config, err := kubeConfig.ClientConfig()
 	if err != nil {
 		return fmt.Errorf("failed to create kube client config: %v", err)
@@ -50,7 +52,11 @@ func Migrate(kubeConfig clientcmd.ClientConfig, etcdServiceIP string) error {
 	if err != nil {
 		return err
 	}
-	glog.Infof("boot-etcd pod IP is: %s", ip)
+	etcdServiceIP, err := getServiceIP(kubecli, api.NamespaceSystem, asset.EtcdServiceName)
+	if err != nil {
+		return err
+	}
+	glog.Infof("boot-etcd pod IP is: %s, etcd-service IP is %s", ip, etcdServiceIP)
 
 	if err := createMigratedEtcdCluster(restClient, ip); err != nil {
 		return fmt.Errorf("failed to create etcd cluster for migration: %v", err)
@@ -176,6 +182,14 @@ func waitEtcdClusterRunning(restclient restclient.Interface) error {
 		}
 	})
 	return err
+}
+
+func getServiceIP(kubecli kubernetes.Interface, ns, svcName string) (string, error) {
+	svc, err := kubecli.CoreV1().Services(ns).Get(svcName, v1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	return svc.Spec.ClusterIP, nil
 }
 
 func waitBootEtcdRemoved(etcdServiceIP string) error {

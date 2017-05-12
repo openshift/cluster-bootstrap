@@ -87,12 +87,7 @@ func (b *bootkube) Run() error {
 
 	if selfHostedEtcd {
 		UserOutput("Migrating to self-hosted etcd cluster...\n")
-		var etcdServiceIP string
-		etcdServiceIP, err = detectEtcdIP(b.assetDir)
-		if err != nil {
-			return err
-		}
-		if err = etcdutil.Migrate(kubeConfig, etcdServiceIP); err != nil {
+		if err = etcdutil.Migrate(kubeConfig); err != nil {
 			return err
 		}
 	}

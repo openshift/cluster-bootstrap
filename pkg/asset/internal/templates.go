@@ -884,7 +884,7 @@ spec:
 	EtcdSvcTemplate = []byte(`apiVersion: v1
 kind: Service
 metadata:
-  name: etcd-service
+  name: {{ .EtcdServiceName }}
   namespace: kube-system
 spec:
   selector:

@@ -75,6 +75,7 @@ type Config struct {
 	APIServiceIP           net.IP
 	DNSServiceIP           net.IP
 	EtcdServiceIP          net.IP
+	EtcdServiceName        string
 	SelfHostKubelet        bool
 	SelfHostedEtcd         bool
 	CloudProvider          string
