@@ -6,6 +6,7 @@ KUBECONFIG=$2
 REMOTE_PORT=${REMOTE_PORT:-22}
 IDENT=${IDENT:-${HOME}/.ssh/id_rsa}
 SSH_OPTS=${SSH_OPTS:-}
+TAG_MASTER=${TAG_MASTER:-false}
 
 function usage() {
     echo "USAGE:"
@@ -23,7 +24,7 @@ function init_worker_node() {
     # CA here manually.
     grep 'certificate-authority-data' ${KUBECONFIG} | awk '{print $2}' | base64 -d > /etc/kubernetes/ca.crt
 
-    mv /home/core/kubelet.worker /etc/systemd/system/kubelet.service
+    mv /home/core/kubelet.service /etc/systemd/system/kubelet.service
 
     # Start services
     systemctl daemon-reload
@@ -38,7 +39,11 @@ function init_worker_node() {
 if [ "${REMOTE_HOST}" != "local" ]; then
 
     # Copy kubelet service file and kubeconfig to remote host
-    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} kubelet.worker core@${REMOTE_HOST}:/home/core/kubelet.worker
+    if [ "$TAG_MASTER" = true ] ; then
+        scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} kubelet.master core@${REMOTE_HOST}:/home/core/kubelet.service
+    else
+        scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} kubelet.worker core@${REMOTE_HOST}:/home/core/kubelet.service
+    fi
     scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${KUBECONFIG} core@${REMOTE_HOST}:/home/core/kubeconfig
 
     # Copy self to remote host so script can be executed in "local" mode
