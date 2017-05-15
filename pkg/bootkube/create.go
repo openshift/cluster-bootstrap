@@ -109,6 +109,7 @@ func createAssets(manifestDir string) error {
 		obj, err := resource.NewHelper(info.Client, info.Mapping).Create(info.Namespace, true, info.Object)
 		if err != nil {
 			if apierrors.IsAlreadyExists(err) {
+				count++
 				return nil
 			}
 			return cmdutil.AddSourceToErr("creating", info.Source, err)
