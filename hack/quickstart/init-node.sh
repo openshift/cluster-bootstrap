@@ -47,11 +47,11 @@ if [ "${REMOTE_HOST}" != "local" ]; then
     scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${KUBECONFIG} core@${REMOTE_HOST}:/home/core/kubeconfig
 
     # Copy self to remote host so script can be executed in "local" mode
-    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${BASH_SOURCE[0]} core@${REMOTE_HOST}:/home/core/init-worker.sh
-    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "sudo /home/core/init-worker.sh local /home/core/kubeconfig"
+    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${BASH_SOURCE[0]} core@${REMOTE_HOST}:/home/core/init-node.sh
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "sudo /home/core/init-node.sh local /home/core/kubeconfig"
 
     # Cleanup
-    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "rm /home/core/init-worker.sh"
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "rm /home/core/init-node.sh"
 
     echo
     echo "Node bootstrap complete. It may take a few minutes for the node to become ready. Access your kubernetes cluster using:"

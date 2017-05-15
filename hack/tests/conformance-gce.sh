@@ -22,7 +22,7 @@ set -euo pipefail
 #   - Use gcloud to launch master node
 #     - Use the quickstart init-master.sh script to run bootkube on that node
 #   - Use gcloud to launch worker node(s)
-#     - Use the quickstart init-worker.sh script to join node to kubernetes cluster
+#     - Use the quickstart init-node.sh script to join node to kubernetes cluster
 #   - Run conformance tests against the launched cluster
 #
 COREOS_CHANNEL=${COREOS_CHANNEL:-'coreos-stable'}
@@ -83,7 +83,7 @@ function add_workers {
         sleep 30 # TODO(aaron) Have seen "Too many authentication failures" in CI jobs. This seems to help, but should dig into why
         echo "Getting worker public IP"
         local WORKER_IP=$(gcloud compute instances list ${GCE_PREFIX}-w${i} --format=json | jq --raw-output '.[].networkInterfaces[].accessConfigs[].natIP')
-        cd /build/bootkube/hack/quickstart && SSH_OPTS="-o StrictHostKeyChecking=no" ./init-worker.sh ${WORKER_IP} /build/cluster/auth/kubeconfig
+        cd /build/bootkube/hack/quickstart && SSH_OPTS="-o StrictHostKeyChecking=no" ./init-node.sh ${WORKER_IP} /build/cluster/auth/kubeconfig
     done
 }
 

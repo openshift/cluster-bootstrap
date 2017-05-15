@@ -68,7 +68,7 @@ $ kubectl --kubeconfig=cluster/auth/kubeconfig get nodes
 Run the `Launch Nodes` step for each additional node you wish to add, then using the public-ip, run:
 
 ```
-IDENT=${CLUSTER_PREFIX}-key.pem ./init-worker.sh <PUBLIC_IP> cluster/auth/kubeconfig
+IDENT=${CLUSTER_PREFIX}-key.pem ./init-node.sh <PUBLIC_IP> cluster/auth/kubeconfig
 ```
 
 **NOTE:** It can take a few minutes for each node to download all of the required assets / containers.

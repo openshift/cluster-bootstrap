@@ -53,7 +53,7 @@ $ gcloud compute instances list ${CLUSTER_PREFIX}-core3
 Initialize each worker node by replacing `<node-ip>` with the EXTERNAL_IP from the commands above.
 
 ```
-$ IDENT=~/.ssh/google_compute_engine ./init-worker.sh <node-ip> cluster/auth/kubeconfig
+$ IDENT=~/.ssh/google_compute_engine ./init-node.sh <node-ip> cluster/auth/kubeconfig
 ```
 
 **NOTE:** It can take a few minutes for each node to download all of the required assets / containers.
