@@ -27,6 +27,12 @@ variable "num_workers" {
   default     = "1"
 }
 
+variable "additional_masters" {
+  description = "number of additional master nodes not including bootstrap node"
+  type        = "string"
+  default     = "0"
+}
+
 variable "region" {
   description = "aws region"
   type        = "string"

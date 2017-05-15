@@ -25,6 +25,17 @@ resource "aws_instance" "worker_node" {
   }
 }
 
+resource "aws_instance" "master_node" {
+  ami           = "${data.aws_ami.coreos_ami.image_id}"
+  instance_type = "m3.medium"
+  key_name      = "${var.ssh_key}"
+  count         = "${var.additional_masters}"
+
+  tags {
+    Name = "${var.instance_tags}"
+  }
+}
+
 data "aws_ami" "coreos_ami" {
   most_recent = true
 
