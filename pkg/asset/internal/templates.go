@@ -875,6 +875,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
       tolerations:
       - key: node-role.kubernetes.io/master
         operator: Exists
