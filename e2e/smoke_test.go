@@ -19,7 +19,7 @@ func TestSmoke(t *testing.T) {
 	}
 	d, ok := di.(*v1beta1.Deployment)
 	if !ok {
-		t.Fatalf("expected manifest to decode into *api.Service, got %T", di)
+		t.Fatalf("expected manifest to decode into *api.deployment, got %T", di)
 	}
 	_, err = client.ExtensionsV1beta1().Deployments(namespace).Create(d)
 	if err != nil {
