@@ -57,7 +57,7 @@ function init_master_node() {
     fi
 
     # Render cluster assets
-    /home/${REMOTE_USER}/bootkube render --asset-dir=/home/${REMOTE_USER}/assets ${etcd_render_flags} \
+    /home/${REMOTE_USER}/bootkube render --asset-dir=/home/${REMOTE_USER}/assets ${etcd_render_flags} --experimental-calico-network-policy \
       --api-servers=https://${COREOS_PUBLIC_IPV4}:443,https://${COREOS_PRIVATE_IPV4}:443
 
     # Move the local kubeconfig into expected location

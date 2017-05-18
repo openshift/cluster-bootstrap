@@ -35,7 +35,6 @@ func newStaticAssets(imageVersions ImageVersions) Assets {
 		MustCreateAssetFromTemplate(AssetPathControllerManagerDisruption, internal.ControllerManagerDisruptionTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathKubeDNSDeployment, internal.DNSDeploymentTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathCheckpointer, internal.CheckpointerTemplate, conf),
-		MustCreateAssetFromTemplate(AssetPathKubeFlannel, internal.KubeFlannelTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathKubeSystemSARoleBinding, internal.KubeSystemSARoleBindingTemplate, conf),
 	}
 	return assets
@@ -47,6 +46,7 @@ func newDynamicAssets(conf Config) Assets {
 		MustCreateAssetFromTemplate(AssetPathAPIServer, internal.APIServerTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathProxy, internal.ProxyTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathKubeFlannelCfg, internal.KubeFlannelCfgTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathKubeFlannel, internal.KubeFlannelTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathKubeDNSSvc, internal.DNSSvcTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathBootstrapAPIServer, internal.BootstrapAPIServerTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathBootstrapControllerManager, internal.BootstrapControllerManagerTemplate, conf),
@@ -64,6 +64,14 @@ func newDynamicAssets(conf Config) Assets {
 			MustCreateAssetFromTemplate(AssetPathBootstrapEtcd, internal.BootstrapEtcdTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathBootstrapEtcdService, internal.BootstrapEtcdSvcTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathMigrateEtcdCluster, internal.EtcdTPRTemplate, conf))
+	}
+	if conf.CalicoNetworkPolicy {
+		assets = append(assets,
+			MustCreateAssetFromTemplate(AssetPathKubeCalicoCfg, internal.KubeCalicoCfgTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathKubeCalcioRole, internal.KubeCalicoRoleTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathKubeCalcioRoleBinding, internal.KubeCalicoRoleBindingTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathKubeCalcioSA, internal.KubeCalicoServiceAccountTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathKubeCalico, internal.KubeCalicoTemplate, conf))
 	}
 	return assets
 }

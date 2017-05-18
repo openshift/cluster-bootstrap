@@ -44,6 +44,11 @@ const (
 	AssetPathProxy                          = "manifests/kube-proxy.yaml"
 	AssetPathKubeFlannel                    = "manifests/kube-flannel.yaml"
 	AssetPathKubeFlannelCfg                 = "manifests/kube-flannel-cfg.yaml"
+	AssetPathKubeCalico                     = "manifests/kube-calico.yaml"
+	AssetPathKubeCalicoCfg                  = "manifests/kube-calico-cfg.yaml"
+	AssetPathKubeCalcioSA                   = "manifests/kube-calico-sa.yaml"
+	AssetPathKubeCalcioRole                 = "manifests/kube-calico-role.yaml"
+	AssetPathKubeCalcioRoleBinding          = "manifests/kube-calico-role-binding.yaml"
 	AssetPathAPIServerSecret                = "manifests/kube-apiserver-secret.yaml"
 	AssetPathAPIServer                      = "manifests/kube-apiserver.yaml"
 	AssetPathControllerManager              = "manifests/kube-controller-manager.yaml"
@@ -96,17 +101,21 @@ type Config struct {
 	EtcdServiceName        string
 	SelfHostKubelet        bool
 	SelfHostedEtcd         bool
+	CalicoNetworkPolicy    bool
 	CloudProvider          string
 	BootstrapSecretsSubdir string
 	Images                 ImageVersions
+	CNIRelease             string
 }
 
 // ImageVersions holds all the images (and their versions) that are rendered into the templates.
 type ImageVersions struct {
-	Busybox         string
+	Alpine          string
 	Etcd            string
 	EtcdOperator    string
 	Flannel         string
+	Calico          string
+	CalicoCNI       string
 	Hyperkube       string
 	Kenc            string
 	KubeDNS         string
