@@ -19,13 +19,13 @@ type SSHClient struct {
 }
 
 func InitSSHClient(keypath string) {
-	sshClient = NewSSHClientOrDie(keypath)
+	sshClient = newSSHClientOrDie(keypath)
 }
 
-// NewSSHClientOrDie tries to create an ssh client.
+// newSSHClientOrDie tries to create an ssh client.
 // If $SSH_AUTH_SOCK is set, the use the ssh agent to create the client,
 // otherwise read the private key directly.
-func NewSSHClientOrDie(keypath string) *SSHClient {
+func newSSHClientOrDie(keypath string) *SSHClient {
 	var authMethod ssh.AuthMethod
 
 	sock := os.Getenv("SSH_AUTH_SOCK")
