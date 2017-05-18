@@ -27,40 +27,40 @@ type staticConfig struct {
 func newStaticAssets(imageVersions ImageVersions) Assets {
 	conf := staticConfig{Images: imageVersions}
 	assets := Assets{
-		mustCreateAssetFromTemplate(AssetPathScheduler, internal.SchedulerTemplate, conf),
-		mustCreateAssetFromTemplate(AssetPathSchedulerDisruption, internal.SchedulerDisruptionTemplate, conf),
-		mustCreateAssetFromTemplate(AssetPathControllerManagerDisruption, internal.ControllerManagerDisruptionTemplate, conf),
-		mustCreateAssetFromTemplate(AssetPathKubeDNSDeployment, internal.DNSDeploymentTemplate, conf),
-		mustCreateAssetFromTemplate(AssetPathCheckpointer, internal.CheckpointerTemplate, conf),
-		mustCreateAssetFromTemplate(AssetPathKubeFlannel, internal.KubeFlannelTemplate, conf),
-		mustCreateAssetFromTemplate(AssetPathKubeSystemSARoleBinding, internal.KubeSystemSARoleBindingTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathScheduler, internal.SchedulerTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathSchedulerDisruption, internal.SchedulerDisruptionTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathControllerManagerDisruption, internal.ControllerManagerDisruptionTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathKubeDNSDeployment, internal.DNSDeploymentTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathCheckpointer, internal.CheckpointerTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathKubeFlannel, internal.KubeFlannelTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathKubeSystemSARoleBinding, internal.KubeSystemSARoleBindingTemplate, conf),
 	}
 	return assets
 }
 
 func newDynamicAssets(conf Config) Assets {
 	assets := Assets{
-		mustCreateAssetFromTemplate(AssetPathControllerManager, internal.ControllerManagerTemplate, conf),
-		mustCreateAssetFromTemplate(AssetPathAPIServer, internal.APIServerTemplate, conf),
-		mustCreateAssetFromTemplate(AssetPathProxy, internal.ProxyTemplate, conf),
-		mustCreateAssetFromTemplate(AssetPathKubeFlannelCfg, internal.KubeFlannelCfgTemplate, conf),
-		mustCreateAssetFromTemplate(AssetPathKubeDNSSvc, internal.DNSSvcTemplate, conf),
-		mustCreateAssetFromTemplate(AssetPathBootstrapAPIServer, internal.BootstrapAPIServerTemplate, conf),
-		mustCreateAssetFromTemplate(AssetPathBootstrapControllerManager, internal.BootstrapControllerManagerTemplate, conf),
-		mustCreateAssetFromTemplate(AssetPathBootstrapScheduler, internal.BootstrapSchedulerTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathControllerManager, internal.ControllerManagerTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathAPIServer, internal.APIServerTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathProxy, internal.ProxyTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathKubeFlannelCfg, internal.KubeFlannelCfgTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathKubeDNSSvc, internal.DNSSvcTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathBootstrapAPIServer, internal.BootstrapAPIServerTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathBootstrapControllerManager, internal.BootstrapControllerManagerTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathBootstrapScheduler, internal.BootstrapSchedulerTemplate, conf),
 	}
 	if conf.SelfHostKubelet {
-		assets = append(assets, mustCreateAssetFromTemplate(AssetPathKubelet, internal.KubeletTemplate, conf))
+		assets = append(assets, MustCreateAssetFromTemplate(AssetPathKubelet, internal.KubeletTemplate, conf))
 	}
 	if conf.SelfHostedEtcd {
 		conf.EtcdServiceName = EtcdServiceName
 		assets = append(assets,
-			mustCreateAssetFromTemplate(AssetPathEtcdOperator, internal.EtcdOperatorTemplate, conf),
-			mustCreateAssetFromTemplate(AssetPathEtcdSvc, internal.EtcdSvcTemplate, conf),
-			mustCreateAssetFromTemplate(AssetPathKenc, internal.KencTemplate, conf),
-			mustCreateAssetFromTemplate(AssetPathBootstrapEtcd, internal.BootstrapEtcdTemplate, conf),
-			mustCreateAssetFromTemplate(AssetPathBootstrapEtcdService, internal.BootstrapEtcdSvcTemplate, conf),
-			mustCreateAssetFromTemplate(AssetPathMigrateEtcdCluster, internal.EtcdTPRTemplate, conf))
+			MustCreateAssetFromTemplate(AssetPathEtcdOperator, internal.EtcdOperatorTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathEtcdSvc, internal.EtcdSvcTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathKenc, internal.KencTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathBootstrapEtcd, internal.BootstrapEtcdTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathBootstrapEtcdService, internal.BootstrapEtcdSvcTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathMigrateEtcdCluster, internal.EtcdTPRTemplate, conf))
 	}
 	return assets
 }
@@ -163,7 +163,7 @@ func secretFromAssets(name, namespace string, assetNames []string, assets Assets
 	})
 }
 
-func mustCreateAssetFromTemplate(name string, template []byte, data interface{}) Asset {
+func MustCreateAssetFromTemplate(name string, template []byte, data interface{}) Asset {
 	a, err := assetFromTemplate(name, template, data)
 	if err != nil {
 		panic(err)

@@ -185,14 +185,18 @@ func (as Assets) WriteFiles(path string) error {
 		return err
 	}
 	for _, asset := range as {
-		f := filepath.Join(path, asset.Name)
-		if err := os.MkdirAll(filepath.Dir(f), 0755); err != nil {
-			return err
-		}
-		fmt.Printf("Writing asset: %s\n", f)
-		if err := ioutil.WriteFile(f, asset.Data, 0600); err != nil {
+		if err := asset.WriteFile(path); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (a Asset) WriteFile(path string) error {
+	f := filepath.Join(path, a.Name)
+	if err := os.MkdirAll(filepath.Dir(f), 0755); err != nil {
+		return err
+	}
+	fmt.Printf("Writing asset: %s\n", f)
+	return ioutil.WriteFile(f, a.Data, 0600)
 }
