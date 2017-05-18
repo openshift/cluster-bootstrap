@@ -14,16 +14,20 @@ import (
 )
 
 // global client for use by all tests
-var client kubernetes.Interface
+var (
+	client          kubernetes.Interface
+	expectedMasters int // hint for tests to figure out how to fail or block on resources missing
+)
 
 // non-configurable for now
 const namespace = "bootkube-e2e-testing"
 
 // TestMain handles setup before all tests
 func TestMain(m *testing.M) {
-	var (
-		kubeconfig = flag.String("kubeconfig", "../hack/quickstart/cluster/auth/kubeconfig", "absolute path to the kubeconfig file")
-	)
+
+	var kubeconfig = flag.String("kubeconfig", "../hack/quickstart/cluster/auth/kubeconfig", "absolute path to the kubeconfig file")
+	flag.IntVar(&expectedMasters, "expectedmasters", 1, "hint needed for certain tests to fail, skip, or block on missing resources")
+
 	flag.Parse()
 
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
