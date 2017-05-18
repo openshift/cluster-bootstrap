@@ -6,8 +6,11 @@ package recovery
 import (
 	"context"
 	"fmt"
+	"os"
 	"path"
 	"strings"
+
+	"github.com/kubernetes-incubator/bootkube/pkg/asset"
 
 	"github.com/coreos/etcd/clientv3"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -95,4 +98,29 @@ func (s *etcdBackend) list(ctx context.Context, key string, listObj runtime.Obje
 		elems[i] = kv.Value
 	}
 	return decodeList(elems, listPtr, s.decoder)
+}
+
+const assetPathRecoveryEtcd = "recovery-etcd.yaml"
+
+func StartRecoveryEtcdForBackup(p, backupPath string) error {
+	d, f := path.Split(backupPath)
+
+	config := struct {
+		Image      string
+		BackupFile string
+		BackupDir  string
+	}{
+		// TODO: this already exists in bootkube/cmd.
+		// do not duplicate this!
+		Image:      "quay.io/coreos/etcd:v3.1.6",
+		BackupFile: f,
+		BackupDir:  d,
+	}
+
+	as := asset.MustCreateAssetFromTemplate(assetPathRecoveryEtcd, RecoveryEtcdTemplate, config)
+	return as.WriteFile(p)
+}
+
+func CleanRecoveryEtcd(p string) error {
+	return os.Remove(path.Join(p, assetPathRecoveryEtcd))
 }
