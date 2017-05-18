@@ -57,7 +57,7 @@ var (
 	imageVersions = asset.ImageVersions{
 		Busybox:         "busybox",
 		Etcd:            "quay.io/coreos/etcd:v3.1.6",
-		EtcdOperator:    "quay.io/coreos/etcd-operator:v0.2.6",
+		EtcdOperator:    "quay.io/coreos/etcd-operator:v0.3.0",
 		Flannel:         "quay.io/coreos/flannel:v0.7.1-amd64",
 		Hyperkube:       "quay.io/coreos/hyperkube:v1.6.2_coreos.0",
 		Kenc:            "quay.io/coreos/kenc:48b6feceeee56c657ea9263f47b6ea091e8d3035",
