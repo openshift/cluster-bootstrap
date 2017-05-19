@@ -1,5 +1,5 @@
-hash: dc048d7dbbd06fc9a7f7fa5e2e9d1663fc9c93793f3a18e95d8abbe489ccfdf5
-updated: 2017-05-17T15:18:03.445669876-07:00
+hash: d48f731e2b85a94620868e8fbdb3069cb376a80c1c7bd551310a0a9750f22994
+updated: 2017-05-19T01:15:07.652194201Z
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -139,6 +139,9 @@ imports:
 - name: golang.org/x/crypto
   version: 0fe963104e9d1877082f8fb38f816fcd97eb1d10
   subpackages:
+  - curve25519
+  - ed25519
+  - ed25519/internal/edwards25519
   - ssh
   - ssh/agent
   - ssh/terminal

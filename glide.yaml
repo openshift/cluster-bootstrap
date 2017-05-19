@@ -44,3 +44,4 @@ import:
   subpackages:
   - ssh
   - ssh/agent
+  - curve25519
