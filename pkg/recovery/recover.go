@@ -15,6 +15,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"strings"
 
 	"github.com/ghodss/yaml"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -28,16 +29,17 @@ import (
 )
 
 const (
-	k8sAppLabel           = "k8s-app"   // The label used in versions > v0.4.2
-	componentAppLabel     = "component" // The label used in versions <= v0.4.2
-	kubeletKubeConfigPath = "/etc/kubernetes"
+	k8sAppLabel            = "k8s-app"   // The label used in versions > v0.4.2
+	componentAppLabel      = "component" // The label used in versions <= v0.4.2
+	kubeletKubeConfigPath  = "/etc/kubernetes"
+	apiServerContainerName = "kube-apiserver"
 )
 
 var (
 	// bootstrapK8sApps contains the components (as identified by the the label "k8s-app") that we
 	// will extract to construct the temporary bootstrap control plane.
 	bootstrapK8sApps = map[string]struct{}{
-		"kube-apiserver":          {},
+		apiServerContainerName:    {},
 		"kube-controller-manager": {},
 		"kube-scheduler":          {},
 	}
@@ -79,6 +81,11 @@ type controlPlane struct {
 	daemonSets  v1beta1.DaemonSetList
 	deployments v1beta1.DeploymentList
 	secrets     v1.SecretList
+
+	// for self hosted etcd recovery if not nil
+	bootEtcd        *asset.Asset
+	bootEtcdService *asset.Asset
+	tpr             *asset.Asset
 }
 
 // Recover recovers a control plane using the provided backend and kubeConfigPath, returning assets
@@ -112,7 +119,7 @@ func (cp *controlPlane) renderBootstrap() (asset.Assets, error) {
 	if err != nil {
 		return nil, err
 	}
-	requiredConfigMaps, requiredSecrets := fixUpBootstrapPods(pods)
+	requiredConfigMaps, requiredSecrets := fixUpBootstrapPods(pods, cp.bootEtcd != nil)
 	as, err := outputBootstrapPods(pods)
 	if err != nil {
 		return nil, err
@@ -127,6 +134,11 @@ func (cp *controlPlane) renderBootstrap() (asset.Assets, error) {
 		return nil, err
 	}
 	as = append(as, secrets...)
+	if cp.bootEtcd != nil {
+		as = append(as, *cp.bootEtcd)
+		as = append(as, *cp.bootEtcdService)
+		as = append(as, *cp.tpr)
+	}
 	return as, nil
 }
 
@@ -182,7 +194,8 @@ func setBootstrapPodMetadata(pod *v1.Pod, parent metav1.ObjectMeta) error {
 // fixUpBootstrapPods modifies extracted bootstrap pod specs to have correct metadata and point to
 // filesystem-mount-based secrets. It returns mappings from configMap and secret names to output
 // paths that must also be rendered in order for the bootstrap pods to be functional.
-func fixUpBootstrapPods(pods []v1.Pod) (requiredConfigMaps, requiredSecrets map[string]string) {
+// If selfHostedEtcd is true, it also fixes up the etcd servers flag for the API server.
+func fixUpBootstrapPods(pods []v1.Pod, selfHostedEtcd bool) (requiredConfigMaps, requiredSecrets map[string]string) {
 	requiredConfigMaps, requiredSecrets = make(map[string]string), make(map[string]string)
 	for i := range pods {
 		pod := &pods[i]
@@ -214,6 +227,14 @@ func fixUpBootstrapPods(pods []v1.Pod) (requiredConfigMaps, requiredSecrets map[
 					Name:      "kubeconfig",
 					ReadOnly:  true,
 				})
+			}
+
+			if selfHostedEtcd && cn.Name == apiServerContainerName {
+				for i, cm := range cn.Command {
+					if strings.Contains(cm, "--etcd-servers") {
+						cn.Command[i] = cm + ",http://127.0.0.1:12379"
+					}
+				}
 			}
 		}
 

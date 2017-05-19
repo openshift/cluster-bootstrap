@@ -12,7 +12,7 @@ import (
 // WaitClusterReady waits the etcd server ready to serve client requests.
 func WaitClusterReady(endpoint string) error {
 	err := wait.Poll(pollInterval, pollTimeout, func() (bool, error) {
-		resp, err := http.Get(fmt.Sprintf("http://%s/version", endpoint))
+		resp, err := http.Get(fmt.Sprintf("%s/version", endpoint))
 		if err != nil {
 			glog.Infof("could not read from etcd: %v", err)
 			return false, nil

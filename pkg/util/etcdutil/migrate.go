@@ -116,7 +116,7 @@ func createBootstrapEtcdService(kubecli kubernetes.Interface, svcPath string) er
 	}
 
 	// Wait for the service to be reachable (sometimes this takes a little while).
-	if err := WaitClusterReady(svc.Spec.ClusterIP + ":12379"); err != nil {
+	if err := WaitClusterReady("http://" + svc.Spec.ClusterIP + ":12379"); err != nil {
 		return fmt.Errorf("timed out waiting for bootstrap etcd service: %s", err)
 	}
 	return nil

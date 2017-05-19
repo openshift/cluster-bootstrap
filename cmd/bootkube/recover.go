@@ -13,6 +13,7 @@ import (
 
 	"github.com/kubernetes-incubator/bootkube/pkg/bootkube"
 	"github.com/kubernetes-incubator/bootkube/pkg/recovery"
+	"github.com/kubernetes-incubator/bootkube/pkg/util/etcdutil"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/spf13/cobra"
@@ -73,27 +74,30 @@ func runCmdRecover(cmd *cobra.Command, args []string) error {
 	case recoverOpts.etcdBackupFile != "":
 		bootkube.UserOutput("Attempting recovery using etcd backup file at %q...\n", recoverOpts.etcdBackupFile)
 
-		err := recovery.StartRecoveryEtcdForBackup(recoverOpts.podManifestPath, recoverOpts.etcdBackupFile)
+		err = recovery.StartRecoveryEtcdForBackup(recoverOpts.podManifestPath, recoverOpts.etcdBackupFile)
 		if err != nil {
 			return err
 		}
 		defer func() {
-			err := recovery.CleanRecoveryEtcd(recoverOpts.podManifestPath)
+			err = recovery.CleanRecoveryEtcd(recoverOpts.podManifestPath)
 			if err != nil {
 				bootkube.UserOutput("Failed to cleanup recovery etcd from the podManifestPath %v\n", recoverOpts.podManifestPath)
 			}
 		}()
 
 		bootkube.UserOutput("Waiting for etcd server to start...\n")
-		// TODO: better way to detect the startup...
-		time.Sleep(60 * time.Second)
 
-		recoverOpts.etcdServers = "http://localhost:32379"
+		err = etcdutil.WaitClusterReady(recovery.RecoveryEtcdClientAddr)
+		if err != nil {
+			return err
+		}
+
+		recoverOpts.etcdServers = recovery.RecoveryEtcdClientAddr
 		etcdClient, err := createEtcdClient()
 		if err != nil {
 			return err
 		}
-		backend = recovery.NewEtcdBackend(etcdClient, recoverOpts.etcdPrefix)
+		backend = recovery.NewSelfHostedEtcdBackend(etcdClient, recoverOpts.etcdPrefix, recoverOpts.etcdBackupFile)
 
 	default:
 		bootkube.UserOutput("Attempting recovery using apiserver at %q...\n", recoverOpts.kubeConfigPath)
@@ -122,6 +126,9 @@ func validateRecoverOpts(cmd *cobra.Command, args []string) error {
 	}
 	if recoverOpts.kubeConfigPath == "" {
 		return errors.New("missing required flag: --kubeconfig")
+	}
+	if recoverOpts.etcdBackupFile != "" && recoverOpts.podManifestPath == "" {
+		return errors.New("missing required flag: --pod-manifest-path (--etcd-backup-file flag is specified)")
 	}
 	return nil
 }
