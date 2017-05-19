@@ -11,15 +11,8 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
-// The global SSH client used by the tests.
-var sshClient *SSHClient
-
 type SSHClient struct {
 	*ssh.ClientConfig
-}
-
-func InitSSHClient(keypath string) {
-	sshClient = newSSHClientOrDie(keypath)
 }
 
 // newSSHClientOrDie tries to create an ssh client.

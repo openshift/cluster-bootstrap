@@ -13,9 +13,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// global client for use by all tests
+// global clients for use by all tests
 var (
 	client          kubernetes.Interface
+	sshClient       *SSHClient
 	expectedMasters int // hint for tests to figure out how to fail or block on resources missing
 )
 
@@ -24,8 +25,8 @@ const namespace = "bootkube-e2e-testing"
 
 // TestMain handles setup before all tests
 func TestMain(m *testing.M) {
-
 	var kubeconfig = flag.String("kubeconfig", "../hack/quickstart/cluster/auth/kubeconfig", "absolute path to the kubeconfig file")
+	var keypath = flag.String("keypath", "", "path to private key for ssh client")
 	flag.IntVar(&expectedMasters, "expectedmasters", 1, "hint needed for certain tests to fail, skip, or block on missing resources")
 
 	flag.Parse()
@@ -46,6 +47,9 @@ func TestMain(m *testing.M) {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+
+	// create ssh client
+	sshClient = newSSHClientOrDie(*keypath)
 
 	// createNamespace
 	if _, err := createNamespace(client, namespace); err != nil {
