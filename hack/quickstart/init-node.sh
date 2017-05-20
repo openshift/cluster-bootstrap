@@ -7,6 +7,7 @@ REMOTE_PORT=${REMOTE_PORT:-22}
 IDENT=${IDENT:-${HOME}/.ssh/id_rsa}
 SSH_OPTS=${SSH_OPTS:-}
 TAG_MASTER=${TAG_MASTER:-false}
+CLOUD_PROVIDER=${CLOUD_PROVIDER:-}
 
 function usage() {
     echo "USAGE:"
@@ -25,6 +26,9 @@ function init_worker_node() {
     grep 'certificate-authority-data' ${KUBECONFIG} | awk '{print $2}' | base64 -d > /etc/kubernetes/ca.crt
 
     mv /home/core/kubelet.service /etc/systemd/system/kubelet.service
+
+    # Set cloud provider
+    sed -i "s/cloud-provider=/cloud-provider=$CLOUD_PROVIDER/" /etc/systemd/system/kubelet.service
 
     # Start services
     systemctl daemon-reload
@@ -48,7 +52,7 @@ if [ "${REMOTE_HOST}" != "local" ]; then
 
     # Copy self to remote host so script can be executed in "local" mode
     scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${BASH_SOURCE[0]} core@${REMOTE_HOST}:/home/core/init-node.sh
-    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "sudo /home/core/init-node.sh local /home/core/kubeconfig"
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "sudo CLOUD_PROVIDER=${CLOUD_PROVIDER} /home/core/init-node.sh local /home/core/kubeconfig"
 
     # Cleanup
     ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "rm /home/core/init-node.sh"

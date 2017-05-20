@@ -5,9 +5,10 @@ provider "aws" {
 }
 
 resource "aws_instance" "bootstrap_node" {
-  ami           = "${data.aws_ami.coreos_ami.image_id}"
-  instance_type = "m3.medium"
-  key_name      = "${var.ssh_key}"
+  ami                  = "${data.aws_ami.coreos_ami.image_id}"
+  instance_type        = "m3.medium"
+  key_name             = "${var.ssh_key}"
+  iam_instance_profile = "${aws_iam_instance_profile.bk_profile.id}"
 
   tags {
     Name = "${var.instance_tags}"
@@ -15,10 +16,11 @@ resource "aws_instance" "bootstrap_node" {
 }
 
 resource "aws_instance" "worker_node" {
-  ami           = "${data.aws_ami.coreos_ami.image_id}"
-  instance_type = "m3.medium"
-  key_name      = "${var.ssh_key}"
-  count         = "${var.num_workers}"
+  ami                  = "${data.aws_ami.coreos_ami.image_id}"
+  instance_type        = "m3.medium"
+  key_name             = "${var.ssh_key}"
+  count                = "${var.num_workers}"
+  iam_instance_profile = "${aws_iam_instance_profile.bk_profile.id}"
 
   tags {
     Name = "${var.instance_tags}"
@@ -30,6 +32,7 @@ resource "aws_instance" "master_node" {
   instance_type = "m3.medium"
   key_name      = "${var.ssh_key}"
   count         = "${var.additional_masters}"
+  iam_instance_profile = "${aws_iam_instance_profile.bk_profile.id}"
 
   tags {
     Name = "${var.instance_tags}"
