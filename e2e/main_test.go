@@ -3,10 +3,12 @@ package e2e
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"testing"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api/v1"
@@ -69,15 +71,18 @@ func TestMain(m *testing.M) {
 }
 
 func createNamespace(c kubernetes.Interface, name string) (*v1.Namespace, error) {
-	namespace, err := c.CoreV1().Namespaces().Create(&v1.Namespace{
+	ns, err := c.CoreV1().Namespaces().Create(&v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 	})
-	if err != nil {
+	if errors.IsAlreadyExists(err) {
+		log.Println("ns already exists")
+	} else if err != nil {
 		return nil, fmt.Errorf("failed to create namespace with name %v %v", name, namespace)
 	}
-	return namespace, nil
+
+	return ns, nil
 }
 
 func deleteNamespace(c kubernetes.Interface, name string) error {
@@ -102,10 +107,12 @@ func ready(c kubernetes.Interface) error {
 		var oneReady bool
 		for _, node := range list.Items {
 			if node.Spec.Unschedulable {
+				log.Println("no worker nodes checked in yet")
 				continue
 			}
 
 			if len(node.Spec.Taints) != 0 {
+				log.Println("no worker nodes checked in yet")
 				continue
 			}
 
@@ -114,6 +121,7 @@ func ready(c kubernetes.Interface) error {
 					if condition.Status == v1.ConditionTrue {
 						oneReady = true
 					}
+					log.Println("waiting for first worker to be ready")
 					break
 				}
 			}
