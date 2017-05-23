@@ -3,19 +3,22 @@ package e2e
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"testing"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// global client for use by all tests
+// global clients for use by all tests
 var (
 	client          kubernetes.Interface
+	sshClient       *SSHClient
 	expectedMasters int // hint for tests to figure out how to fail or block on resources missing
 )
 
@@ -24,8 +27,8 @@ const namespace = "bootkube-e2e-testing"
 
 // TestMain handles setup before all tests
 func TestMain(m *testing.M) {
-
 	var kubeconfig = flag.String("kubeconfig", "../hack/quickstart/cluster/auth/kubeconfig", "absolute path to the kubeconfig file")
+	var keypath = flag.String("keypath", "", "path to private key for ssh client")
 	flag.IntVar(&expectedMasters, "expectedmasters", 1, "hint needed for certain tests to fail, skip, or block on missing resources")
 
 	flag.Parse()
@@ -47,6 +50,9 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
+	// create ssh client
+	sshClient = newSSHClientOrDie(*keypath)
+
 	// createNamespace
 	if _, err := createNamespace(client, namespace); err != nil {
 		fmt.Println(err)
@@ -65,15 +71,18 @@ func TestMain(m *testing.M) {
 }
 
 func createNamespace(c kubernetes.Interface, name string) (*v1.Namespace, error) {
-	namespace, err := c.CoreV1().Namespaces().Create(&v1.Namespace{
+	ns, err := c.CoreV1().Namespaces().Create(&v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 	})
-	if err != nil {
+	if errors.IsAlreadyExists(err) {
+		log.Println("ns already exists")
+	} else if err != nil {
 		return nil, fmt.Errorf("failed to create namespace with name %v %v", name, namespace)
 	}
-	return namespace, nil
+
+	return ns, nil
 }
 
 func deleteNamespace(c kubernetes.Interface, name string) error {
@@ -98,10 +107,12 @@ func ready(c kubernetes.Interface) error {
 		var oneReady bool
 		for _, node := range list.Items {
 			if node.Spec.Unschedulable {
+				log.Println("no worker nodes checked in yet")
 				continue
 			}
 
 			if len(node.Spec.Taints) != 0 {
+				log.Println("no worker nodes checked in yet")
 				continue
 			}
 
@@ -110,6 +121,7 @@ func ready(c kubernetes.Interface) error {
 					if condition.Status == v1.ConditionTrue {
 						oneReady = true
 					}
+					log.Println("waiting for first worker to be ready")
 					break
 				}
 			}

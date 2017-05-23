@@ -207,7 +207,7 @@ func checkEtcdPodDistribution(c kubernetes.Interface, etcdClusterSize int) error
 		}
 	}
 
-	for k, _ := range nodeSet {
+	for k := range nodeSet {
 		if _, ok := masterSet[k]; !ok {
 			return fmt.Errorf("detected self-hosted etcd pod running on non-master node %v %v", masterSet, nodeSet)
 		}

@@ -7,6 +7,7 @@ CLUSTER_DIR=${CLUSTER_DIR:-cluster}
 IDENT=${IDENT:-${HOME}/.ssh/id_rsa}
 SSH_OPTS=${SSH_OPTS:-}
 SELF_HOST_ETCD=${SELF_HOST_ETCD:-false}
+CLOUD_PROVIDER=${CLOUD_PROVIDER:-}
 
 function usage() {
     echo "USAGE:"
@@ -70,6 +71,9 @@ function init_master_node() {
         systemctl enable etcd-member; sudo systemctl start etcd-member
     fi
 
+    # Set cloud provider
+    sed -i "s/cloud-provider=/cloud-provider=$CLOUD_PROVIDER/" /etc/systemd/system/kubelet.service
+
     # Start the kubelet
     systemctl enable kubelet; sudo systemctl start kubelet
 
@@ -96,7 +100,7 @@ if [ "${REMOTE_HOST}" != "local" ]; then
 
     # Copy self to remote host so script can be executed in "local" mode
     scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${BASH_SOURCE[0]} core@${REMOTE_HOST}:/home/core/init-master.sh
-    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "sudo SELF_HOST_ETCD=${SELF_HOST_ETCD} /home/core/init-master.sh local"
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "sudo CLOUD_PROVIDER=${CLOUD_PROVIDER} SELF_HOST_ETCD=${SELF_HOST_ETCD} /home/core/init-master.sh local"
 
     # Copy assets from remote host to a local directory. These can be used to launch additional nodes & contain TLS assets
     mkdir ${CLUSTER_DIR}

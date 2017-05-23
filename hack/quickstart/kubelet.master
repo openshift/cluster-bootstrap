@@ -16,6 +16,7 @@ ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --allow-privileged \
   --anonymous-auth=false \
   --client-ca-file=/etc/kubernetes/ca.crt \
+  --cloud-provider= \
   --cluster_dns=10.3.0.10 \
   --cluster_domain=cluster.local \
   --cni-conf-dir=/etc/kubernetes/cni/net.d \
