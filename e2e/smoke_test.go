@@ -43,7 +43,7 @@ func TestSmoke(t *testing.T) {
 		}
 		return nil
 	}
-	if err := retry(10, time.Second*10, getPod); err != nil {
+	if err := retry(30, time.Second*10, getPod); err != nil {
 		t.Fatalf("timed out waiting for nginx pod: %v", err)
 	}
 
