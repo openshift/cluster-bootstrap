@@ -1,11 +1,11 @@
 resource "aws_iam_instance_profile" "bk_profile" {
-  name = "bootkube_profile"
-  role = "${aws_iam_role.bk_role.name}"
+  name_prefix = "bootkube_e2e_profile"
+  role        = "${aws_iam_role.bk_role.name}"
 }
 
 resource "aws_iam_role" "bk_role" {
-  name = "bootkube_e2e_role"
-  path = "/"
+  name_prefix = "bootkube_e2e_role"
+  path        = "/"
 
   assume_role_policy = <<EOF
 {
@@ -25,8 +25,8 @@ EOF
 }
 
 resource "aws_iam_role_policy" "bk_policy" {
-  name = "bootkube_e2e_policy"
-  role = "${aws_iam_role.bk_role.id}"
+  name_prefix = "bootkube_e2e_policy"
+  role        = "${aws_iam_role.bk_role.id}"
 
   policy = <<EOF
 {
