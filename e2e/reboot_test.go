@@ -20,6 +20,8 @@ func TestReboot(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	t.Logf("rebooting %v nodes", len(nodeList.Items))
+
 	for _, node := range nodeList.Items {
 		var host string
 		for _, addr := range node.Status.Addresses {
@@ -29,7 +31,7 @@ func TestReboot(t *testing.T) {
 			}
 		}
 		if host == "" {
-			t.Skip("Could not get external node IP, kubelet must use cloud-provider flags")
+			t.Skip("could not get external node IP, kubelet must use cloud-provider flags")
 		}
 
 		// reboot
@@ -46,33 +48,47 @@ func TestReboot(t *testing.T) {
 	// make sure nodes have chance to go down
 	time.Sleep(15 * time.Second)
 
-	if err := nodesReady(client, len(nodeList.Items), t); err != nil {
-		t.Fatalf("Some or all nodes did not recover from reboot: %v", err)
+	if err := nodesReady(client, nodeList, t); err != nil {
+		t.Fatalf("some or all nodes did not recover from reboot: %v", err)
 	}
 
 }
 
-// block until n nodes are ready
-func nodesReady(c kubernetes.Interface, expectedNodes int, t *testing.T) error {
+// nodesReady blocks until all nodes in list are ready based on Name. Safe
+// against new unknown nodes joining while the original set reboots.
+func nodesReady(c kubernetes.Interface, expectedNodes *v1.NodeList, t *testing.T) error {
+	var expectedNodeSet = make(map[string]struct{})
+	for _, node := range expectedNodes.Items {
+		expectedNodeSet[node.ObjectMeta.Name] = struct{}{}
+	}
+
 	f := func() error {
 		list, err := c.CoreV1().Nodes().List(metav1.ListOptions{})
 		if err != nil {
 			return err
 		}
 
-		if len(list.Items) != expectedNodes {
-			return fmt.Errorf("cluster is not ready, expected %v nodes got %v", expectedNodes, len(list.Items))
-		}
-
+		var recoveredNodes int
 		for _, node := range list.Items {
+			_, ok := expectedNodeSet[node.ObjectMeta.Name]
+			if !ok {
+				t.Logf("unexpected node checked in")
+				continue
+			}
+
 			for _, condition := range node.Status.Conditions {
 				if condition.Type == v1.NodeReady {
-					if condition.Status != v1.ConditionTrue {
-						return fmt.Errorf("One or more nodes not in the ready state: %v", node.Status.Phase)
+					if condition.Status == v1.ConditionTrue {
+						recoveredNodes++
+					} else {
+						return fmt.Errorf("one or more nodes not in the ready state: %v", node.Status.Phase)
 					}
 					break
 				}
 			}
+		}
+		if recoveredNodes != len(expectedNodeSet) {
+			return fmt.Errorf("not enough nodes recovered, expected %v got %v", len(expectedNodeSet), recoveredNodes)
 		}
 
 		return nil
