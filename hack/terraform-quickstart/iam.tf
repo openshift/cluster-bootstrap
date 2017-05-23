@@ -1,6 +1,10 @@
 resource "aws_iam_instance_profile" "bk_profile" {
   name_prefix = "bootkube_e2e_profile"
-  role        = "${aws_iam_role.bk_role.name}"
+  role        = "${aws_iam_role.bk_role.id}"
+
+  provisioner "local-exec" {
+    command = "sleep 90"
+  }
 }
 
 resource "aws_iam_role" "bk_role" {
