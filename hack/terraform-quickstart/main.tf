@@ -28,10 +28,10 @@ resource "aws_instance" "worker_node" {
 }
 
 resource "aws_instance" "master_node" {
-  ami           = "${data.aws_ami.coreos_ami.image_id}"
-  instance_type = "m3.medium"
-  key_name      = "${var.ssh_key}"
-  count         = "${var.additional_masters}"
+  ami                  = "${data.aws_ami.coreos_ami.image_id}"
+  instance_type        = "m3.medium"
+  key_name             = "${var.ssh_key}"
+  count                = "${var.additional_masters}"
   iam_instance_profile = "${aws_iam_instance_profile.bk_profile.id}"
 
   tags {
