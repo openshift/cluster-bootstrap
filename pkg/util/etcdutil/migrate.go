@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"time"
 
 	"github.com/kubernetes-incubator/bootkube/pkg/asset"
@@ -102,34 +101,22 @@ func waitEtcdTPRReady(restClient restclient.Interface, ns string) error {
 
 func createBootstrapEtcdService(kubecli kubernetes.Interface, svcPath string) error {
 	// Create the service.
-	svc, err := ioutil.ReadFile(svcPath)
+	svcb, err := ioutil.ReadFile(svcPath)
 	if err != nil {
 		return err
 	}
-	if err := kubecli.CoreV1().RESTClient().Post().RequestURI(fmt.Sprintf("/api/v1/namespaces/%s/services", api.NamespaceSystem)).SetHeader("Content-Type", "application/json").Body(svc).Do().Error(); err != nil {
+	if err := kubecli.CoreV1().RESTClient().Post().RequestURI(fmt.Sprintf("/api/v1/namespaces/%s/services", api.NamespaceSystem)).SetHeader("Content-Type", "application/json").Body(svcb).Do().Error(); err != nil {
+		return err
+	}
+
+	svc, err := kubecli.CoreV1().Services(api.NamespaceSystem).Get(bootstrapEtcdServiceName, v1.GetOptions{})
+	if err != nil {
+		glog.Errorf("failed to get bootstrap etcd service: %v", err)
 		return err
 	}
 
 	// Wait for the service to be reachable (sometimes this takes a little while).
-	if err := wait.Poll(pollInterval, pollTimeout, func() (bool, error) {
-		svc, err := kubecli.CoreV1().Services(api.NamespaceSystem).Get(bootstrapEtcdServiceName, v1.GetOptions{})
-		if err != nil {
-			glog.Errorf("failed to get bootstrap etcd service: %v", err)
-			return false, nil
-		}
-		resp, err := http.Get(fmt.Sprintf("http://%s:12379/version", svc.Spec.ClusterIP))
-		if err != nil {
-			glog.Infof("could not read bootstrap etcd version: %v", err)
-			return false, nil
-		}
-		defer resp.Body.Close()
-		body, err := ioutil.ReadAll(resp.Body)
-		if len(body) == 0 || err != nil {
-			glog.Infof("could not read boot-etcd version: %v", err)
-			return false, nil
-		}
-		return true, nil
-	}); err != nil {
+	if err := WaitClusterReady(svc.Spec.ClusterIP + ":12379"); err != nil {
 		return fmt.Errorf("timed out waiting for bootstrap etcd service: %s", err)
 	}
 	return nil
