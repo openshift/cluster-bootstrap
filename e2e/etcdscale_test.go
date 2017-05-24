@@ -132,8 +132,8 @@ func resizeSelfHostedEtcd(c kubernetes.Interface, size int) error {
 		return nil
 	}
 
-	if err := retry(15, 10*time.Second, podsReady); err != nil {
-		return fmt.Errorf("Waited 150 seconds for etcd to scale: %v", err)
+	if err := retry(31, 10*time.Second, podsReady); err != nil {
+		return fmt.Errorf("Waited 300 seconds for etcd to scale: %v", err)
 	}
 
 	return nil
