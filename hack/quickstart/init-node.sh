@@ -4,6 +4,7 @@ set -euo pipefail
 REMOTE_HOST=$1
 KUBECONFIG=$2
 REMOTE_PORT=${REMOTE_PORT:-22}
+REMOTE_USER=${REMOTE_USER:-core}
 IDENT=${IDENT:-${HOME}/.ssh/id_rsa}
 SSH_OPTS=${SSH_OPTS:-}
 TAG_MASTER=${TAG_MASTER:-false}
@@ -25,7 +26,7 @@ function init_worker_node() {
     # CA here manually.
     grep 'certificate-authority-data' ${KUBECONFIG} | awk '{print $2}' | base64 -d > /etc/kubernetes/ca.crt
 
-    mv /home/core/kubelet.service /etc/systemd/system/kubelet.service
+    mv /home/${REMOTE_USER}/kubelet.service /etc/systemd/system/kubelet.service
 
     # Set cloud provider
     sed -i "s/cloud-provider=/cloud-provider=$CLOUD_PROVIDER/" /etc/systemd/system/kubelet.service
@@ -44,18 +45,18 @@ if [ "${REMOTE_HOST}" != "local" ]; then
 
     # Copy kubelet service file and kubeconfig to remote host
     if [ "$TAG_MASTER" = true ] ; then
-        scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} kubelet.master core@${REMOTE_HOST}:/home/core/kubelet.service
+        scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} kubelet.master ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/kubelet.service
     else
-        scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} kubelet.worker core@${REMOTE_HOST}:/home/core/kubelet.service
+        scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} kubelet.worker ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/kubelet.service
     fi
-    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${KUBECONFIG} core@${REMOTE_HOST}:/home/core/kubeconfig
+    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${KUBECONFIG} ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/kubeconfig
 
     # Copy self to remote host so script can be executed in "local" mode
-    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${BASH_SOURCE[0]} core@${REMOTE_HOST}:/home/core/init-node.sh
-    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "sudo CLOUD_PROVIDER=${CLOUD_PROVIDER} /home/core/init-node.sh local /home/core/kubeconfig"
+    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${BASH_SOURCE[0]} ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/init-node.sh
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "sudo REMOTE_USER=${REMOTE_USER} CLOUD_PROVIDER=${CLOUD_PROVIDER} /home/${REMOTE_USER}/init-node.sh local /home/${REMOTE_USER}/kubeconfig"
 
     # Cleanup
-    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "rm /home/core/init-node.sh"
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "rm /home/${REMOTE_USER}/init-node.sh"
 
     echo
     echo "Node bootstrap complete. It may take a few minutes for the node to become ready. Access your kubernetes cluster using:"
