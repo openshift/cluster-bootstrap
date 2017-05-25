@@ -66,7 +66,7 @@ func TestSmoke(t *testing.T) {
 		}
 		return nil
 	}
-	if err := retry(10, time.Second*10, getPod); err != nil {
+	if err := retry(20, time.Second*10, getPod); err != nil {
 		t.Fatalf(fmt.Sprintf("timed out waiting for wget pod to succeed: %v", err))
 	}
 }
