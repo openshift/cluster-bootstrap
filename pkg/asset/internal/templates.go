@@ -129,6 +129,10 @@ spec:
       - name: rootfs
         hostPath:
           path: /
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
 `)
 
 var APIServerTemplate = []byte(`apiVersion: "extensions/v1beta1"
@@ -217,6 +221,10 @@ spec:
       - name: var-lock
         hostPath:
           path: /var/lock
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
 `)
 
 var BootstrapAPIServerTemplate = []byte(`apiVersion: v1
@@ -334,6 +342,10 @@ spec:
       - name: var-lock
         hostPath:
           path: /var/lock
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
 `)
 
 var CheckpointerTemplate = []byte(`apiVersion: "extensions/v1beta1"
@@ -394,6 +406,10 @@ spec:
       - name: var-run
         hostPath:
           path: /var/run
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
 `)
 
 var ControllerManagerTemplate = []byte(`apiVersion: extensions/v1beta1
@@ -680,6 +696,10 @@ spec:
       - name: etc-kubernetes
         hostPath:
           path: /etc/kubernetes
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
 `)
 
 var DNSDeploymentTemplate = []byte(`apiVersion: extensions/v1beta1
@@ -1085,6 +1105,10 @@ spec:
         - name: flannel-cfg
           configMap:
             name: kube-flannel-cfg
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
 `)
 
 // vim: set expandtab:tabstop=2
