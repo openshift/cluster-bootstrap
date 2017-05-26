@@ -3,6 +3,7 @@ set -euo pipefail
 
 REMOTE_HOST=$1
 REMOTE_PORT=${REMOTE_PORT:-22}
+REMOTE_USER=${REMOTE_USER:-core}
 CLUSTER_DIR=${CLUSTER_DIR:-cluster}
 IDENT=${IDENT:-${HOME}/.ssh/id_rsa}
 SSH_OPTS=${SSH_OPTS:-}
@@ -18,7 +19,7 @@ function usage() {
 function configure_etcd() {
     [ -f "/etc/systemd/system/etcd-member.service.d/10-etcd-member.conf" ] || {
         mkdir -p /etc/etcd/tls
-        cp /home/core/assets/tls/etcd* /etc/etcd/tls
+        cp /home/${REMOTE_USER}/assets/tls/etcd* /etc/etcd/tls
         chown -R etcd:etcd /etc/etcd
         chmod -R u=rX,g=,o= /etc/etcd
         mkdir -p /etc/systemd/system/etcd-member.service.d
@@ -56,14 +57,14 @@ function init_master_node() {
     fi
 
     # Render cluster assets
-    /home/core/bootkube render --asset-dir=/home/core/assets ${etcd_render_flags} \
+    /home/${REMOTE_USER}/bootkube render --asset-dir=/home/${REMOTE_USER}/assets ${etcd_render_flags} \
       --api-servers=https://${COREOS_PUBLIC_IPV4}:443,https://${COREOS_PRIVATE_IPV4}:443
 
     # Move the local kubeconfig into expected location
-    chown -R core:core /home/core/assets
+    chown -R ${REMOTE_USER}:${REMOTE_USER} /home/${REMOTE_USER}/assets
     mkdir -p /etc/kubernetes
-    cp /home/core/assets/auth/kubeconfig /etc/kubernetes/
-    cp /home/core/assets/tls/ca.crt /etc/kubernetes/ca.crt
+    cp /home/${REMOTE_USER}/assets/auth/kubeconfig /etc/kubernetes/
+    cp /home/${REMOTE_USER}/assets/tls/ca.crt /etc/kubernetes/ca.crt
 
     # Start etcd.
     if [ "$SELF_HOST_ETCD" = false ] ; then
@@ -78,7 +79,7 @@ function init_master_node() {
     systemctl enable kubelet; sudo systemctl start kubelet
 
     # Start bootkube to launch a self-hosted cluster
-    /home/core/bootkube start --asset-dir=/home/core/assets
+    /home/${REMOTE_USER}/bootkube start --asset-dir=/home/${REMOTE_USER}/assets
 }
 
 [ "$#" == 1 ] || usage
@@ -92,22 +93,22 @@ function init_master_node() {
 # After assets are available on the remote host, the script will execute itself in "local" mode.
 if [ "${REMOTE_HOST}" != "local" ]; then
     # Set up the kubelet.service on remote host
-    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} kubelet.master core@${REMOTE_HOST}:/home/core/kubelet.master
-    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "sudo mv /home/core/kubelet.master /etc/systemd/system/kubelet.service"
+    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} kubelet.master ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/kubelet.master
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "sudo mv /home/${REMOTE_USER}/kubelet.master /etc/systemd/system/kubelet.service"
 
     # Copy bootkube binary to remote host.
-    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ../../_output/bin/linux/bootkube core@${REMOTE_HOST}:/home/core/bootkube
+    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ../../_output/bin/linux/bootkube ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/bootkube
 
     # Copy self to remote host so script can be executed in "local" mode
-    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${BASH_SOURCE[0]} core@${REMOTE_HOST}:/home/core/init-master.sh
-    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "sudo CLOUD_PROVIDER=${CLOUD_PROVIDER} SELF_HOST_ETCD=${SELF_HOST_ETCD} /home/core/init-master.sh local"
+    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${BASH_SOURCE[0]} ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/init-master.sh
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "sudo REMOTE_USER=${REMOTE_USER} CLOUD_PROVIDER=${CLOUD_PROVIDER} SELF_HOST_ETCD=${SELF_HOST_ETCD} /home/${REMOTE_USER}/init-master.sh local"
 
     # Copy assets from remote host to a local directory. These can be used to launch additional nodes & contain TLS assets
     mkdir ${CLUSTER_DIR}
-    scp -q -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} -r core@${REMOTE_HOST}:/home/core/assets/* ${CLUSTER_DIR}
+    scp -q -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} -r ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/assets/* ${CLUSTER_DIR}
 
     # Cleanup
-    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} core@${REMOTE_HOST} "rm -rf /home/core/assets && rm -rf /home/core/init-master.sh"
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "rm -rf /home/${REMOTE_USER}/assets && rm -rf /home/${REMOTE_USER}/init-master.sh"
 
     echo "Cluster assets copied to ${CLUSTER_DIR}"
     echo
