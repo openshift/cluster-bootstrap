@@ -11,5 +11,5 @@ var DefaultImages = ImageVersions{
 	KubeDNS:         "gcr.io/google_containers/k8s-dns-kube-dns-amd64:1.14.1",
 	KubeDNSMasq:     "gcr.io/google_containers/k8s-dns-dnsmasq-nanny-amd64:1.14.1",
 	KubeDNSSidecar:  "gcr.io/google_containers/k8s-dns-sidecar-amd64:1.14.1",
-	PodCheckpointer: "quay.io/coreos/pod-checkpointer:7da334a1d768c346798601eb8387f266d15cf330",
+	PodCheckpointer: "quay.io/coreos/pod-checkpointer:4e7a7dab10bc4d895b66c21656291c6e0b017248",
 }
