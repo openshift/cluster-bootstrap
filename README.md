@@ -58,7 +58,7 @@ bootkube start --asset-dir=my-cluster
 
 ### Recover a downed cluster
 
-In the case of a partial or total control plane outage (i.e. due to lost master nodes) an experimental `recover` command can extract and write manifests from a backup location. These manifests can then be used by the `start` command to reboot the cluster. Currently recovery from a running apiserver or external running etcd cluster are the only supported methods.
+In the case of a partial or total control plane outage (i.e. due to lost master nodes) an experimental `recover` command can extract and write manifests from a backup location. These manifests can then be used by the `start` command to reboot the cluster. Currently recovery from a running apiserver, an external running etcd cluster, or an etcd backup taken from the self hosted etcd cluster are the methods.
 
 To see available options, run:
 
@@ -78,7 +78,13 @@ Recover from a running apiserver (i.e. if the scheduler pods are all down):
 bootkube recover --asset-dir=recovered --kubeconfig=/etc/kubernetes/kubeconfig
 ```
 
-For a complete recovery example please see the [hack/multi-node/bootkube-test-recovery](hack/multi-node/bootkube-test-recovery) script.
+Recover from an etcd backup when self hosted etcd is enabled:
+
+```
+bootkube recover --asset-dir=recovered --etcd-backup-file=backup --kubeconfig=/etc/kubernetes/kubeconfig
+```
+
+For a complete recovery example please see the [hack/multi-node/bootkube-test-recovery](hack/multi-node/bootkube-test-recovery) and the [hack/multi-node/bootkube-test-recovery-self-hosted-etcd](hack/multi-node/bootkube-test-recovery-self-hosted-etcd) scripts.
 
 ## Building
 
