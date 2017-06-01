@@ -1,8 +1,7 @@
 package bootkube
 
 import (
-	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,20 +61,23 @@ func (b *bootstrapControlPlane) Teardown() error {
 // copyFile copies a single file from src to dst. Returns an error if overwrite is true and dst
 // exists, or if any I/O error occurs during copying.
 func copyFile(src, dst string, overwrite bool) error {
+	flags := os.O_CREATE|os.O_WRONLY
 	if !overwrite {
-		fi, err := os.Stat(dst)
-		if fi != nil {
-			return fmt.Errorf("file already exists: %v", dst)
-		}
-		if !os.IsNotExist(err) {
-			return err
-		}
+		flags |= os.O_EXCL
 	}
-	data, err := ioutil.ReadFile(src)
+
+	dstfile, err := os.OpenFile(dst, flags, os.FileMode(0600))
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(dst, data, os.FileMode(0600))
+
+	srcfile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(dstfile, srcfile)
+	return err
 }
 
 // copyDirectory copies srcDir to dstDir recursively. It returns the paths of files (not
