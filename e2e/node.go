@@ -74,8 +74,8 @@ func GetCluster() (*Cluster, error) {
 		return nil, err
 	}
 
-	for _, n := range nodelist.Items {
-		nn := newNode(&n)
+	for i := range nodelist.Items {
+		nn := newNode(&nodelist.Items[i])
 		if nn.IsMaster() {
 			c.Masters = append(c.Masters, nn)
 		} else {
