@@ -5,14 +5,22 @@ package recovery
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/url"
+	"os"
 	"path"
 	"strings"
 
+	"github.com/kubernetes-incubator/bootkube/pkg/asset"
+
+	"github.com/coreos/etcd-operator/pkg/spec"
 	"github.com/coreos/etcd/clientv3"
+	"github.com/pborman/uuid"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/pkg/api"
+	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
 // etcdBackend is a backend that extracts a controlPlane from an etcd instance.
@@ -54,6 +62,7 @@ func (s *etcdBackend) read(ctx context.Context) (*controlPlane, error) {
 			return nil, err
 		}
 	}
+
 	return cp, nil
 }
 
@@ -73,6 +82,19 @@ func (s *etcdBackend) get(ctx context.Context, key string, out runtime.Object, i
 	}
 	kv := getResp.Kvs[0]
 	return decode(s.decoder, kv.Value, out)
+}
+
+func (s *etcdBackend) getBytes(ctx context.Context, key string) ([]byte, error) {
+	key = path.Join(s.pathPrefix, key)
+	getResp, err := s.client.KV.Get(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(getResp.Kvs) == 0 {
+		return nil, fmt.Errorf("key not found: %s", key)
+	}
+	return getResp.Kvs[0].Value, nil
 }
 
 // list fetches a list runtime.Object from etcd located at key prefix `key`.
@@ -95,4 +117,175 @@ func (s *etcdBackend) list(ctx context.Context, key string, listObj runtime.Obje
 		elems[i] = kv.Value
 	}
 	return decodeList(elems, listPtr, s.decoder)
+}
+
+const (
+	assetPathRecoveryEtcd  = "recovery-etcd.yaml"
+	etcdTPRKey             = "ThirdPartyResourceData/etcd.coreos.com/clusters/kube-system/kube-etcd"
+	etcdMemberPodPrefix    = "pods/kube-system/kube-etcd-"
+	RecoveryEtcdClientAddr = "http://localhost:52379"
+)
+
+type etcdSelfhostedBackend struct {
+	*etcdBackend
+
+	backupPath string
+}
+
+// NewSelfHostedEtcdBackend constructs a new etcdBackend for the given client and pathPrefix, and backup file.
+func NewSelfHostedEtcdBackend(client *clientv3.Client, pathPrefix, backupPath string) Backend {
+	eb := &etcdBackend{
+		client:     client,
+		decoder:    api.Codecs.UniversalDecoder(),
+		pathPrefix: pathPrefix,
+	}
+
+	return &etcdSelfhostedBackend{
+		etcdBackend: eb,
+		backupPath:  backupPath,
+	}
+}
+
+// read implements Backend.read().
+func (s *etcdSelfhostedBackend) read(ctx context.Context) (*controlPlane, error) {
+	cp, err := s.etcdBackend.read(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	d, err := s.getBytes(ctx, etcdTPRKey)
+	if err != nil {
+		return nil, err
+	}
+
+	var tpr v1beta1.ThirdPartyResourceData
+	err = decode(s.decoder, d, &tpr)
+	if err != nil {
+		return nil, err
+	}
+
+	var kubeetcd spec.Cluster
+	err = json.Unmarshal(tpr.Data, &kubeetcd)
+	if err != nil {
+		return nil, err
+	}
+
+	etpr, err := createEtcdTPRAsset(kubeetcd)
+	if err != nil {
+		return nil, err
+	}
+	cp.tpr = etpr
+
+	serviceIP, err := getServiceIPFromClusterSpec(kubeetcd.Spec)
+	if err != nil {
+		return nil, err
+	}
+	eas := createBootEtcdAsset(s.pathPrefix, s.backupPath, serviceIP)
+	esas := createBootEtcdServiceAsset(serviceIP)
+	cp.bootEtcd = &eas
+	cp.bootEtcdService = &esas
+
+	return cp, nil
+}
+
+// StartRecoveryEtcdForBackup starts a recovery etcd container using given backup.
+// The started etcd server listens on RecoveryEtcdClientAddr.
+func StartRecoveryEtcdForBackup(p, backupPath string) error {
+	d, f := path.Split(backupPath)
+
+	config := struct {
+		Image      string
+		BackupFile string
+		BackupDir  string
+		ClientAddr string
+	}{
+		Image:      asset.DefaultImages.Etcd,
+		BackupFile: f,
+		BackupDir:  d,
+		ClientAddr: RecoveryEtcdClientAddr,
+	}
+
+	as := asset.MustCreateAssetFromTemplate(assetPathRecoveryEtcd, recoveryEtcdTemplate, config)
+	return as.WriteFile(p)
+}
+
+// CleanRecoveryEtcd removes the recovery etcd static pod manifest and stops the recovery
+// etcd container.
+func CleanRecoveryEtcd(p string) error {
+	return os.Remove(path.Join(p, assetPathRecoveryEtcd))
+}
+
+func createBootEtcdAsset(pathPrefix, backupPath, serviceIP string) asset.Asset {
+	d, f := path.Split(backupPath)
+
+	config := struct {
+		Image             string
+		BackupFile        string
+		BackupDir         string
+		BootEtcdServiceIP string
+		TPRKey            string
+		MemberPodPrefix   string
+		ClusterToken      string
+	}{
+		Image:             asset.DefaultImages.Etcd,
+		BackupFile:        f,
+		BackupDir:         d,
+		BootEtcdServiceIP: serviceIP,
+		TPRKey:            path.Join(pathPrefix, etcdTPRKey),
+		MemberPodPrefix:   path.Join(pathPrefix, etcdMemberPodPrefix),
+		ClusterToken:      "bootkube-recovery-" + uuid.New(),
+	}
+
+	return asset.MustCreateAssetFromTemplate(asset.AssetPathBootstrapEtcd, bootFromBackupEtcdTemplate, config)
+}
+
+func createBootEtcdServiceAsset(serviceIP string) asset.Asset {
+	config := struct{ BootEtcdServiceIP string }{BootEtcdServiceIP: serviceIP}
+
+	return asset.MustCreateAssetFromTemplate(asset.AssetPathBootstrapEtcdService, recoveryEtcdSvcTemplate, config)
+}
+
+func createEtcdTPRAsset(s spec.Cluster) (*asset.Asset, error) {
+	clone := cloneEtcdClusterTPR(s)
+
+	data, err := json.Marshal(clone)
+	if err != nil {
+		return nil, err
+	}
+
+	return &asset.Asset{
+		Name: asset.AssetPathMigrateEtcdCluster,
+		Data: data,
+	}, nil
+}
+
+func getServiceIPFromClusterSpec(s spec.ClusterSpec) (string, error) {
+	ep := s.SelfHosted.BootMemberClientEndpoint
+	u, err := url.Parse(ep)
+	if err != nil {
+		return "", err
+	}
+	return stripPort(u.Host), nil
+}
+
+func cloneEtcdClusterTPR(s spec.Cluster) spec.Cluster {
+	var clone spec.Cluster
+	clone.Spec = s.Spec
+	clone.Metadata.SetName(s.Metadata.GetName())
+	clone.Metadata.SetNamespace(s.Metadata.GetNamespace())
+	clone.APIVersion = s.APIVersion
+	clone.Kind = s.Kind
+
+	return clone
+}
+
+func stripPort(hostport string) string {
+	colon := strings.IndexByte(hostport, ':')
+	if colon == -1 {
+		return hostport
+	}
+	if i := strings.IndexByte(hostport, ']'); i != -1 {
+		return strings.TrimPrefix(hostport[:i], "[")
+	}
+	return hostport[:colon]
 }
