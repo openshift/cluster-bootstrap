@@ -116,7 +116,7 @@ if [ "${REMOTE_HOST}" != "local" ]; then
     echo "kubectl --kubeconfig=${CLUSTER_DIR}/auth/kubeconfig get nodes"
     echo
     echo "Additional nodes can be added to the cluster using:"
-    echo "./init-worker.sh <node-ip> ${CLUSTER_DIR}/auth/kubeconfig"
+    echo "./init-node.sh <node-ip> ${CLUSTER_DIR}/auth/kubeconfig"
     echo
 
 # Execute this script locally on the machine, assumes a kubelet.service file has already been placed on host.

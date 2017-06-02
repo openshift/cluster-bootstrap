@@ -21,7 +21,7 @@ $ gcloud compute instances create ${CLUSTER_PREFIX}-core1 \
 Tag the first node as an apiserver node, and allow traffic to 443 on that node.
 
 ```
-$ gcloud compute instances add-tags ${CLUSTER_PREFIX}-core1 --tags ${CLUSTER_PREFIX}-apiserver
+$ gcloud compute instances add-tags ${CLUSTER_PREFIX}-core1 --tags ${CLUSTER_PREFIX}-apiserver --zone us-central1-a
 $ gcloud compute firewall-rules create ${CLUSTER_PREFIX}-443 --target-tags=${CLUSTER_PREFIX}-apiserver --allow tcp:443
 ```
 
@@ -30,7 +30,7 @@ $ gcloud compute firewall-rules create ${CLUSTER_PREFIX}-443 --target-tags=${CLU
 *Replace* `<node-ip>` with the EXTERNAL_IP from output of `gcloud compute instances list ${CLUSTER_PREFIX}-core1`.
 
 ```
-$ IDENT=~/.ssh/google_compute_engine ./init-master.sh <node-ip>
+$ REMOTE_USER=$USER IDENT=~/.ssh/google_compute_engine ./init-master.sh <node-ip>
 ```
 
 After the master bootstrap is complete, you can continue to add worker nodes. Or cluster state can be inspected via kubectl:
@@ -53,7 +53,7 @@ $ gcloud compute instances list ${CLUSTER_PREFIX}-core3
 Initialize each worker node by replacing `<node-ip>` with the EXTERNAL_IP from the commands above.
 
 ```
-$ IDENT=~/.ssh/google_compute_engine ./init-node.sh <node-ip> cluster/auth/kubeconfig
+$ REMOTE_USER=$USER IDENT=~/.ssh/google_compute_engine ./init-node.sh <node-ip> cluster/auth/kubeconfig
 ```
 
 **NOTE:** It can take a few minutes for each node to download all of the required assets / containers.
