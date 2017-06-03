@@ -1,7 +1,9 @@
 package e2e
 
 import (
+	"bytes"
 	"fmt"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/api/v1"
@@ -50,7 +52,19 @@ func (n *Node) Reboot() error {
 	if err != nil {
 		return fmt.Errorf("issuing reboot command failed\nstdout:%s\nstderr:%s", stdout, stderr)
 	}
-	return nil
+
+	checker := func() error {
+		stdout, stderr, err = n.SSH("systemctl is-system-running")
+		if err != nil {
+			return err
+		}
+		if !bytes.Contains(stdout, []byte("running")) {
+			return fmt.Errorf("system is not running yet")
+		}
+		return nil
+	}
+
+	return retry(20, 10*time.Second, checker)
 }
 
 // IsMaster returns true if the node's labels contains "node-role.kubernetes.io/master".
@@ -74,8 +88,8 @@ func GetCluster() (*Cluster, error) {
 		return nil, err
 	}
 
-	for _, n := range nodelist.Items {
-		nn := newNode(&n)
+	for i := range nodelist.Items {
+		nn := newNode(&nodelist.Items[i])
 		if nn.IsMaster() {
 			c.Masters = append(c.Masters, nn)
 		} else {
