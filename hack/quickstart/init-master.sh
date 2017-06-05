@@ -97,7 +97,7 @@ if [ "${REMOTE_HOST}" != "local" ]; then
     ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "sudo mv /home/${REMOTE_USER}/kubelet.master /etc/systemd/system/kubelet.service"
 
     # Copy bootkube binary to remote host.
-    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ../../_output/bin/linux/bootkube ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/bootkube
+    scp -i ${IDENT} -P ${REMOTE_PORT} -C ${SSH_OPTS} ../../_output/bin/linux/bootkube ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/bootkube
 
     # Copy self to remote host so script can be executed in "local" mode
     scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${BASH_SOURCE[0]} ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/init-master.sh
