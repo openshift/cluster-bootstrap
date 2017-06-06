@@ -316,6 +316,9 @@ spec:
         - mountPath: /etc/kubernetes/selfhosted-etcd
           name: checkpoint-dir
           readOnly: false
+        - mountPath: /var/etcd
+          name: etcd-dir
+          readOnly: false
         - mountPath: /var/lock
           name: var-lock
           readOnly: false
@@ -335,6 +338,9 @@ spec:
       - name: checkpoint-dir
         hostPath:
           path: /etc/kubernetes/checkpoint-iptables
+      - name: etcd-dir
+        hostPath:
+          path: /var/etcd
       - name: var-lock
         hostPath:
           path: /var/lock
@@ -885,6 +891,11 @@ metadata:
   labels:
     k8s-app: etcd-operator
 spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
   replicas: 1
   template:
     metadata:
@@ -954,6 +965,7 @@ spec:
     - --data-dir=/var/etcd/data
   hostNetwork: true
   restartPolicy: Never
+  dnsPolicy: ClusterFirstWithHostNet
 `)
 
 var BootstrapEtcdSvcTemplate = []byte(`{
