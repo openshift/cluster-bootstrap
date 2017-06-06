@@ -56,7 +56,7 @@ func (n *Node) Reboot() error {
 	checker := func() error {
 		stdout, stderr, err = n.SSH("systemctl is-system-running")
 		if err != nil {
-			return err
+			return fmt.Errorf("%v: %v", err, stderr)
 		}
 		if !bytes.Contains(stdout, []byte("running")) {
 			return fmt.Errorf("system is not running yet")
