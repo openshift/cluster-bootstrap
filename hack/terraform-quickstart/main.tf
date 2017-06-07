@@ -13,6 +13,10 @@ resource "aws_instance" "bootstrap_node" {
   tags {
     Name = "${var.instance_tags}"
   }
+  root_block_device {
+    volume_type = "gp2"
+    volume_size = "30"
+  }
 }
 
 resource "aws_instance" "worker_node" {
@@ -25,6 +29,11 @@ resource "aws_instance" "worker_node" {
   tags {
     Name = "${var.instance_tags}"
   }
+
+  root_block_device {
+    volume_type = "gp2"
+    volume_size = "30"
+  }
 }
 
 resource "aws_instance" "master_node" {
@@ -36,6 +45,11 @@ resource "aws_instance" "master_node" {
 
   tags {
     Name = "${var.instance_tags}"
+  }
+
+  root_block_device {
+    volume_type = "gp2"
+    volume_size = "30"
   }
 }
 
