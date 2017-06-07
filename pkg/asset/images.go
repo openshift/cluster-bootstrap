@@ -3,7 +3,7 @@ package asset
 // DefaultImages are the defualt images bootkube components use.
 var DefaultImages = ImageVersions{
 	Busybox:         "busybox",
-	Etcd:            "quay.io/coreos/etcd:v3.1.6",
+	Etcd:            "quay.io/coreos/etcd:v3.1.8",
 	EtcdOperator:    "quay.io/coreos/etcd-operator:v0.3.0",
 	Flannel:         "quay.io/coreos/flannel:v0.7.1-amd64",
 	Hyperkube:       "quay.io/coreos/hyperkube:v1.6.4_coreos.0",

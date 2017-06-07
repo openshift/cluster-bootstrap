@@ -25,7 +25,7 @@ function configure_etcd() {
         mkdir -p /etc/systemd/system/etcd-member.service.d
         cat << EOF > /etc/systemd/system/etcd-member.service.d/10-etcd-member.conf
 [Service]
-Environment="ETCD_IMAGE_TAG=v3.1.6"
+Environment="ETCD_IMAGE_TAG=v3.1.8"
 Environment="ETCD_NAME=controller"
 Environment="ETCD_INITIAL_CLUSTER=controller=https://${COREOS_PRIVATE_IPV4}:2380"
 Environment="ETCD_INITIAL_ADVERTISE_PEER_URLS=https://${COREOS_PRIVATE_IPV4}:2380"
