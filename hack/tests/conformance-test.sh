@@ -22,7 +22,7 @@ ssh_key=$3
 
 KUBECONFIG=${KUBECONFIG:-/home/core/cluster/auth/kubeconfig}
 K8S_SRC=/home/core/go/src/k8s.io/kubernetes
-ssh -q -o stricthostkeychecking=no -i ${ssh_key} -p ${ssh_port} core@${ssh_host} \
+ssh -q -o UserKnownHostsFile=/dev/null -o stricthostkeychecking=no -i ${ssh_key} -p ${ssh_port} core@${ssh_host} \
     "mkdir -p ${K8S_SRC} && [[ -d ${K8S_SRC}/.git ]] || git clone https://${CONFORMANCE_REPO} ${K8S_SRC}"
 
 RKT_OPTS="\
@@ -45,4 +45,4 @@ CONFORMANCE="\
  -v --test -check_version_skew=false --test_args='--ginkgo.focus=\[Conformance\]'"
 
 CMD="sudo rkt run --insecure-options=image ${RKT_OPTS} docker://golang:1.7.5 --exec /bin/bash -- -c \"${INIT} && ${BUILD} && ${CONFORMANCE}\""
-ssh -q -o stricthostkeychecking=no -i ${ssh_key} -p ${ssh_port} core@${ssh_host} "${CMD}"
+ssh -q  -o UserKnownHostsFile=/dev/null -o stricthostkeychecking=no -i ${ssh_key} -p ${ssh_port} core@${ssh_host} "${CMD}"
