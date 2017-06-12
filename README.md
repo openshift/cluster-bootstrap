@@ -111,11 +111,12 @@ make install
 Running `make run-single` or `make run-multi` resets the single-node or multi-node Vagrant environments, respectively, in the background while compiling bootkube and provisions the fresh VM with bootkube when compilation is complete. This is intended to speed up iteration.
 
 ## Running PR Tests
-The basic test suite should run automatically on PRs. It can be re-run by commenting to the PR: `rktbot run tests`. To whitelist an external contributor's PR temporarily, one can use the `ok to test` command.
+The basic test suite should run automatically on PRs. It can be re-run by commenting to the PR: `rktbot run e2e`. To whitelist an external contributor's PR temporarily, one can use the `ok to test` command.
 
-More extensive self-hosted etcd testing can be run by commenting: `rktbot run etcd tests`. The maintainers will be responsible for determining if this is needed and should pass as it may contain experimental or flaky tests.
+If changes are made to the checkpointer code you manually trigger tests to run via: `rktbot run e2e checkpointer`. This builds the checkpointer image from the repo and includes that image into the test bootkube binary being built. All the same tests are run.
 
-If changes are made to the checkpointer code you must run a third type of test: `rktbot run checkpointer tests`
+## Running conformace tests on PRs
+Commenting `rktbot run conformance` will trigger conformance tests against that PR.
 
 ## Conformance Tests
 
