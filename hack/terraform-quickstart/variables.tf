@@ -16,6 +16,12 @@ variable "instance_tags" {
   type        = "string"
 }
 
+variable "instance_type" {
+  description = "Name all instances behind a single tag based on who/what is running terraform"
+  type        = "string"
+  default     = "m3.medium"
+}
+
 variable "self_host_etcd" {
   type    = "string"
   default = "true"
