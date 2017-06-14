@@ -105,15 +105,14 @@ type Config struct {
 	CloudProvider          string
 	BootstrapSecretsSubdir string
 	Images                 ImageVersions
-	CNIRelease             string
 }
 
 // ImageVersions holds all the images (and their versions) that are rendered into the templates.
 type ImageVersions struct {
-	Alpine          string
 	Etcd            string
 	EtcdOperator    string
 	Flannel         string
+	FlannelCNI      string
 	Calico          string
 	CalicoCNI       string
 	Hyperkube       string

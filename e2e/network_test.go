@@ -70,40 +70,47 @@ func TestNetwork(t *testing.T) {
 	}
 
 	t.Run("DefaultDeny", HelperDefaultDeny)
-
-	resetNetworkPolicy := func() {
-		n, err := client.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{})
-		if err != nil {
-			t.Fatalf("unable to retrieve namespace %v", err)
-		}
-
-		n.ObjectMeta.Annotations = map[string]string{}
-		n.ObjectMeta.Annotations["net.beta.kubernetes.io/network-policy"] = defaultAllowNetworkPolicy
-		_, err = client.CoreV1().Namespaces().Update(n)
-		if err != nil {
-			t.Fatalf("unable to reset namespace network policy%v", err)
-		}
-	}
-	defer resetNetworkPolicy()
-
 	t.Run("NetworkPolicy", HelperPolicy)
 }
 
 func HelperDefaultDeny(t *testing.T) {
 	//
 	// 3. set DefaultDeny policy
-	var n *v1.Namespace
-	n, err := client.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{})
+	npi, _, err := api.Codecs.UniversalDecoder().Decode(defaultDenyNetworkPolicy, nil, &v1beta1.NetworkPolicy{})
 	if err != nil {
-		t.Fatalf("unable to retrieve namespace %v", err)
+		t.Fatalf("unable to decode network policy manifest: %v", err)
 	}
 
-	n.ObjectMeta.Annotations = map[string]string{}
-	n.ObjectMeta.Annotations["net.beta.kubernetes.io/network-policy"] = defaultDenyNetworkPolicy
-	_, err = client.CoreV1().Namespaces().Update(n)
-	if err != nil {
-		t.Fatalf("unable to set namespace network policy defaultdeny%v", err)
+	np, ok := npi.(*v1beta1.NetworkPolicy)
+	if !ok {
+		t.Fatalf("expected manifest to decode into *api.networkpolicy, got %T", npi)
 	}
+
+	httpRestClient := client.ExtensionsV1beta1().RESTClient()
+	uri := fmt.Sprintf("/apis/%s/%s/namespaces/%s/%s",
+		strings.ToLower("extensions"),
+		strings.ToLower("v1beta1"),
+		strings.ToLower(namespace),
+		strings.ToLower("NetworkPolicies"))
+
+	result := httpRestClient.Post().RequestURI(uri).Body(np).Do()
+	if result.Error() != nil {
+		t.Fatal(result.Error())
+	}
+	defer func() {
+		uri = fmt.Sprintf("/apis/%s/%s/namespaces/%s/%s/%s",
+			strings.ToLower("extensions"),
+			strings.ToLower("v1beta1"),
+			strings.ToLower(namespace),
+			strings.ToLower("NetworkPolicies"),
+			strings.ToLower(np.ObjectMeta.Name))
+
+		result = httpRestClient.Delete().RequestURI(uri).Do()
+		if result.Error() != nil {
+			t.Fatal(result.Error())
+		}
+
+	}()
 
 	//
 	// 4. create a wget pod that fails to hit nginx service
@@ -276,8 +283,13 @@ spec:
       targetPort: 80
 `)
 
-var defaultDenyNetworkPolicy = `{"ingress":{"isolation":"DefaultDeny"}}`
-var defaultAllowNetworkPolicy = `{"ingress":{"isolation":""}}`
+var defaultDenyNetworkPolicy = []byte(`kind: NetworkPolicy                                                      
+apiVersion: extensions/v1beta1
+metadata:
+  name: default-deny
+spec:
+  podSelector:
+`)
 
 var netPolicy = []byte(`kind: NetworkPolicy                                                      
 apiVersion: extensions/v1beta1

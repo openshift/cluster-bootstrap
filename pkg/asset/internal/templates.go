@@ -1091,38 +1091,19 @@ spec:
         - name: flannel-cfg
           mountPath: /etc/kube-flannel/
       - name: install-cni
-        image: {{ .Images.Alpine }}
-        command: 
-          - '/bin/sh'
-          - '-c'
-          - >
-            set -e -x;
-            ARCH=${ARCH:-amd64};
-            CNI_RELEASE=${CNI_RELEASE:-{{ .CNIRelease }}};
-            TMP=/etc/cni/net.d/.tmp-flannel-cfg;
-            cp /etc/kube-flannel/cni-conf.json ${TMP};
-            mv ${TMP} /etc/cni/net.d/10-flannel.conf;
-
-            apk add --update ca-certificates openssl && update-ca-certificates;
-            OPT_CNI=/opt/cni;
-            mkdir -p ${OPT_CNI};
-            wget -qO- https://storage.googleapis.com/kubernetes-release/network-plugins/cni-${ARCH}-${CNI_RELEASE}.tar.gz | tar -xz -C ${OPT_CNI};
-
-            if [ -w "/host/opt/cni/bin/" ]; then
-              cp /opt/cni/bin/* /host/opt/cni/bin/;
-              echo "Wrote CNI binaries to /host/opt/cni/bin/";
-            fi;
-
-            while :; do sleep 3600; done;
+        image: {{ .Images.FlannelCNI }}
+        command: ["/install-cni.sh"]
+        env:
+        - name: CNI_NETWORK_CONFIG
+          valueFrom:
+            configMapKeyRef:
+              name: kube-flannel-cfg
+              key: cni-conf.json
         volumeMounts:
         - name: cni
-          mountPath: /etc/cni/net.d
-        - name: flannel-cfg
-          mountPath: /etc/kube-flannel/
+          mountPath: /host/etc/cni/net.d
         - name: host-cni-bin
           mountPath: /host/opt/cni/bin/
-        - name: ssl-certs
-          mountPath: /etc/ssl/certs
       hostNetwork: true
       tolerations:
       - key: node-role.kubernetes.io/master
@@ -1141,9 +1122,6 @@ spec:
         - name: host-cni-bin
           hostPath:
             path: /opt/cni/bin
-        - name: ssl-certs
-          hostPath:
-            path: /etc/ssl/certs
   updateStrategy:
     rollingUpdate:
       maxUnavailable: 1
@@ -1160,7 +1138,7 @@ data:
   cni_network_config: |-
     {
         "name": "k8s-pod-network",
-        "cniVersion": "0.1.0",
+        "cniVersion": "0.3.0",
         "type": "calico",
         "log_level": "debug",
         "datastore_type": "kubernetes",
@@ -1260,6 +1238,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: SKIP_CNI_BINARIES
+              value: bridge,cnitool,dhcp,flannel,host-local,ipvlan,loopback,macvlan,noop,portmap,ptp,tuning
           volumeMounts:
             - mountPath: /host/opt/cni/bin
               name: cni-bin-dir
@@ -1278,14 +1258,18 @@ spec:
         - name: cni-net-dir
           hostPath:
             path: /etc/kubernetes/cni/net.d
-  `)
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
+`)
 
 var KubeCalicoServiceAccountTemplate = []byte(`apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: kube-calico
   namespace: kube-system
-  `)
+`)
 
 var KubeCalicoRoleTemplate = []byte(`apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
@@ -1354,7 +1338,14 @@ rules:
       - list
       - update
       - watch
-  `)
+  - apiGroups: ["alpha.projectcalico.org"]
+    resources:
+      - systemnetworkpolicies
+    verbs:
+      - get
+      - list
+      - watch
+`)
 
 var KubeCalicoRoleBindingTemplate = []byte(`apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding

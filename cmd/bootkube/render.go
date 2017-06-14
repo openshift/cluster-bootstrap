@@ -56,7 +56,6 @@ var (
 	}
 
 	imageVersions = asset.DefaultImages
-	cniRelease    = asset.DefaultCNIRelease
 )
 
 func init() {
@@ -245,7 +244,6 @@ func flagsToAssetConfig() (c *asset.Config, err error) {
 		SelfHostedEtcd:      renderOpts.selfHostedEtcd,
 		CalicoNetworkPolicy: renderOpts.calicoNetworkPolicy,
 		Images:              imageVersions,
-		CNIRelease:          cniRelease,
 	}, nil
 }
 
