@@ -18,9 +18,17 @@ else
     etcd_render_flags="--etcd-servers=https://172.17.4.51:2379"
 fi
 
+CALICO_NETWORK_POLICY=${CALICO_NETWORK_POLICY:-false}
+if [ ${CALICO_NETWORK_POLICY} = "true" ]; then
+    echo "WARNING: THIS IS EXPERIMENTAL SUPPORT FOR NETWORK POLICY"
+    cnp_render_flags="--experimental-calico-network-policy"
+else
+    cnp_render_flags=""
+fi
+
 # Render assets
 if [ ! -d "cluster" ]; then
-  ../../_output/bin/${local_os}/bootkube render --asset-dir=cluster --api-servers=https://172.17.4.101:443 ${etcd_render_flags} --experimental-calico-network-policy
+  ../../_output/bin/${local_os}/bootkube render --asset-dir=cluster --api-servers=https://172.17.4.101:443 ${etcd_render_flags} ${cnp_render_flags}
   cp user-data.sample cluster/user-data-worker
   cp user-data.sample cluster/user-data-controller
   sed -i.bak -e '/node-role.kubernetes.io\/master/d' cluster/user-data-worker
