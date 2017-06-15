@@ -99,6 +99,10 @@ func validateRenderOpts(cmd *cobra.Command, args []string) error {
 	if (renderOpts.etcdCAPath != "" || renderOpts.etcdCertificatePath != "" || renderOpts.etcdPrivateKeyPath != "") && (renderOpts.etcdCAPath == "" || renderOpts.etcdCertificatePath == "" || renderOpts.etcdPrivateKeyPath == "") {
 		return errors.New("You must specify either all or none of --etcd-ca-path, --etcd-certificate-path, and --etcd-private-key-path")
 	}
+	if renderOpts.etcdCertificatePath != "" && renderOpts.selfHostedEtcd {
+		return errors.New("Cannot specify --etcd-certificate-path with --experimental-self-hosted-etcd." +
+			" Self-hosted etcd + TLS will auto-generate certs based on root CA cert.")
+	}
 	if renderOpts.assetDir == "" {
 		return errors.New("Missing required flag: --asset-dir")
 	}
@@ -208,7 +212,7 @@ func flagsToAssetConfig() (c *asset.Config, err error) {
 		}
 	}
 
-	if etcdUseTLS && etcdCACert == nil {
+	if etcdUseTLS && etcdCACert == nil && !renderOpts.selfHostedEtcd {
 		bootkube.UserOutput("NOTE: --etcd-servers=%s but --etcd-ca-path, --etcd-certificate-path, and --etcd-private-key-path were not set. Bootkube will create etcd certificates under '%s/tls'. You must configure etcd to use these certificates before invoking 'bootkube run'.\n", renderOpts.etcdServers, renderOpts.assetDir)
 	}
 

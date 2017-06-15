@@ -148,6 +148,10 @@ func newEtcdTLSAssets(etcdCACert, etcdClientCert *x509.Certificate, etcdClientKe
 	return assets, nil
 }
 
+// newSelfHostedEtcdTLSAssets automatically generates three suites of x509 certificates (CA, key, cert)
+// for self-hosted etcd related components. Two suites are used by etcd members' client and peer ports;
+// one is used via etcd client to talk to etcd by operator, apiserver.
+// Self-hosted etcd doesn't allow user to specify etcd certs.
 func newSelfHostedEtcdTLSAssets(etcdSvcIP, bootEtcdSvcIP string, caCert *x509.Certificate, caPrivKey *rsa.PrivateKey) (Assets, error) {
 	// TODO: This method uses tlsutil.NewSignedCertificate() which will create certs for both client and server auth.
 	//       We can limit on finer granularity.
