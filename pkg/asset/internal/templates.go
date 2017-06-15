@@ -1217,9 +1217,6 @@ spec:
             requests:
               cpu: 250m
           volumeMounts:
-            - mountPath: /lib/modules
-              name: lib-modules
-              readOnly: true
             - mountPath: /var/run/calico
               name: var-run-calico
               readOnly: false
@@ -1246,9 +1243,6 @@ spec:
             - mountPath: /host/etc/cni/net.d
               name: cni-net-dir
       volumes:
-        - name: lib-modules
-          hostPath:
-            path: /lib/modules
         - name: var-run-calico
           hostPath:
             path: /var/run/calico
