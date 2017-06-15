@@ -99,9 +99,6 @@ func validateRenderOpts(cmd *cobra.Command, args []string) error {
 	if (renderOpts.etcdCAPath != "" || renderOpts.etcdCertificatePath != "" || renderOpts.etcdPrivateKeyPath != "") && (renderOpts.etcdCAPath == "" || renderOpts.etcdCertificatePath == "" || renderOpts.etcdPrivateKeyPath == "") {
 		return errors.New("You must specify either all or none of --etcd-ca-path, --etcd-certificate-path, and --etcd-private-key-path")
 	}
-	if renderOpts.etcdCertificatePath != "" && renderOpts.selfHostedEtcd {
-		return errors.New("Cannot specify --etcd-certificate-path with --experimental-self-hosted-etcd")
-	}
 	if renderOpts.assetDir == "" {
 		return errors.New("Missing required flag: --asset-dir")
 	}
