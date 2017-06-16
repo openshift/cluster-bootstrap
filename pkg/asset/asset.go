@@ -56,6 +56,9 @@ const (
 	AssetPathSystemNamespace                = "manifests/kube-system-ns.yaml"
 	AssetPathCheckpointer                   = "manifests/pod-checkpointer.yaml"
 	AssetPathEtcdOperator                   = "manifests/etcd-operator.yaml"
+	AssetPathSelfHostedEtcdOperatorSecret   = "manifests/etcd-operator-client-tls.yaml"
+	AssetPathSelfHostedEtcdMemberPeerSecret = "manifests/etcd-member-peer-tls.yaml"
+	AssetPathSelfHostedEtcdMemberCliSecret  = "manifests/etcd-member-client-tls.yaml"
 	AssetPathEtcdSvc                        = "manifests/etcd-service.yaml"
 	AssetPathKenc                           = "manifests/kube-etcd-network-checkpointer.yaml"
 	AssetPathKubeSystemSARoleBinding        = "manifests/kube-system-rbac-role-binding.yaml"
@@ -148,6 +151,12 @@ func NewDefaultAssets(conf Config) (Assets, error) {
 				return nil, err
 			}
 			as = append(as, tlsAssets...)
+
+			secretAssets, err := newSelfHostedEtcdSecretAssets(as)
+			if err != nil {
+				return nil, err
+			}
+			as = append(as, secretAssets...)
 		} else {
 			etcdTLSAssets, err := newEtcdTLSAssets(conf.EtcdCACert, conf.EtcdClientCert, conf.EtcdClientKey, conf.CACert, conf.CAPrivKey, conf.EtcdServers)
 			if err != nil {
