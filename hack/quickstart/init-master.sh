@@ -8,6 +8,7 @@ CLUSTER_DIR=${CLUSTER_DIR:-cluster}
 IDENT=${IDENT:-${HOME}/.ssh/id_rsa}
 SSH_OPTS=${SSH_OPTS:-}
 SELF_HOST_ETCD=${SELF_HOST_ETCD:-false}
+CALICO_NETWORK_POLICY=${CALICO_NETWORK_POLICY:-false}
 CLOUD_PROVIDER=${CLOUD_PROVIDER:-}
 
 function usage() {
@@ -56,8 +57,15 @@ function init_master_node() {
         etcd_render_flags="--etcd-servers=https://${COREOS_PRIVATE_IPV4}:2379"
     fi
 
+    if [ "$CALICO_NETWORK_POLICY" = true ]; then
+        echo "WARNING: THIS IS EXPERIMENTAL SUPPORT FOR NETWORK POLICY"
+        cnp_render_flags="--experimental-calico-network-policy"
+    else
+        cnp_render_flags=""
+    fi
+
     # Render cluster assets
-    /home/${REMOTE_USER}/bootkube render --asset-dir=/home/${REMOTE_USER}/assets ${etcd_render_flags} \
+    /home/${REMOTE_USER}/bootkube render --asset-dir=/home/${REMOTE_USER}/assets ${etcd_render_flags} ${cnp_render_flags} \
       --api-servers=https://${COREOS_PUBLIC_IPV4}:443,https://${COREOS_PRIVATE_IPV4}:443
 
     # Move the local kubeconfig into expected location
@@ -101,7 +109,7 @@ if [ "${REMOTE_HOST}" != "local" ]; then
 
     # Copy self to remote host so script can be executed in "local" mode
     scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${BASH_SOURCE[0]} ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/init-master.sh
-    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "sudo REMOTE_USER=${REMOTE_USER} CLOUD_PROVIDER=${CLOUD_PROVIDER} SELF_HOST_ETCD=${SELF_HOST_ETCD} /home/${REMOTE_USER}/init-master.sh local"
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "sudo REMOTE_USER=${REMOTE_USER} CLOUD_PROVIDER=${CLOUD_PROVIDER} SELF_HOST_ETCD=${SELF_HOST_ETCD} CALICO_NETWORK_POLICY=${CALICO_NETWORK_POLICY} /home/${REMOTE_USER}/init-master.sh local"
 
     # Copy assets from remote host to a local directory. These can be used to launch additional nodes & contain TLS assets
     mkdir ${CLUSTER_DIR}

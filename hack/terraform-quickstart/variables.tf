@@ -27,6 +27,11 @@ variable "self_host_etcd" {
   default = "true"
 }
 
+variable "calico_network_policy" {
+  type    = "string"
+  default = "true"
+}
+
 variable "num_workers" {
   description = "number of worker nodes"
   type        = "string"
