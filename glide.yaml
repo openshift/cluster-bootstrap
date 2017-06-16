@@ -5,7 +5,7 @@ import:
   subpackages:
   - pkg/spec
 - package: github.com/coreos/etcd
-  version: a73950545a5d77e02ba29432ec07d2a0eba5e830
+  version: v3.1.8
   subpackages:
   - clientv3
   - pkg/fileutil
