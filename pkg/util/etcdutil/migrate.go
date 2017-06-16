@@ -2,10 +2,13 @@ package etcdutil
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/kubernetes-incubator/bootkube/pkg/asset"
@@ -32,7 +35,19 @@ var (
 	pollTimeout  = 300 * time.Second
 )
 
-func Migrate(kubeConfig clientcmd.ClientConfig, svcPath, tprPath string) error {
+func Migrate(kubeConfig clientcmd.ClientConfig, assetDir, svcPath, tprPath string) error {
+	useEtcdTLS, err := detectEtcdTLS(assetDir)
+	if err != nil {
+		return err
+	}
+	var etcdTLS *tls.Config
+	if useEtcdTLS {
+		etcdTLS, err = makeTLSConfig(assetDir)
+		if err != nil {
+			return err
+		}
+	}
+
 	config, err := kubeConfig.ClientConfig()
 	if err != nil {
 		return fmt.Errorf("failed to create kube client config: %v", err)
@@ -49,7 +64,7 @@ func Migrate(kubeConfig clientcmd.ClientConfig, svcPath, tprPath string) error {
 	}
 	glog.Infof("created etcd cluster TPR")
 
-	if err := createBootstrapEtcdService(kubecli, svcPath); err != nil {
+	if err := createBootstrapEtcdService(kubecli, etcdTLS, svcPath); err != nil {
 		return fmt.Errorf("failed to create bootstrap-etcd-service: %v", err)
 	}
 	defer cleanupBootstrapEtcdService(kubecli)
@@ -70,7 +85,7 @@ func Migrate(kubeConfig clientcmd.ClientConfig, svcPath, tprPath string) error {
 	}
 	glog.Info("etcd cluster for migration is now running")
 
-	if err := waitBootEtcdRemoved(etcdServiceIP); err != nil {
+	if err := waitBootEtcdRemoved(etcdServiceIP, etcdTLS); err != nil {
 		return fmt.Errorf("failed to wait for boot-etcd to be removed: %v", err)
 	}
 	glog.Info("removed boot-etcd from the etcd cluster")
@@ -99,7 +114,7 @@ func waitEtcdTPRReady(restClient restclient.Interface, ns string) error {
 	return nil
 }
 
-func createBootstrapEtcdService(kubecli kubernetes.Interface, svcPath string) error {
+func createBootstrapEtcdService(kubecli kubernetes.Interface, etcdTLS *tls.Config, svcPath string) error {
 	// Create the service.
 	svcb, err := ioutil.ReadFile(svcPath)
 	if err != nil {
@@ -115,8 +130,12 @@ func createBootstrapEtcdService(kubecli kubernetes.Interface, svcPath string) er
 		return err
 	}
 
+	scheme := "http://"
+	if etcdTLS != nil {
+		scheme = "https://"
+	}
 	// Wait for the service to be reachable (sometimes this takes a little while).
-	if err := WaitClusterReady("http://" + svc.Spec.ClusterIP + ":12379"); err != nil {
+	if err := WaitClusterReady(scheme+svc.Spec.ClusterIP+":12379", etcdTLS); err != nil {
 		return fmt.Errorf("timed out waiting for bootstrap etcd service: %s", err)
 	}
 	return nil
@@ -165,12 +184,18 @@ func getServiceIP(kubecli kubernetes.Interface, ns, svcName string) (string, err
 	return svc.Spec.ClusterIP, nil
 }
 
-func waitBootEtcdRemoved(etcdServiceIP string) error {
+func waitBootEtcdRemoved(etcdServiceIP string, etcdTLS *tls.Config) error {
+	scheme := "http"
+	if etcdTLS != nil {
+		scheme = "https"
+	}
+	cfg := clientv3.Config{
+		Endpoints:   []string{fmt.Sprintf("%s://%s:2379", scheme, etcdServiceIP)},
+		TLS:         etcdTLS,
+		DialTimeout: 5 * time.Second,
+	}
+
 	err := wait.Poll(pollInterval, pollTimeout, func() (bool, error) {
-		cfg := clientv3.Config{
-			Endpoints:   []string{fmt.Sprintf("http://%s:2379", etcdServiceIP)},
-			DialTimeout: 5 * time.Second,
-		}
 		etcdcli, err := clientv3.New(cfg)
 		if err != nil {
 			glog.Errorf("failed to create etcd client, will retry: %v", err)
@@ -209,4 +234,16 @@ func cleanupBootstrapEtcdService(kubecli kubernetes.Interface) {
 	}); err != nil {
 		glog.Errorf("timed out removing bootstrap-etcd-service: %v", err)
 	}
+}
+
+func detectEtcdTLS(assetDir string) (bool, error) {
+	etcdCAAssetPath := filepath.Join(assetDir, asset.AssetPathEtcdCA)
+	_, err := os.Stat(etcdCAAssetPath)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
 }

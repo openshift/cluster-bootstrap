@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"k8s.io/client-go/tools/clientcmd"
-
 	"github.com/kubernetes-incubator/bootkube/pkg/asset"
 	"github.com/kubernetes-incubator/bootkube/pkg/util/etcdutil"
+
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 const assetTimeout = 20 * time.Minute
@@ -87,7 +87,11 @@ func (b *bootkube) Run() error {
 
 	if selfHostedEtcd {
 		UserOutput("Migrating to self-hosted etcd cluster...\n")
-		if err = etcdutil.Migrate(kubeConfig, filepath.Join(b.assetDir, asset.AssetPathBootstrapEtcdService), filepath.Join(b.assetDir, asset.AssetPathMigrateEtcdCluster)); err != nil {
+
+		svcPath := filepath.Join(b.assetDir, asset.AssetPathBootstrapEtcdService)
+		tprPath := filepath.Join(b.assetDir, asset.AssetPathMigrateEtcdCluster)
+		err = etcdutil.Migrate(kubeConfig, b.assetDir, svcPath, tprPath)
+		if err != nil {
 			return err
 		}
 	}
