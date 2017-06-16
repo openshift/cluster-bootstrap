@@ -1,5 +1,5 @@
-hash: d48f731e2b85a94620868e8fbdb3069cb376a80c1c7bd551310a0a9750f22994
-updated: 2017-05-19T01:15:07.652194201Z
+hash: 7ace0af6f328ca069ec56db82a1538e41eae9fdd6339d56e6bbf0226ad57af09
+updated: 2017-06-16T11:39:04.848126165-07:00
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -16,7 +16,7 @@ imports:
   - mvcc/mvccpb
   - pkg/fileutil
 - name: github.com/coreos/etcd-operator
-  version: e6c62c0ce5e7fffbe8824fa06b0c1d5f70e2653b
+  version: 95b1b586fef81a82e6be5913a965a2a41922ef14
   subpackages:
   - pkg/spec
 - name: github.com/coreos/go-oidc
@@ -123,7 +123,7 @@ imports:
   - jlexer
   - jwriter
 - name: github.com/pborman/uuid
-  version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
+  version: a97ce2ca70fa5a848076093f05e639a89ca34d06
 - name: github.com/PuerkitoBio/purell
   version: 8a290539e2e8629dbc4e6bad948158f790ec31f4
 - name: github.com/PuerkitoBio/urlesc
@@ -265,7 +265,7 @@ imports:
   - third_party/forked/golang/json
   - third_party/forked/golang/reflect
 - name: k8s.io/apiserver
-  version: 156ed5ba2d435ec2db08d2f803fecb591b72c058
+  version: 93ba094d6df62f161851e7eea4dbe43f88077ffb
   subpackages:
   - pkg/authentication/authenticator
   - pkg/authentication/serviceaccount
