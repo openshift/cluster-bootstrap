@@ -87,7 +87,8 @@ func runCmdRecover(cmd *cobra.Command, args []string) error {
 
 		bootkube.UserOutput("Waiting for etcd server to start...\n")
 
-		err = etcdutil.WaitClusterReady(recovery.RecoveryEtcdClientAddr)
+		// TODO: add self-hosted etcd+TLS support?
+		err = etcdutil.WaitClusterReady(recovery.RecoveryEtcdClientAddr, nil)
 		if err != nil {
 			return err
 		}

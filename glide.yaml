@@ -9,6 +9,7 @@ import:
   subpackages:
   - clientv3
   - pkg/fileutil
+  - pkg/transport
 - package: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
 - package: github.com/golang/glog

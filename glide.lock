@@ -1,5 +1,5 @@
-hash: 1a8bf66f7fb3ac414a1b554eca8610d1c46aa28faec36a48aa15df2c0e776365
-updated: 2017-06-16T12:20:49.257243946-07:00
+hash: 9c913aacfb66972ffb7550e46207ed0041f36087adbd6286571516a9a6248a5e
+updated: 2017-06-16T12:52:28.865255665-07:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -22,6 +22,7 @@ imports:
   - mvcc/mvccpb
   - pkg/fileutil
   - pkg/tlsutil
+  - pkg/transport
 - name: github.com/coreos/etcd-operator
   version: 95b1b586fef81a82e6be5913a965a2a41922ef14
   subpackages:
@@ -34,6 +35,12 @@ imports:
   - key
   - oauth2
   - oidc
+- name: github.com/coreos/go-systemd
+  version: 48702e0da86bd25e76cfef347e2adeb434a0d0a6
+  subpackages:
+  - daemon
+  - journal
+  - util
 - name: github.com/coreos/pkg
   version: 3ac0863d7acf3bc44daf49afef8919af12f704ef
   subpackages:
