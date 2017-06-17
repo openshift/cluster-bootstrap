@@ -119,7 +119,8 @@ func (cp *controlPlane) renderBootstrap() (asset.Assets, error) {
 	if err != nil {
 		return nil, err
 	}
-	requiredConfigMaps, requiredSecrets := fixUpBootstrapPods(pods, cp.bootEtcd != nil)
+	isSelfHostedEtcd := cp.bootEtcd != nil
+	requiredConfigMaps, requiredSecrets := fixUpBootstrapPods(pods, isSelfHostedEtcd)
 	as, err := outputBootstrapPods(pods)
 	if err != nil {
 		return nil, err
@@ -129,6 +130,12 @@ func (cp *controlPlane) renderBootstrap() (asset.Assets, error) {
 		return nil, err
 	}
 	as = append(as, configMaps...)
+
+	if isSelfHostedEtcd {
+		requiredSecrets[asset.SecretEtcdMemberPeer] = filepath.Dir(asset.AssetPathSelfHostedEtcdMemberPeerCA)
+		requiredSecrets[asset.SecretEtcdMemberCli] = filepath.Dir(asset.AssetPathSelfHostedEtcdMemberClientCA)
+		requiredSecrets[asset.SecretEtcdOperator] = filepath.Dir(asset.AssetPathSelfHostedOperatorEtcdCA)
+	}
 	secrets, err := outputBootstrapSecrets(cp.secrets, requiredSecrets)
 	if err != nil {
 		return nil, err

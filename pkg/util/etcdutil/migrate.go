@@ -237,7 +237,7 @@ func cleanupBootstrapEtcdService(kubecli kubernetes.Interface) {
 }
 
 func detectEtcdTLS(assetDir string) (bool, error) {
-	etcdCAAssetPath := filepath.Join(assetDir, asset.AssetPathEtcdCA)
+	etcdCAAssetPath := filepath.Join(assetDir, asset.AssetPathSelfHostedOperatorEtcdCA)
 	_, err := os.Stat(etcdCAAssetPath)
 	if err == nil {
 		return true, nil

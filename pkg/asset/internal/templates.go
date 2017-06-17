@@ -250,7 +250,7 @@ spec:
     - --etcd-certfile=/etc/kubernetes/secrets/etcd-client.crt
     - --etcd-keyfile=/etc/kubernetes/secrets/etcd-client.key
 {{- end }}
-    - --etcd-servers={{ range $i, $e := .EtcdServers }}{{ if $i }},{{end}}{{ $e }}{{end}}{{ if .SelfHostedEtcd }},http://127.0.0.1:12379{{end}}
+    - --etcd-servers={{ range $i, $e := .EtcdServers }}{{ if $i }},{{end}}{{ $e }}{{end}}{{ if .SelfHostedEtcd }},https://127.0.0.1:12379{{end}}
     - --insecure-port=0
     - --kubelet-client-certificate=/etc/kubernetes/secrets/apiserver.crt
     - --kubelet-client-key=/etc/kubernetes/secrets/apiserver.key
@@ -955,14 +955,30 @@ spec:
     command:
     - /usr/local/bin/etcd
     - --name=boot-etcd
-    - --listen-client-urls=http://0.0.0.0:12379
-    - --listen-peer-urls=http://0.0.0.0:12380
-    - --advertise-client-urls=http://{{ .BootEtcdServiceIP }}:12379
-    - --initial-advertise-peer-urls=http://{{ .BootEtcdServiceIP }}:12380
-    - --initial-cluster=boot-etcd=http://{{ .BootEtcdServiceIP }}:12380
+    - --listen-client-urls=https://0.0.0.0:12379
+    - --listen-peer-urls=https://0.0.0.0:12380
+    - --advertise-client-urls=https://{{ .BootEtcdServiceIP }}:12379
+    - --initial-advertise-peer-urls=https://{{ .BootEtcdServiceIP }}:12380
+    - --initial-cluster=boot-etcd=https://{{ .BootEtcdServiceIP }}:12380
     - --initial-cluster-token=bootkube
     - --initial-cluster-state=new
     - --data-dir=/var/etcd/data
+    - --peer-client-cert-auth=true
+    - --peer-trusted-ca-file=/etc/kubernetes/secrets/etcdMember/peer-ca-crt.pem
+    - --peer-cert-file=/etc/kubernetes/secrets/etcdMember/peer-crt.pem
+    - --peer-key-file=/etc/kubernetes/secrets/etcdMember/peer-key.pem
+    - --client-cert-auth=true
+    - --trusted-ca-file=/etc/kubernetes/secrets/etcdMember/client-ca-crt.pem
+    - --cert-file=/etc/kubernetes/secrets/etcdMember/client-crt.pem
+    - --key-file=/etc/kubernetes/secrets/etcdMember/client-key.pem
+    volumeMounts:
+    - mountPath: /etc/kubernetes/secrets
+      name: secrets
+      readOnly: true
+  volumes:
+  - name: secrets
+    hostPath:
+      path: /etc/kubernetes/{{ .BootstrapSecretsSubdir }}
   hostNetwork: true
   restartPolicy: Never
   dnsPolicy: ClusterFirstWithHostNet
@@ -1018,7 +1034,16 @@ var EtcdTPRTemplate = []byte(`{
       ]
     },
     "selfHosted": {
-      "bootMemberClientEndpoint": "http://{{ .BootEtcdServiceIP }}:12379"
+      "bootMemberClientEndpoint": "https://{{ .BootEtcdServiceIP }}:12379"
+    },
+    "TLS": {
+      "static": {
+        "member": {
+          "peerSecret": "etcd-member-peer-tls",
+          "clientSecret": "etcd-member-client-tls"
+        },
+        "operatorSecret": "etcd-operator-client-tls"
+      }
     }
   }
 }`)

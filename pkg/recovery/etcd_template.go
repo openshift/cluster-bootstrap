@@ -75,9 +75,9 @@ spec:
       /var/etcd-backupdir/{{ .BackupFile }} \
       --data-dir=/var/etcd/data \
       --name=boot-etcd \
-      --initial-cluster=boot-etcd=http://{{ .BootEtcdServiceIP }}:12380 \
+      --initial-cluster=boot-etcd=https://{{ .BootEtcdServiceIP }}:12380 \
       --initial-cluster-token={{ .ClusterToken }} \
-      --initial-advertise-peer-urls=http://{{ .BootEtcdServiceIP }}:12380 \
+      --initial-advertise-peer-urls=https://{{ .BootEtcdServiceIP }}:12380 \
       --skip-hash-check=true 
     env:
       - name: ETCDCTL_API
@@ -119,14 +119,25 @@ spec:
     command:
     - /usr/local/bin/etcd
     - --name=boot-etcd
-    - --listen-client-urls=http://0.0.0.0:12379
-    - --listen-peer-urls=http://0.0.0.0:12380
-    - --advertise-client-urls=http://{{ .BootEtcdServiceIP }}:12379
+    - --listen-client-urls=https://0.0.0.0:12379
+    - --listen-peer-urls=https://0.0.0.0:12380
+    - --advertise-client-urls=https://{{ .BootEtcdServiceIP }}:12379
     - --data-dir=/var/etcd/data
+    - --peer-client-cert-auth=true
+    - --peer-trusted-ca-file=/etc/kubernetes/secrets/etcdMember/peer-ca-crt.pem
+    - --peer-cert-file=/etc/kubernetes/secrets/etcdMember/peer-crt.pem
+    - --peer-key-file=/etc/kubernetes/secrets/etcdMember/peer-key.pem
+    - --client-cert-auth=true
+    - --trusted-ca-file=/etc/kubernetes/secrets/etcdMember/client-ca-crt.pem
+    - --cert-file=/etc/kubernetes/secrets/etcdMember/client-crt.pem
+    - --key-file=/etc/kubernetes/secrets/etcdMember/client-key.pem
     volumeMounts:
-        - mountPath: /var/etcd
-          name: etcd
-          readOnly: false
+      - mountPath: /var/etcd
+        name: etcd
+        readOnly: false
+      - mountPath: /etc/kubernetes/secrets
+        name: secrets
+        readOnly: true
   hostNetwork: true
   dnsPolicy: ClusterFirstWithHostNet
   restartPolicy: Never
@@ -136,6 +147,9 @@ spec:
     - name: etcdbackup
       hostPath:
         path: {{ .BackupDir }}
+    - name: secrets
+      hostPath:
+        path: /etc/kubernetes/bootstrap-secrets
 `)
 
 var recoveryEtcdSvcTemplate = []byte(`{
