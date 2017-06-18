@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	defaultVersion = "3.1.4"
+	defaultVersion = "3.1.8"
 
 	TPRKind        = "cluster"
 	TPRKindPlural  = "clusters"
@@ -74,16 +74,18 @@ type ClusterSpec struct {
 	// The etcd-operator will eventually make the etcd cluster version
 	// equal to the expected version.
 	//
-	// The version must follow the [semver]( http://semver.org) format, for example "3.1.4".
+	// The version must follow the [semver]( http://semver.org) format, for example "3.1.8".
 	// Only etcd released versions are supported: https://github.com/coreos/etcd/releases
 	//
-	// If version is not set, default is "3.1.4".
-	Version string `json:"version"`
+	// If version is not set, default is "3.1.8".
+	Version string `json:"version,omitempty"`
 
 	// Paused is to pause the control of the operator for the etcd cluster.
 	Paused bool `json:"paused,omitempty"`
 
-	// Pod defines the policy to create pod for the etcd container.
+	// Pod defines the policy to create pod for the etcd pod.
+	//
+	// Updating Pod does not take effect on any existing etcd pods.
 	Pod *PodPolicy `json:"pod,omitempty"`
 
 	// Backup defines the policy to backup data of etcd cluster if not nil.
@@ -93,10 +95,14 @@ type ClusterSpec struct {
 
 	// Restore defines the policy to restore cluster form existing backup if not nil.
 	// It's not allowed if restore policy is set and backup policy not.
+	//
+	// Restore is a cluster initialization configuration. It cannot be updated.
 	Restore *RestorePolicy `json:"restore,omitempty"`
 
 	// SelfHosted determines if the etcd cluster is used for a self-hosted
 	// Kubernetes cluster.
+	//
+	// SelfHosted is a cluster initialization configuration. It cannot be updated.
 	SelfHosted *SelfHostedPolicy `json:"selfHosted,omitempty"`
 
 	// NOTE: This field is half finished. It will be ignored.
@@ -116,6 +122,12 @@ type RestorePolicy struct {
 
 // PodPolicy defines the policy to create pod for the etcd container.
 type PodPolicy struct {
+	// Labels specifies the labels to attach to pods the operator creates for the
+	// etcd cluster.
+	// "app" and "etcd_*" labels are reserved for the internal use of the etcd operator.
+	// Do not overwrite them.
+	Labels map[string]string `json:"labels,omitempty"`
+
 	// NodeSelector specifies a map of key-value pairs. For the pod to be eligible
 	// to run on a node, the node must have each of the indicated key-value pairs as
 	// labels.
@@ -123,14 +135,21 @@ type PodPolicy struct {
 
 	// AntiAffinity determines if the etcd-operator tries to avoid putting
 	// the etcd members in the same cluster onto the same node.
-	AntiAffinity bool `json:"antiAffinity"`
+	AntiAffinity bool `json:"antiAffinity,omitempty"`
 
 	// Resources is the resource requirements for the etcd container.
 	// This field cannot be updated once the cluster is created.
-	Resources v1.ResourceRequirements `json:"resources"`
+	Resources v1.ResourceRequirements `json:"resources,omitempty"`
 
 	// Tolerations specifies the pod's tolerations.
-	Tolerations []v1.Toleration `json:"tolerations"`
+	Tolerations []v1.Toleration `json:"tolerations,omitempty"`
+
+	// List of environment variables to set in the etcd container.
+	// This is used to configure etcd process. etcd cluster cannot be created, when
+	// bad environement variables are provided. Do not overwrite any flags used to
+	// bootstrap the cluster (for example `--initial-cluster` flag).
+	// This field cannot be updated.
+	EtcdEnv []v1.EnvVar `json:"etcdEnv,omitempty"`
 }
 
 func (c *ClusterSpec) Validate() error {
@@ -147,6 +166,19 @@ func (c *ClusterSpec) Validate() error {
 			return err
 		}
 	}
+	if c.TLS != nil {
+		if err := c.TLS.Validate(); err != nil {
+			return err
+		}
+	}
+
+	if c.Pod != nil {
+		for k := range c.Pod.Labels {
+			if k == "app" || strings.HasPrefix(k, "etcd_") {
+				return errors.New("spec: pod labels contains reserved label")
+			}
+		}
+	}
 	return nil
 }
 
@@ -157,9 +189,6 @@ func (c *ClusterSpec) Cleanup() {
 		c.Version = defaultVersion
 	}
 	c.Version = strings.TrimLeft(c.Version, "v")
-
-	// TODO: remove this once we fully implement TLS
-	c.TLS = nil
 }
 
 type ClusterPhase string

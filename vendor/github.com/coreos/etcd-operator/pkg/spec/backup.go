@@ -22,11 +22,17 @@ const (
 	BackupStorageTypeDefault          = ""
 	BackupStorageTypePersistentVolume = "PersistentVolume"
 	BackupStorageTypeS3               = "S3"
+
+	AWSSecretCredentialsFileName = "credentials"
+	AWSSecretConfigFileName      = "config"
 )
 
 var errPVZeroSize = errors.New("PV backup should not have 0 size volume")
 
 type BackupPolicy struct {
+	// Pod defines the policy to create the backup pod.
+	Pod *PodPolicy `json:"pod,omitempty"`
+
 	// StorageType specifies the type of storage device to store backup files.
 	// If it's not set by user, the default is "PersistentVolume".
 	StorageType BackupStorageType `json:"storageType"`
@@ -37,10 +43,9 @@ type BackupPolicy struct {
 	// The default interval is 1800 seconds.
 	BackupIntervalInSecond int `json:"backupIntervalInSecond"`
 
-	// MaxBackups is the maximum number of backup files to retain. 0 is disable backup.
-	// If backup is disabled, the etcd cluster cannot recover from a
-	// disaster failure (lose more than half of its members at the same
-	// time).
+	// If greater than 0, MaxBackups is the maximum number of backup files to retain.
+	// If equal to 0, it means unlimited backups.
+	// Otherwise, it is invalid.
 	MaxBackups int `json:"maxBackups"`
 
 	// CleanupBackupsOnClusterDelete tells whether to cleanup backup data if cluster is deleted.
@@ -49,6 +54,9 @@ type BackupPolicy struct {
 }
 
 func (bp *BackupPolicy) Validate() error {
+	if bp.MaxBackups < 0 {
+		return errors.New("MaxBackups value should be >= 0")
+	}
 	if bp.StorageType == BackupStorageTypePersistentVolume {
 		if pv := bp.StorageSource.PV; pv == nil || pv.VolumeSizeInMB <= 0 {
 			return errPVZeroSize
@@ -70,7 +78,20 @@ type PVSource struct {
 	VolumeSizeInMB int `json:"volumeSizeInMB"`
 }
 
+// TODO: support per cluster S3 Source configuration.
 type S3Source struct {
+	// The name of the AWS S3 bucket to store backups in.
+	//
+	// S3Bucket overwrites the default etcd operator wide bucket.
+	S3Bucket string `json:"s3Bucket,omitempty"`
+
+	// The name of the secret object that stores the AWS credential and config files.
+	// The file name of the credential MUST be 'credentials'.
+	// The file name of the config MUST be 'config'.
+	// The profile to use in both files will be 'default'.
+	//
+	// AWSSecret overwrites the default etcd operator wide AWS credential and config.
+	AWSSecret string `json:"awsSecret,omitempty"`
 }
 
 type BackupServiceStatus struct {
@@ -91,6 +112,9 @@ type BackupStatus struct {
 
 	// Size is the size of the backup in MB.
 	Size float64 `json:"size"`
+
+	// Revision is the revision of the backup.
+	Revision int64 `json:"revision"`
 
 	// Version is the version of the backup cluster.
 	Version string `json:"version"`
