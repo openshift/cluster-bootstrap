@@ -1,5 +1,5 @@
-hash: 9c913aacfb66972ffb7550e46207ed0041f36087adbd6286571516a9a6248a5e
-updated: 2017-06-16T12:52:28.865255665-07:00
+hash: 29028cbd9a1389646a9c0465e09e4a2a2250cc44dfcf76ac88668c24c7c63c5e
+updated: 2017-06-17T18:27:22.961978641-07:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c2a2088577d12123ddee5f54e0675
@@ -24,7 +24,7 @@ imports:
   - pkg/tlsutil
   - pkg/transport
 - name: github.com/coreos/etcd-operator
-  version: 95b1b586fef81a82e6be5913a965a2a41922ef14
+  version: a02ec8d3efbc601cca44dff4aac561160485aa11
   subpackages:
   - pkg/spec
 - name: github.com/coreos/go-oidc
