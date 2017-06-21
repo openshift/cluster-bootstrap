@@ -128,6 +128,7 @@ spec:
           name: etcd
           readOnly: false
   hostNetwork: true
+  dnsPolicy: ClusterFirstWithHostNet
   restartPolicy: Never
   volumes:
     - name: etcd
