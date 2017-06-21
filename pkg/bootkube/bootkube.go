@@ -78,7 +78,7 @@ func (b *bootkube) Run() error {
 	}
 
 	if selfHostedEtcd {
-		requiredPods = append(requiredPods, "etcd-operator")
+		requiredPods = append(requiredPods, "etcd-operator", "kube-dns")
 	}
 
 	if err = WaitUntilPodsRunning(requiredPods, assetTimeout); err != nil {
