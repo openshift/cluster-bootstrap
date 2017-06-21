@@ -11,9 +11,10 @@ variable "ssh_key" {
   type        = "string"
 }
 
-variable "instance_tags" {
-  description = "Name all instances behind a single tag based on who/what is running terraform"
+variable "resource_owner" {
+  description = "Tag all resources behind a single tag based on who/what is running terraform"
   type        = "string"
+  default     = "bootkube-terraform-example-deleteme"
 }
 
 variable "instance_type" {
