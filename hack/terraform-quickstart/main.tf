@@ -10,8 +10,13 @@ resource "aws_instance" "bootstrap_node" {
   key_name             = "${var.ssh_key}"
   iam_instance_profile = "${aws_iam_instance_profile.bk_profile.id}"
 
+  vpc_security_group_ids      = ["${aws_security_group.allow_all.id}"]
+  subnet_id                   = "${aws_subnet.main.id}"
+  associate_public_ip_address = true
+  depends_on                  = ["aws_internet_gateway.main"]
+
   tags {
-    Name = "${var.instance_tags}"
+    Name = "${var.resource_owner}"
   }
 
   root_block_device {
@@ -27,8 +32,13 @@ resource "aws_instance" "worker_node" {
   count                = "${var.num_workers}"
   iam_instance_profile = "${aws_iam_instance_profile.bk_profile.id}"
 
+  vpc_security_group_ids      = ["${aws_security_group.allow_all.id}"]
+  subnet_id                   = "${aws_subnet.main.id}"
+  associate_public_ip_address = true
+  depends_on                  = ["aws_internet_gateway.main"]
+
   tags {
-    Name = "${var.instance_tags}"
+    Name = "${var.resource_owner}"
   }
 
   root_block_device {
@@ -44,8 +54,13 @@ resource "aws_instance" "master_node" {
   count                = "${var.additional_masters}"
   iam_instance_profile = "${aws_iam_instance_profile.bk_profile.id}"
 
+  vpc_security_group_ids      = ["${aws_security_group.allow_all.id}"]
+  subnet_id                   = "${aws_subnet.main.id}"
+  associate_public_ip_address = true
+  depends_on                  = ["aws_internet_gateway.main"]
+
   tags {
-    Name = "${var.instance_tags}"
+    Name = "${var.resource_owner}"
   }
 
   root_block_device {
