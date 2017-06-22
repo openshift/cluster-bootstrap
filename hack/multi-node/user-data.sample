@@ -13,6 +13,8 @@ coreos:
         Environment="RKT_RUN_ARGS=--uuid-file-save=/var/cache/kubelet-pod.uuid \
           --volume var-lib-cni,kind=host,source=/var/lib/cni \
           --volume opt-cni-bin,kind=host,source=/opt/cni/bin \
+          --volume var-log,kind=host,source=/var/log \
+          --mount volume=var-log,target=/var/log \
           --mount volume=var-lib-cni,target=/var/lib/cni \
           --mount volume=opt-cni-bin,target=/opt/cni/bin"
         ExecStartPre=/bin/mkdir -p /opt/cni/bin
