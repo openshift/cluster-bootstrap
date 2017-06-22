@@ -18,13 +18,12 @@ import (
 )
 
 const (
-	apiOffset                    = 1
-	dnsOffset                    = 10
-	etcdOffset                   = 15
-	bootEtcdOffset               = 20
-	defaultServiceBaseIP         = "10.3.0.0"
-	defaultEtcdServers           = "https://127.0.0.1:2379"
-	defaultSelfHostedEtcdServers = "http://127.0.0.1:2379"
+	apiOffset            = 1
+	dnsOffset            = 10
+	etcdOffset           = 15
+	bootEtcdOffset       = 20
+	defaultServiceBaseIP = "10.3.0.0"
+	defaultEtcdServers   = "https://127.0.0.1:2379"
 )
 
 var (
@@ -176,13 +175,13 @@ func flagsToAssetConfig() (c *asset.Config, err error) {
 
 	var etcdServers []*url.URL
 	if renderOpts.selfHostedEtcd {
-		etcdServerUrl, err := url.Parse(fmt.Sprintf("http://%s:2379", etcdServiceIP))
+		etcdServerUrl, err := url.Parse(fmt.Sprintf("https://%s:2379", etcdServiceIP))
 		if err != nil {
 			return nil, err
 		}
 		etcdServers = append(etcdServers, etcdServerUrl)
-		if renderOpts.etcdServers != defaultSelfHostedEtcdServers {
-			bootkube.UserOutput("--experimental-self-hosted-etcd and --service-cidr set. Overriding --etcd-servers setting with %s\n", etcdServers)
+		if renderOpts.etcdServers != defaultEtcdServers {
+			bootkube.UserOutput("--experimental-self-hosted-etcd and --service-cidr set. Overriding --etcd-servers setting (%s) with (%s) \n", etcdServers, defaultEtcdServers)
 		}
 	} else {
 		etcdServers, err = parseURLs(renderOpts.etcdServers)

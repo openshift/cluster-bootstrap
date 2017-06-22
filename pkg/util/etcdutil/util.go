@@ -40,9 +40,9 @@ func WaitClusterReady(endpoint string, etcdTLS *tls.Config) error {
 
 func makeTLSConfig(assetDir string) (*tls.Config, error) {
 	tlsInfo := transport.TLSInfo{
-		TrustedCAFile: filepath.Join(assetDir, asset.AssetPathEtcdCA),
-		CertFile:      filepath.Join(assetDir, asset.AssetPathEtcdClientCert),
-		KeyFile:       filepath.Join(assetDir, asset.AssetPathEtcdClientKey),
+		TrustedCAFile: filepath.Join(assetDir, asset.AssetPathSelfHostedOperatorEtcdCA),
+		CertFile:      filepath.Join(assetDir, asset.AssetPathSelfHostedOperatorEtcdCert),
+		KeyFile:       filepath.Join(assetDir, asset.AssetPathSelfHostedOperatorEtcdKey),
 	}
 	return tlsInfo.ClientConfig()
 }

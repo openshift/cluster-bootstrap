@@ -15,12 +15,13 @@ const (
 	// The name of the k8s service that selects self-hosted etcd pods
 	EtcdServiceName = "etcd-service"
 
-	secretNamespace      = "kube-system"
-	secretAPIServerName  = "kube-apiserver"
-	secretCMName         = "kube-controller-manager"
-	secretEtcdMemberPeer = "etcd-member-peer-tls"
-	secretEtcdMemberCli  = "etcd-member-client-tls"
-	secretEtcdOperator   = "etcd-operator-client-tls"
+	SecretEtcdMemberPeer = "etcd-member-peer-tls"
+	SecretEtcdMemberCli  = "etcd-member-client-tls"
+	SecretEtcdOperator   = "etcd-operator-client-tls"
+
+	secretNamespace     = "kube-system"
+	secretAPIServerName = "kube-apiserver"
+	secretCMName        = "kube-controller-manager"
 )
 
 type staticConfig struct {
@@ -110,7 +111,7 @@ func newKubeConfigAsset(assets Assets, conf Config) (Asset, error) {
 func newSelfHostedEtcdSecretAssets(assets Assets) (Assets, error) {
 	var res Assets
 
-	secretYAML, err := secretFromAssets(secretEtcdMemberPeer, secretNamespace, []string{
+	secretYAML, err := secretFromAssets(SecretEtcdMemberPeer, secretNamespace, []string{
 		AssetPathSelfHostedEtcdMemberPeerCA,
 		AssetPathSelfHostedEtcdMemberPeerCert,
 		AssetPathSelfHostedEtcdMemberPeerKey,
@@ -120,7 +121,7 @@ func newSelfHostedEtcdSecretAssets(assets Assets) (Assets, error) {
 	}
 	res = append(res, Asset{Name: AssetPathSelfHostedEtcdMemberPeerSecret, Data: secretYAML})
 
-	secretYAML, err = secretFromAssets(secretEtcdMemberCli, secretNamespace, []string{
+	secretYAML, err = secretFromAssets(SecretEtcdMemberCli, secretNamespace, []string{
 		AssetPathSelfHostedEtcdMemberClientCA,
 		AssetPathSelfHostedEtcdMemberClientCert,
 		AssetPathSelfHostedEtcdMemberClientKey,
@@ -130,7 +131,7 @@ func newSelfHostedEtcdSecretAssets(assets Assets) (Assets, error) {
 	}
 	res = append(res, Asset{Name: AssetPathSelfHostedEtcdMemberCliSecret, Data: secretYAML})
 
-	secretYAML, err = secretFromAssets(secretEtcdOperator, secretNamespace, []string{
+	secretYAML, err = secretFromAssets(SecretEtcdOperator, secretNamespace, []string{
 		AssetPathSelfHostedOperatorEtcdCA,
 		AssetPathSelfHostedOperatorEtcdCert,
 		AssetPathSelfHostedOperatorEtcdKey,
