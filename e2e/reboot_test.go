@@ -46,7 +46,7 @@ func TestReboot(t *testing.T) {
 	}
 
 	// make sure nodes have chance to go down
-	time.Sleep(15 * time.Second)
+	time.Sleep(1 * time.Minute)
 
 	if err := nodesReady(client, nodeList, t); err != nil {
 		t.Fatalf("some or all nodes did not recover from reboot: %v", err)

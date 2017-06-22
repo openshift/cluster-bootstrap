@@ -30,7 +30,7 @@ func TestSmoke(t *testing.T) {
 	// 2. Get the nginx pod IP.
 	var p *v1.Pod
 	getPod := func() error {
-		l, err := client.CoreV1().Pods(namespace).List(metav1.ListOptions{LabelSelector: "app=nginx"})
+		l, err := client.CoreV1().Pods(namespace).List(metav1.ListOptions{LabelSelector: "app=smoke-nginx"})
 		if err != nil || len(l.Items) == 0 {
 			return fmt.Errorf("pod not yet running: %v", err)
 		}
@@ -80,7 +80,7 @@ spec:
   template:
     metadata:
       labels:
-        app: nginx
+        app: smoke-nginx
     spec:
       containers:
       - name: nginx
