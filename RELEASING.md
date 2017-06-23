@@ -23,7 +23,7 @@ Vendoring currently relies on the [glide](https://github.com/Masterminds/glide) 
 
 ## Run conformance test
 
-Easiest is to use internal jenkins job: [bootkube-development](https://jenkins.coreos.systems/job/bootkube-development/)
+Easiest is to use internal jenkins job: [bootkube-development](https://jenkins-kube-lifecycle.prod.coreos.systems/view/bootkube/job/bootkube-dev/)
 
 Or, manually:
 
@@ -51,7 +51,7 @@ git push origin vX.Y.Z
 
 ### Cut a release image
 
-Easiest is to use internal jenkins job: [bootkube-release](https://jenkins.coreos.systems/view/Kubernetes/job/bootkube-release/).
+Easiest is to use internal jenkins job: [bootkube-release](https://jenkins-kube-lifecycle.prod.coreos.systems/view/bootkube/job/bootkube-release/).
 This job will push the image to the quay.io/coreos/bootkube repo, and archive a tarball of binary releases (manually upload to github release)
 
 Or, manually:
@@ -68,7 +68,7 @@ This only needs to happen when changes have been made to the checkpointer code /
 
 ### Build a new checkpointer image
 
-Easiest is to use internal jenkin job: [checkpointer-release](https://jenkins.coreos.systems/view/Kubernetes/job/checkpointer-release/)
+Easiest is to use internal jenkin job: [checkpointer-release](https://jenkins-kube-lifecycle.prod.coreos.systems/view/bootkube/job/checkpointer-release/)
 
 Or, manually:
 
