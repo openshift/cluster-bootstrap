@@ -964,13 +964,13 @@ spec:
     - --initial-cluster-state=new
     - --data-dir=/var/etcd/data
     - --peer-client-cert-auth=true
-    - --peer-trusted-ca-file=/etc/kubernetes/secrets/etcdMember/peer-ca-crt.pem
-    - --peer-cert-file=/etc/kubernetes/secrets/etcdMember/peer-crt.pem
-    - --peer-key-file=/etc/kubernetes/secrets/etcdMember/peer-key.pem
+    - --peer-trusted-ca-file=/etc/kubernetes/secrets/etcdMember/peer-ca.crt
+    - --peer-cert-file=/etc/kubernetes/secrets/etcdMember/peer.crt
+    - --peer-key-file=/etc/kubernetes/secrets/etcdMember/peer.key
     - --client-cert-auth=true
-    - --trusted-ca-file=/etc/kubernetes/secrets/etcdMember/client-ca-crt.pem
-    - --cert-file=/etc/kubernetes/secrets/etcdMember/client-crt.pem
-    - --key-file=/etc/kubernetes/secrets/etcdMember/client-key.pem
+    - --trusted-ca-file=/etc/kubernetes/secrets/etcdMember/server-ca.crt
+    - --cert-file=/etc/kubernetes/secrets/etcdMember/server.crt
+    - --key-file=/etc/kubernetes/secrets/etcdMember/server.key
     volumeMounts:
     - mountPath: /etc/kubernetes/secrets
       name: secrets
@@ -1040,7 +1040,7 @@ var EtcdTPRTemplate = []byte(`{
       "static": {
         "member": {
           "peerSecret": "etcd-member-peer-tls",
-          "clientSecret": "etcd-member-client-tls"
+          "serverSecret": "etcd-member-client-tls"
         },
         "operatorSecret": "etcd-operator-client-tls"
       }
