@@ -124,13 +124,13 @@ spec:
     - --advertise-client-urls=https://{{ .BootEtcdServiceIP }}:12379
     - --data-dir=/var/etcd/data
     - --peer-client-cert-auth=true
-    - --peer-trusted-ca-file=/etc/kubernetes/secrets/etcdMember/peer-ca.crt
-    - --peer-cert-file=/etc/kubernetes/secrets/etcdMember/peer.crt
-    - --peer-key-file=/etc/kubernetes/secrets/etcdMember/peer.key
+    - --peer-trusted-ca-file=/etc/kubernetes/secrets/etcd/peer-ca.crt
+    - --peer-cert-file=/etc/kubernetes/secrets/etcd/peer.crt
+    - --peer-key-file=/etc/kubernetes/secrets/etcd/peer.key
     - --client-cert-auth=true
-    - --trusted-ca-file=/etc/kubernetes/secrets/etcdMember/server-ca.crt
-    - --cert-file=/etc/kubernetes/secrets/etcdMember/server.crt
-    - --key-file=/etc/kubernetes/secrets/etcdMember/server.key
+    - --trusted-ca-file=/etc/kubernetes/secrets/etcd/server-ca.crt
+    - --cert-file=/etc/kubernetes/secrets/etcd/server.crt
+    - --key-file=/etc/kubernetes/secrets/etcd/server.key
     volumeMounts:
       - mountPath: /var/etcd
         name: etcd

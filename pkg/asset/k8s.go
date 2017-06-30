@@ -15,9 +15,9 @@ const (
 	// The name of the k8s service that selects self-hosted etcd pods
 	EtcdServiceName = "etcd-service"
 
-	SecretEtcdMemberPeer = "etcd-member-peer-tls"
-	SecretEtcdMemberCli  = "etcd-member-client-tls"
-	SecretEtcdOperator   = "etcd-operator-client-tls"
+	SecretEtcdPeer   = "etcd-peer-tls"
+	SecretEtcdServer = "etcd-server-tls"
+	SecretEtcdClient = "etcd-client-tls"
 
 	secretNamespace     = "kube-system"
 	secretAPIServerName = "kube-apiserver"
@@ -111,35 +111,35 @@ func newKubeConfigAsset(assets Assets, conf Config) (Asset, error) {
 func newSelfHostedEtcdSecretAssets(assets Assets) (Assets, error) {
 	var res Assets
 
-	secretYAML, err := secretFromAssets(SecretEtcdMemberPeer, secretNamespace, []string{
-		AssetPathSelfHostedEtcdMemberPeerCA,
-		AssetPathSelfHostedEtcdMemberPeerCert,
-		AssetPathSelfHostedEtcdMemberPeerKey,
+	secretYAML, err := secretFromAssets(SecretEtcdPeer, secretNamespace, []string{
+		AssetPathEtcdPeerCA,
+		AssetPathEtcdPeerCert,
+		AssetPathEtcdPeerKey,
 	}, assets)
 	if err != nil {
 		return nil, err
 	}
-	res = append(res, Asset{Name: AssetPathSelfHostedEtcdMemberPeerSecret, Data: secretYAML})
+	res = append(res, Asset{Name: AssetPathEtcdPeerSecret, Data: secretYAML})
 
-	secretYAML, err = secretFromAssets(SecretEtcdMemberCli, secretNamespace, []string{
-		AssetPathSelfHostedEtcdMemberClientCA,
-		AssetPathSelfHostedEtcdMemberClientCert,
-		AssetPathSelfHostedEtcdMemberClientKey,
+	secretYAML, err = secretFromAssets(SecretEtcdServer, secretNamespace, []string{
+		AssetPathEtcdServerCA,
+		AssetPathEtcdServerCert,
+		AssetPathEtcdServerKey,
 	}, assets)
 	if err != nil {
 		return nil, err
 	}
-	res = append(res, Asset{Name: AssetPathSelfHostedEtcdMemberCliSecret, Data: secretYAML})
+	res = append(res, Asset{Name: AssetPathEtcdServerSecret, Data: secretYAML})
 
-	secretYAML, err = secretFromAssets(SecretEtcdOperator, secretNamespace, []string{
-		AssetPathSelfHostedOperatorEtcdCA,
-		AssetPathSelfHostedOperatorEtcdCert,
-		AssetPathSelfHostedOperatorEtcdKey,
+	secretYAML, err = secretFromAssets(SecretEtcdClient, secretNamespace, []string{
+		AssetPathEtcdClientCA,
+		AssetPathEtcdClientCert,
+		AssetPathEtcdClientKey,
 	}, assets)
 	if err != nil {
 		return nil, err
 	}
-	res = append(res, Asset{Name: AssetPathSelfHostedEtcdOperatorSecret, Data: secretYAML})
+	res = append(res, Asset{Name: AssetPathEtcdClientSecret, Data: secretYAML})
 
 	return res, nil
 }
@@ -153,7 +153,7 @@ func newAPIServerSecretAsset(assets Assets, etcdUseTLS bool) (Asset, error) {
 	}
 	if etcdUseTLS {
 		secretAssets = append(secretAssets, []string{
-			AssetPathEtcdCA,
+			AssetPathEtcdClientCA,
 			AssetPathEtcdClientCert,
 			AssetPathEtcdClientKey,
 		}...)

@@ -132,9 +132,9 @@ func (cp *controlPlane) renderBootstrap() (asset.Assets, error) {
 	as = append(as, configMaps...)
 
 	if isSelfHostedEtcd {
-		requiredSecrets[asset.SecretEtcdMemberPeer] = filepath.Dir(asset.AssetPathSelfHostedEtcdMemberPeerCA)
-		requiredSecrets[asset.SecretEtcdMemberCli] = filepath.Dir(asset.AssetPathSelfHostedEtcdMemberClientCA)
-		requiredSecrets[asset.SecretEtcdOperator] = filepath.Dir(asset.AssetPathSelfHostedOperatorEtcdCA)
+		requiredSecrets[asset.SecretEtcdPeer] = filepath.Dir(asset.AssetPathEtcdPeerCA)
+		requiredSecrets[asset.SecretEtcdServer] = filepath.Dir(asset.AssetPathEtcdServerCA)
+		requiredSecrets[asset.SecretEtcdClient] = filepath.Dir(asset.AssetPathEtcdClientCA)
 	}
 	secrets, err := outputBootstrapSecrets(cp.secrets, requiredSecrets)
 	if err != nil {

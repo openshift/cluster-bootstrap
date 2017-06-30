@@ -170,7 +170,7 @@ spec:
         - --client-ca-file=/etc/kubernetes/secrets/ca.crt
         - --cloud-provider={{ .CloudProvider }}
 {{- if .EtcdUseTLS }}
-        - --etcd-cafile=/etc/kubernetes/secrets/etcd-ca.crt
+        - --etcd-cafile=/etc/kubernetes/secrets/etcd-client-ca.crt
         - --etcd-certfile=/etc/kubernetes/secrets/etcd-client.crt
         - --etcd-keyfile=/etc/kubernetes/secrets/etcd-client.key
 {{- end }}
@@ -246,7 +246,7 @@ spec:
     - --bind-address=0.0.0.0
     - --client-ca-file=/etc/kubernetes/secrets/ca.crt
 {{- if .EtcdUseTLS }}
-    - --etcd-cafile=/etc/kubernetes/secrets/etcd-ca.crt
+    - --etcd-cafile=/etc/kubernetes/secrets/etcd-client-ca.crt
     - --etcd-certfile=/etc/kubernetes/secrets/etcd-client.crt
     - --etcd-keyfile=/etc/kubernetes/secrets/etcd-client.key
 {{- end }}
@@ -964,13 +964,13 @@ spec:
     - --initial-cluster-state=new
     - --data-dir=/var/etcd/data
     - --peer-client-cert-auth=true
-    - --peer-trusted-ca-file=/etc/kubernetes/secrets/etcdMember/peer-ca.crt
-    - --peer-cert-file=/etc/kubernetes/secrets/etcdMember/peer.crt
-    - --peer-key-file=/etc/kubernetes/secrets/etcdMember/peer.key
+    - --peer-trusted-ca-file=/etc/kubernetes/secrets/etcd/peer-ca.crt
+    - --peer-cert-file=/etc/kubernetes/secrets/etcd/peer.crt
+    - --peer-key-file=/etc/kubernetes/secrets/etcd/peer.key
     - --client-cert-auth=true
-    - --trusted-ca-file=/etc/kubernetes/secrets/etcdMember/server-ca.crt
-    - --cert-file=/etc/kubernetes/secrets/etcdMember/server.crt
-    - --key-file=/etc/kubernetes/secrets/etcdMember/server.key
+    - --trusted-ca-file=/etc/kubernetes/secrets/etcd/server-ca.crt
+    - --cert-file=/etc/kubernetes/secrets/etcd/server.crt
+    - --key-file=/etc/kubernetes/secrets/etcd/server.key
     volumeMounts:
     - mountPath: /etc/kubernetes/secrets
       name: secrets
@@ -1039,10 +1039,10 @@ var EtcdTPRTemplate = []byte(`{
     "TLS": {
       "static": {
         "member": {
-          "peerSecret": "etcd-member-peer-tls",
-          "serverSecret": "etcd-member-client-tls"
+          "peerSecret": "etcd-peer-tls",
+          "serverSecret": "etcd-server-tls"
         },
-        "operatorSecret": "etcd-operator-client-tls"
+        "operatorSecret": "etcd-client-tls"
       }
     }
   }
