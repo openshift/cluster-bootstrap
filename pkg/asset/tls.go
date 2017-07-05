@@ -132,14 +132,23 @@ func newEtcdTLSAssets(etcdCACert, etcdClientCert *x509.Certificate, etcdClientKe
 		if err != nil {
 			return nil, err
 		}
+		etcdServerKey, etcdServerCert, err := newEtcdKeyAndCert(caCert, caPrivKey, "etcd-server", etcdServers)
+		if err != nil {
+			return nil, err
+		}
+
 		assets = append(assets, []Asset{
+			{Name: AssetPathEtcdPeerCA, Data: tlsutil.EncodeCertificatePEM(etcdCACert)},
 			{Name: AssetPathEtcdPeerKey, Data: tlsutil.EncodePrivateKeyPEM(etcdPeerKey)},
 			{Name: AssetPathEtcdPeerCert, Data: tlsutil.EncodeCertificatePEM(etcdPeerCert)},
+			{Name: AssetPathEtcdServerCA, Data: tlsutil.EncodeCertificatePEM(etcdCACert)},
+			{Name: AssetPathEtcdServerKey, Data: tlsutil.EncodePrivateKeyPEM(etcdServerKey)},
+			{Name: AssetPathEtcdServerCert, Data: tlsutil.EncodeCertificatePEM(etcdServerCert)},
 		}...)
 	}
 
 	assets = append(assets, []Asset{
-		{Name: AssetPathEtcdCA, Data: tlsutil.EncodeCertificatePEM(etcdCACert)},
+		{Name: AssetPathEtcdClientCA, Data: tlsutil.EncodeCertificatePEM(etcdCACert)},
 		{Name: AssetPathEtcdClientKey, Data: tlsutil.EncodePrivateKeyPEM(etcdClientKey)},
 		{Name: AssetPathEtcdClientCert, Data: tlsutil.EncodeCertificatePEM(etcdClientCert)},
 	}...)
@@ -148,7 +157,7 @@ func newEtcdTLSAssets(etcdCACert, etcdClientCert *x509.Certificate, etcdClientKe
 }
 
 // newSelfHostedEtcdTLSAssets automatically generates three suites of x509 certificates (CA, key, cert)
-// for self-hosted etcd related components. Two suites are used by etcd members' client and peer ports;
+// for self-hosted etcd related components. Two suites are used by etcd members' server and peer ports;
 // one is used via etcd client to talk to etcd by operator, apiserver.
 // Self-hosted etcd doesn't allow user to specify etcd certs.
 func newSelfHostedEtcdTLSAssets(etcdSvcIP, bootEtcdSvcIP string, caCert *x509.Certificate, caPrivKey *rsa.PrivateKey) (Assets, error) {
@@ -169,9 +178,9 @@ func newSelfHostedEtcdTLSAssets(etcdSvcIP, bootEtcdSvcIP string, caCert *x509.Ce
 		return nil, err
 	}
 	assets = append(assets, []Asset{
-		{Name: AssetPathSelfHostedEtcdMemberClientCA, Data: tlsutil.EncodeCertificatePEM(caCert)},
-		{Name: AssetPathSelfHostedEtcdMemberClientKey, Data: tlsutil.EncodePrivateKeyPEM(key)},
-		{Name: AssetPathSelfHostedEtcdMemberClientCert, Data: tlsutil.EncodeCertificatePEM(cert)},
+		{Name: AssetPathEtcdServerCA, Data: tlsutil.EncodeCertificatePEM(caCert)},
+		{Name: AssetPathEtcdServerKey, Data: tlsutil.EncodePrivateKeyPEM(key)},
+		{Name: AssetPathEtcdServerCert, Data: tlsutil.EncodeCertificatePEM(cert)},
 	}...)
 
 	key, cert, err = newKeyAndCert(caCert, caPrivKey, "etcd member peer", []string{
@@ -183,9 +192,9 @@ func newSelfHostedEtcdTLSAssets(etcdSvcIP, bootEtcdSvcIP string, caCert *x509.Ce
 		return nil, err
 	}
 	assets = append(assets, []Asset{
-		{Name: AssetPathSelfHostedEtcdMemberPeerCA, Data: tlsutil.EncodeCertificatePEM(caCert)},
-		{Name: AssetPathSelfHostedEtcdMemberPeerKey, Data: tlsutil.EncodePrivateKeyPEM(key)},
-		{Name: AssetPathSelfHostedEtcdMemberPeerCert, Data: tlsutil.EncodeCertificatePEM(cert)},
+		{Name: AssetPathEtcdPeerCA, Data: tlsutil.EncodeCertificatePEM(caCert)},
+		{Name: AssetPathEtcdPeerKey, Data: tlsutil.EncodePrivateKeyPEM(key)},
+		{Name: AssetPathEtcdPeerCert, Data: tlsutil.EncodeCertificatePEM(cert)},
 	}...)
 
 	key, cert, err = newKeyAndCert(caCert, caPrivKey, "operator etcd client", nil)
@@ -193,13 +202,7 @@ func newSelfHostedEtcdTLSAssets(etcdSvcIP, bootEtcdSvcIP string, caCert *x509.Ce
 		return nil, err
 	}
 	assets = append(assets, []Asset{
-		{Name: AssetPathSelfHostedOperatorEtcdCA, Data: tlsutil.EncodeCertificatePEM(caCert)},
-		{Name: AssetPathSelfHostedOperatorEtcdKey, Data: tlsutil.EncodePrivateKeyPEM(key)},
-		{Name: AssetPathSelfHostedOperatorEtcdCert, Data: tlsutil.EncodeCertificatePEM(cert)},
-	}...)
-	// for APIServer
-	assets = append(assets, []Asset{
-		{Name: AssetPathEtcdCA, Data: tlsutil.EncodeCertificatePEM(caCert)},
+		{Name: AssetPathEtcdClientCA, Data: tlsutil.EncodeCertificatePEM(caCert)},
 		{Name: AssetPathEtcdClientKey, Data: tlsutil.EncodePrivateKeyPEM(key)},
 		{Name: AssetPathEtcdClientCert, Data: tlsutil.EncodeCertificatePEM(cert)},
 	}...)

@@ -20,7 +20,9 @@ function usage() {
 function configure_etcd() {
     [ -f "/etc/systemd/system/etcd-member.service.d/10-etcd-member.conf" ] || {
         mkdir -p /etc/etcd/tls
-        cp /home/${REMOTE_USER}/assets/tls/etcd* /etc/etcd/tls
+        cp /home/${REMOTE_USER}/assets/tls/etcd-* /etc/etcd/tls
+        mkdir -p /etc/etcd/tls/etcd
+        cp /home/${REMOTE_USER}/assets/tls/etcd/* /etc/etcd/tls/etcd
         chown -R etcd:etcd /etc/etcd
         chmod -R u=rX,g=,o= /etc/etcd
         mkdir -p /etc/systemd/system/etcd-member.service.d
@@ -34,13 +36,13 @@ Environment="ETCD_ADVERTISE_CLIENT_URLS=https://${COREOS_PRIVATE_IPV4}:2379"
 Environment="ETCD_LISTEN_CLIENT_URLS=https://0.0.0.0:2379"
 Environment="ETCD_LISTEN_PEER_URLS=https://0.0.0.0:2380"
 Environment="ETCD_SSL_DIR=/etc/etcd/tls"
-Environment="ETCD_TRUSTED_CA_FILE=/etc/ssl/certs/etcd-ca.crt"
-Environment="ETCD_CERT_FILE=/etc/ssl/certs/etcd-client.crt"
-Environment="ETCD_KEY_FILE=/etc/ssl/certs/etcd-client.key"
+Environment="ETCD_TRUSTED_CA_FILE=/etc/ssl/certs/etcd/server-ca.crt"
+Environment="ETCD_CERT_FILE=/etc/ssl/certs/etcd/server.crt"
+Environment="ETCD_KEY_FILE=/etc/ssl/certs/etcd/server.key"
 Environment="ETCD_CLIENT_CERT_AUTH=true"
-Environment="ETCD_PEER_TRUSTED_CA_FILE=/etc/ssl/certs/etcd-ca.crt"
-Environment="ETCD_PEER_CERT_FILE=/etc/ssl/certs/etcd-peer.crt"
-Environment="ETCD_PEER_KEY_FILE=/etc/ssl/certs/etcd-peer.key"
+Environment="ETCD_PEER_TRUSTED_CA_FILE=/etc/ssl/certs/etcd/peer-ca.crt"
+Environment="ETCD_PEER_CERT_FILE=/etc/ssl/certs/etcd/peer.crt"
+Environment="ETCD_PEER_KEY_FILE=/etc/ssl/certs/etcd/peer.key"
 EOF
     }
 }
