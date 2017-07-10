@@ -56,6 +56,8 @@ conformance-%: clean all
 vendor:
 	@glide update --strip-vendor
 	@glide-vc
+	@CGO_ENABLED=1 go get github.com/coreos/license-bill-of-materials
+	@license-bill-of-materials ./cmd/bootkube ./cmd/checkpoint > bill-of-materials.json
 
 clean:
 	rm -rf _output
