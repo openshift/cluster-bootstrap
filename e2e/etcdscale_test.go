@@ -3,190 +3,185 @@ package e2e
 import (
 	"encoding/json"
 	"fmt"
+	"log"
+	"net/http"
 	"testing"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/pkg/api/v1"
 )
 
+const (
+	kubeEtcdTPRURI = "/apis/etcd.coreos.com/v1beta1/namespaces/kube-system/clusters/kube-etcd"
+	pollTimeout    = 5 * time.Minute
+	pollInterval   = 5 * time.Second
+)
+
 func TestEtcdScale(t *testing.T) {
-	// check that we have 3 or more masters
-	etcdScalePreCheck(client, t)
-
-	// scale up etcd operator
-	if err := resizeSelfHostedEtcd(client, 3); err != nil {
-		t.Fatalf("scaling up: %v", err)
+	if err := etcdScalePreCheck(3); err != nil {
+		t.Skip(err)
 	}
-
-	// check that each pod runs on a different master node
-	if err := checkEtcdPodDistribution(client, 3); err != nil {
-		t.Fatal(err)
-	}
-
-	// scale back to 1
-	// TODO(diegs): re-enable this once scale-down issue is resolved.
-	// if err := resizeSelfHostedEtcd(client, 1); err != nil {
-	// 	t.Fatalf("scaling down: %v", err)
-	// }
+	t.Run("ResizeSelfHostedEtcdTo3", func(t *testing.T) { resizeSelfHostedEtcd(t, 3) })
+	t.Run("CheckEtcdPodDistribution", func(t *testing.T) { checkEtcdPodDistribution(t, 3) })
+	t.Run("ResizeSelfHostedEtcdTo1", func(t *testing.T) { resizeSelfHostedEtcd(t, 1) })
 }
 
 // Skip if not running 3 or more master nodes unless explicitly told to be
 // expecting 3 or more. Then block until 3 are ready or fail. Also check that
 // etcd is self-hosted.
-func etcdScalePreCheck(c kubernetes.Interface, t *testing.T) {
-	var requiredMasters int = 3
-	if expectedMasters < requiredMasters {
-		t.Skip(fmt.Errorf("Test requires %d masters, test was run expecting %d", requiredMasters, expectedMasters))
+func etcdScalePreCheck(requiredMasters int) error {
+	// Check for etcd-operator by getting pod
+	l, err := client.CoreV1().Pods("kube-system").List(metav1.ListOptions{LabelSelector: "k8s-app=etcd-operator"})
+	if err != nil || len(l.Items) == 0 {
+		return fmt.Errorf("test requires a cluster with self-hosted etcd: %v", err)
 	}
 
-	checkMasters := func() error {
-		listOpts := metav1.ListOptions{
-			LabelSelector: "node-role.kubernetes.io/master",
-		}
-		list, err := c.CoreV1().Nodes().List(listOpts)
+	// Check if we are expecting enough master nodes.
+	if expectedMasters < requiredMasters {
+		return fmt.Errorf("test requires %d masters, test was run expecting %d", requiredMasters, expectedMasters)
+	}
+
+	// Wait until enough master nodes are ready.
+	return wait.PollImmediate(pollInterval, pollTimeout, func() (bool, error) {
+		list, err := client.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: "node-role.kubernetes.io/master"})
 		if err != nil {
-			return fmt.Errorf("error listing nodes: %v", err)
+			log.Printf("Error listing nodes: %v\n", err)
+			return false, nil
 		}
-		if len(list.Items) < requiredMasters {
-			return fmt.Errorf("not enough master nodes for etcd scale test: %v", len(list.Items))
+		if foundMasters := len(list.Items); foundMasters < requiredMasters {
+			log.Printf("Need %d master nodes available for etcd scale, got: %d\n", requiredMasters, foundMasters)
+			return false, nil
 		}
-		var ready int = 0
+		readyMasters := 0
 		for _, node := range list.Items {
 			for _, condition := range node.Status.Conditions {
 				if condition.Type == v1.NodeReady && condition.Status == v1.ConditionTrue {
-					ready++
+					readyMasters++
 				}
 			}
 		}
-		if ready < requiredMasters {
-			return fmt.Errorf("not enough master nodes are ready for etcd scale test: need %d, ready: %d", requiredMasters, ready)
+		if readyMasters < requiredMasters {
+			log.Printf("Need %d master nodes ready for etcd scale test, got: %d\n", requiredMasters, readyMasters)
+			return false, nil
 		}
-
-		return nil
-	}
-	if err := retry(50, 10*time.Second, checkMasters); err != nil {
-		t.Fatal(err)
-	}
-
-	// check for etcd-operator by getting pod
-	l, err := c.CoreV1().Pods("kube-system").List(metav1.ListOptions{LabelSelector: "k8s-app=etcd-operator"})
-	if err != nil || len(l.Items) == 0 {
-		t.Fatalf("test requires a cluster with self-hosted etcd: %v", err)
-	}
+		return true, nil
+	})
 }
 
-const kubeEtcdTPRURI = "/apis/etcd.coreos.com/v1beta1/namespaces/kube-system/clusters/kube-etcd"
-
 // resizes self-hosted etcd and checks that the desired number of pods are in a running state
-func resizeSelfHostedEtcd(c kubernetes.Interface, size int) error {
+func resizeSelfHostedEtcd(t *testing.T, size int) {
+	httpRestClient := client.ExtensionsV1beta1().RESTClient()
 	var tpr unstructured.Unstructured
 
-	// get tpr
-	httpRestClient := c.ExtensionsV1beta1().RESTClient()
-	b, err := httpRestClient.Get().RequestURI(kubeEtcdTPRURI).DoRaw()
-	if err != nil {
-		return err
-	}
-
-	if err := json.Unmarshal(b, &tpr); err != nil {
-		return fmt.Errorf("failed to unmarshal TPR: %v", err)
-	}
-
-	// change size
-	spec, ok := tpr.Object["spec"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("could not get 'spec' from TPR")
-	}
-	spec["size"] = size
-
-	// update tpr
-	if err := updateEtcdTPR(c, &tpr); err != nil {
-		return err
-	}
-
-	// check that all pods are running by checking TPR
-	podsReady := func() error {
+	// Resize cluster by updating TPR.
+	if err := wait.PollImmediate(pollInterval, pollTimeout, func() (bool, error) {
 		// get tpr
-		httpRestClient := c.ExtensionsV1beta1().RESTClient()
 		b, err := httpRestClient.Get().RequestURI(kubeEtcdTPRURI).DoRaw()
 		if err != nil {
-			return err
+			log.Printf("Failed to get TPR: %v\n", err)
+			return false, nil
 		}
 
 		if err := json.Unmarshal(b, &tpr); err != nil {
-			return fmt.Errorf("failed to unmarshal TPR: %v", err)
+			log.Printf("Failed to unmarshal TPR: %v\n", err)
+			return false, nil
+		}
+
+		// change size
+		spec, ok := tpr.Object["spec"].(map[string]interface{})
+		if !ok {
+			log.Println("Could not get 'spec' from TPR")
+			return false, nil
+		}
+		spec["size"] = size
+
+		// update tpr
+		data, err := json.Marshal(&tpr)
+		if err != nil {
+			log.Printf("Could not marshal TPR: %v\n", err)
+			return false, nil
+		}
+
+		result := httpRestClient.Put().RequestURI(kubeEtcdTPRURI).Body(data).Do()
+		if err := result.Error(); err != nil {
+			log.Printf("Error updating TPR: %v\n", err)
+			return false, nil
+		}
+		var statusCode int
+		result.StatusCode(&statusCode)
+		if statusCode != http.StatusOK {
+			log.Printf("Unexpected status code %d, expecting %d\n", statusCode, http.StatusOK)
+			return false, nil
+		}
+
+		return true, nil
+	}); err != nil {
+		t.Fatalf("Failed to scale cluster: %v", err)
+	}
+
+	// Check that all pods are running by checking TPR.
+	if err := wait.PollImmediate(pollInterval, pollTimeout, func() (bool, error) {
+		// get tpr
+		b, err := httpRestClient.Get().RequestURI(kubeEtcdTPRURI).DoRaw()
+		if err != nil {
+			log.Printf("Failed to get TPR: %v\n", err)
+			return false, nil
+		}
+
+		if err := json.Unmarshal(b, &tpr); err != nil {
+			log.Printf("Failed to unmarshal TPR: %v\n", err)
+			return false, nil
 		}
 
 		// check status of members
 		status, ok := tpr.Object["status"].(map[string]interface{})
 		if !ok {
-			return fmt.Errorf("could not asset 'status' type from TPR")
+			log.Println("Could not asset 'status' type from TPR")
+			return false, nil
 		}
 		members, ok := status["members"].(map[string]interface{})
 		if !ok {
-			return fmt.Errorf("could not assert 'members' type from TPR")
+			log.Println("Could not assert 'members' type from TPR")
+			return false, nil
 		}
 		readyList, ok := members["ready"].([]interface{})
 		if !ok {
-			return fmt.Errorf("could not assert 'ready' type from TPR")
+			log.Println("Could not assert 'ready' type from TPR")
+			return false, nil
 		}
 
 		// check that we have enough nodes considered ready by operator
 		if len(readyList) != size {
-			return fmt.Errorf("expected %d etcd pods got %d: %v", size, len(readyList), readyList)
+			log.Printf("Expected %d etcd pods got %d: %v\n", size, len(readyList), readyList)
+			return false, nil
 		}
 
-		return nil
+		return true, nil
+	}); err != nil {
+		t.Errorf("Waited 300 seconds for etcd to scale: %v", err)
 	}
-
-	if err := retry(31, 10*time.Second, podsReady); err != nil {
-		return fmt.Errorf("Waited 300 seconds for etcd to scale: %v", err)
-	}
-
-	return nil
-}
-
-func updateEtcdTPR(c kubernetes.Interface, tpr *unstructured.Unstructured) error {
-	data, err := json.Marshal(tpr)
-	if err != nil {
-		return err
-	}
-
-	var statusCode int
-
-	httpRestClient := c.ExtensionsV1beta1().RESTClient()
-	result := httpRestClient.Put().RequestURI(kubeEtcdTPRURI).Body(data).Do()
-
-	if result.Error() != nil {
-		return result.Error()
-	}
-
-	result.StatusCode(&statusCode)
-
-	if statusCode != 200 {
-		return fmt.Errorf("unexpected status code %d, expecting 200", statusCode)
-	}
-
-	return nil
 }
 
 // Checks that self-hosted etcd pods are scheduled on different master nodes
 // when possible. Look at the number of unique nodes etcd pods are scheduled
 // on and compare to the lesser value between total number of master nodes and
 // total number of etcd pods.
-func checkEtcdPodDistribution(c kubernetes.Interface, etcdClusterSize int) error {
+func checkEtcdPodDistribution(t *testing.T, etcdClusterSize int) {
 	// get pods
 	pods, err := client.CoreV1().Pods("kube-system").List(metav1.ListOptions{LabelSelector: "etcd_cluster=kube-etcd"})
-	if err != nil || len(pods.Items) != etcdClusterSize {
-		return fmt.Errorf("getting etcd pods err: %v || %v != %v", err, len(pods.Items), etcdClusterSize)
+	if err != nil {
+		t.Fatalf("Error getting etcd pods: %v", err)
+	}
+	if len(pods.Items) != etcdClusterSize {
+		t.Fatalf("Wanted %d etcd pods, got: %d", etcdClusterSize, len(pods.Items))
 	}
 	// get master nodes
-	mnodes, err := c.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: "node-role.kubernetes.io/master"})
+	mnodes, err := client.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: "node-role.kubernetes.io/master"})
 	if err != nil {
-		return fmt.Errorf("error listing nodes: %v", err)
+		t.Fatalf("Error listing nodes: %v", err)
 	}
 
 	// set of nodes pods are running on identified by HostIP
@@ -203,7 +198,7 @@ func checkEtcdPodDistribution(c kubernetes.Interface, etcdClusterSize int) error
 	}
 
 	if len(nodeSet) != expectedUniqueNodes {
-		return fmt.Errorf("self-hosted etcd pods not properly distributed")
+		t.Errorf("Self-hosted etcd pods not properly distributed")
 	}
 
 	// check that each node in nodeSet is a master node
@@ -219,9 +214,7 @@ func checkEtcdPodDistribution(c kubernetes.Interface, etcdClusterSize int) error
 
 	for k := range nodeSet {
 		if _, ok := masterSet[k]; !ok {
-			return fmt.Errorf("detected self-hosted etcd pod running on non-master node %v %v", masterSet, nodeSet)
+			t.Errorf("Detected self-hosted etcd pod running on non-master node %v %v", masterSet, nodeSet)
 		}
 	}
-
-	return nil
 }
