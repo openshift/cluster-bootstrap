@@ -269,6 +269,7 @@ func process(localRunningPods, localParentPods, apiParentPods, activeCheckpoints
 
 	// Remove all checkpoints if we need to remove the pod checkpointer itself.
 	if podCheckpointerID != "" {
+		glog.V(4).Info("Pod checkpointer is removed, removing all checkpoints")
 		for id := range inactiveCheckpoints {
 			removeMap[id] = struct{}{}
 			delete(inactiveCheckpoints, id)

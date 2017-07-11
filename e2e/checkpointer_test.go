@@ -159,6 +159,9 @@ func TestCheckpointerUnscheduleCheckpointer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to patch checkpointer: %v", err)
 	}
+	if err := verifyPod(c, "pod-checkpointer", true); err != nil {
+		t.Fatalf("Failed to verifyPod: %s", err)
+	}
 
 	// Create test pod.
 	obj, _, err := api.Codecs.UniversalDecoder().Decode(nginxDS, nil, &v1beta1.DaemonSet{})
@@ -173,6 +176,9 @@ func TestCheckpointerUnscheduleCheckpointer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create the checkpoint parent: %v", err)
 	}
+	if err := verifyPod(c, "nginx-daemonset", true); err != nil {
+		t.Fatalf("Failed to verifyPod: %s", err)
+	}
 
 	// Verify the checkpoints are created.
 	if err := verifyCheckpoint(c, "kube-system", "pod-checkpointer", true, true); err != nil {
@@ -185,7 +191,7 @@ func TestCheckpointerUnscheduleCheckpointer(t *testing.T) {
 	// Disable the kubelet and reboot the worker.
 	stdout, stderr, err := c.Workers[0].SSH("sudo systemctl disable kubelet")
 	if err != nil {
-		t.Fatalf("Failed to disable kubelet on workder %q: %v\nstdout: %s\nstderr: %s", c.Workers[0].Name, err, stdout, stderr)
+		t.Fatalf("Failed to disable kubelet on worker %q: %v\nstdout: %s\nstderr: %s", c.Workers[0].Name, err, stdout, stderr)
 	}
 	if err := c.Workers[0].Reboot(); err != nil {
 		t.Fatalf("Failed to reboot worker: %v", err)
@@ -218,11 +224,9 @@ func TestCheckpointerUnscheduleCheckpointer(t *testing.T) {
 	// Verify that the checkpoints are still running.
 	if err := verifyPod(c, "pod-checkpointer", true); err != nil {
 		t.Fatalf("Failed to verifyPod: %s", err)
-
 	}
 	if err := verifyPod(c, "nginx-daemonset", true); err != nil {
 		t.Fatalf("Failed to verifyPod: %s", err)
-
 	}
 
 	// Start the master kubelet.
@@ -271,6 +275,9 @@ func TestCheckpointerUnscheduleParent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to patch checkpointer: %v", err)
 	}
+	if err := verifyPod(c, "pod-checkpointer", true); err != nil {
+		t.Fatalf("verifyPod: %s", err)
+	}
 
 	// Create test pod.
 	obj, _, err := api.Codecs.UniversalDecoder().Decode(nginxDS, nil, &v1beta1.DaemonSet{})
@@ -284,6 +291,9 @@ func TestCheckpointerUnscheduleParent(t *testing.T) {
 	_, err = client.ExtensionsV1beta1().DaemonSets(testNS).Create(ds)
 	if err != nil {
 		t.Fatalf("Failed to create the checkpoint parent: %v", err)
+	}
+	if err := verifyPod(c, "nginx-daemonset", true); err != nil {
+		t.Fatalf("verifyPod: %s", err)
 	}
 
 	// Verify the checkpoints are created.
@@ -330,7 +340,6 @@ func TestCheckpointerUnscheduleParent(t *testing.T) {
 	// Verify that the checkpoints are running.
 	if err := verifyPod(c, "pod-checkpointer", true); err != nil {
 		t.Fatalf("verifyPod: %s", err)
-
 	}
 	if err := verifyPod(c, "nginx-daemonset", true); err != nil {
 		t.Fatalf("verifyPod: %s", err)
