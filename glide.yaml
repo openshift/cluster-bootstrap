@@ -18,8 +18,10 @@ import:
   version: 4cdb38c072b86bf795d2c81de50784d9fdd6eb77
 - package: github.com/spf13/pflag
   version: e57e3eeb33f795204c1ca35f56c44f83227c6e66
+- package: k8s.io/apiserver
+  version: 087d1a2efeb6296f04bb0f54e7af9890052aa6d7
 - package: k8s.io/apimachinery
-  version: 75b8dd260ef0469d96d578705a87cffd0e09dab8
+  version: abe34e4f5b4413c282a83011892cbeea5b32223b
   subpackages:
   - pkg/api/errors
   - pkg/apis/meta/v1
@@ -28,7 +30,7 @@ import:
   - pkg/util/wait
   - pkg/watch
 - package: k8s.io/client-go
-  version: v3.0.0-beta.0
+  version: v4.0.0-beta.0
   subpackages:
   - kubernetes
   - pkg/api
@@ -37,7 +39,7 @@ import:
   - tools/cache
   - tools/clientcmd
 - package: k8s.io/kubernetes
-  version: v1.6.2
+  version: v1.7.0
   subpackages:
   - pkg/kubectl/cmd/util
   - pkg/kubectl/resource
