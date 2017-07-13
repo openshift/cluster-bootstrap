@@ -10,8 +10,8 @@ var DefaultImages = ImageVersions{
 	CalicoCNI:       "quay.io/calico/cni:v1.9.1-4-g23fcd5f",
 	Hyperkube:       "quay.io/coreos/hyperkube:v1.7.1_coreos.0",
 	Kenc:            "quay.io/coreos/kenc:8f6e2e885f790030fbbb0496ea2a2d8830e58b8f",
-	KubeDNS:         "gcr.io/google_containers/k8s-dns-kube-dns-amd64:1.14.1",
-	KubeDNSMasq:     "gcr.io/google_containers/k8s-dns-dnsmasq-nanny-amd64:1.14.1",
-	KubeDNSSidecar:  "gcr.io/google_containers/k8s-dns-sidecar-amd64:1.14.1",
+	KubeDNS:         "gcr.io/google_containers/k8s-dns-kube-dns-amd64:1.14.4",
+	KubeDNSMasq:     "gcr.io/google_containers/k8s-dns-dnsmasq-nanny-amd64:1.14.4",
+	KubeDNSSidecar:  "gcr.io/google_containers/k8s-dns-sidecar-amd64:1.14.4",
 	PodCheckpointer: "quay.io/coreos/pod-checkpointer:4e7a7dab10bc4d895b66c21656291c6e0b017248",
 }
