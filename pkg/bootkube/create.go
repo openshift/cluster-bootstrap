@@ -81,18 +81,27 @@ func createAssets(manifestDir string) error {
 		return err
 	}
 
-	mapper, typer := f.Object()
+	mapper, _, err := f.UnstructuredObject()
+	if err != nil {
+		return err
+	}
+
+	builder, err := f.NewUnstructuredBuilder(true)
+	if err != nil {
+		return err
+	}
 
 	filenameOpts := &resource.FilenameOptions{
 		Filenames: []string{manifestDir},
 		Recursive: false,
 	}
 
-	r := resource.NewBuilder(mapper, typer, resource.ClientMapperFunc(f.ClientForMapping), f.Decoder(true)).
+	r := builder.
 		Schema(schema).
 		ContinueOnError().
 		NamespaceParam(cmdNamespace).DefaultNamespace().
 		FilenameParam(enforceNamespace, filenameOpts).
+		SelectorParam("").
 		Flatten().
 		Do()
 	err = r.Err()
