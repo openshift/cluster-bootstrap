@@ -41,8 +41,8 @@ BUILD="cd /go/src/k8s.io/kubernetes && \
  make all WHAT=test/e2e/e2e.test"
 
 CONFORMANCE="\
- KUBECONFIG=/kubeconfig KUBERNETES_PROVIDER=skeleton KUBERNETES_CONFORMANCE_TEST=Y go run hack/e2e.go \
- -v --test -check_version_skew=false --test_args='--ginkgo.focus=\[Conformance\]'"
+ KUBECONFIG=/kubeconfig KUBERNETES_CONFORMANCE_TEST=Y go run hack/e2e.go \
+ -- -v --test -check-version-skew=false --provider=skeleton --test_args='--ginkgo.focus=\[Conformance\]'"
 
-CMD="sudo rkt run --insecure-options=image ${RKT_OPTS} docker://golang:1.7.5 --exec /bin/bash -- -c \"${INIT} && ${BUILD} && ${CONFORMANCE}\""
+CMD="sudo rkt run --insecure-options=image ${RKT_OPTS} docker://golang:1.8.3 --exec /bin/bash -- -c \"${INIT} && ${BUILD} && ${CONFORMANCE}\""
 ssh -q  -o UserKnownHostsFile=/dev/null -o stricthostkeychecking=no -i ${ssh_key} -p ${ssh_port} core@${ssh_host} "${CMD}"
