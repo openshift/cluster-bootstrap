@@ -59,4 +59,6 @@ func TestDeleteAPI(t *testing.T) {
 	if err := retry(30, 10*time.Second, waitAPI); err != nil {
 		t.Fatal(err)
 	}
+
+	waitForCheckpointDeactivation(t)
 }
