@@ -48,9 +48,8 @@ func (n *Node) Reboot() error {
 		// A terminated session is perfectly normal during reboot.
 		err = nil
 	}
-
 	if err != nil {
-		return fmt.Errorf("issuing reboot command failed\nstdout:%s\nstderr:%s", stdout, stderr)
+		return fmt.Errorf("issuing reboot command failed: %v\nstdout:%s\nstderr:%s", err, stdout, stderr)
 	}
 
 	checker := func() error {
