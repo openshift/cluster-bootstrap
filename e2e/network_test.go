@@ -31,9 +31,9 @@ func TestNetwork(t *testing.T) {
 	// if absent skip this test
 	if _, err := client.ExtensionsV1beta1().DaemonSets("kube-system").Get("kube-calico", metav1.GetOptions{}); err != nil {
 		if apierrors.IsNotFound(err) {
-			t.Skip("skipping as kube-calico daemonset is not installed")
+			t.Skip("kube-calico daemonset is not installed")
 		}
-		t.Fatalf("error getting kube-calio daemonset: %v", err)
+		t.Fatalf("error getting kube-calico daemonset: %v", err)
 	}
 
 	var nginx *testworkload.Nginx

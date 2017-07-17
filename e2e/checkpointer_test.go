@@ -136,6 +136,29 @@ func waitCluster(t *testing.T) *Cluster {
 	return c
 }
 
+// waitForCheckpointDeactivation waits for checkpointed pods to be replaced by the
+// apiserver-managed ones.
+// TODO(diegs): do something more scientific, like talking to docker.
+func waitForCheckpointDeactivation(t *testing.T) {
+	t.Log("Waiting 30 seconds for checkpoints to deactivate.")
+	time.Sleep(30 * time.Second)
+	successes := 0
+	if err := retry(20, 3*time.Second, func() error {
+		_, err := client.Discovery().ServerVersion()
+		if err != nil {
+			successes = 0
+			return fmt.Errorf("request failed, starting over: %v", err)
+		}
+		successes++
+		if successes < 5 {
+			return fmt.Errorf("request success %d of %d", successes, 5)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("non-checkpoint apiserver did not come back: %v", err)
+	}
+}
+
 // 1. Schedule a pod checkpointer on worker node.
 // 2. Schedule a test pod on worker node.
 // 3. Reboot the worker without starting the kubelet.
@@ -250,6 +273,8 @@ func TestCheckpointerUnscheduleCheckpointer(t *testing.T) {
 	if err := verifyCheckpoint(c, testNS, "nginx-daemonset", false, false); err != nil {
 		t.Fatalf("Failed to verifyCheckpoint: %s", err)
 	}
+
+	waitForCheckpointDeactivation(t)
 }
 
 // 1. Schedule a pod checkpointer on worker node.
@@ -366,5 +391,6 @@ func TestCheckpointerUnscheduleParent(t *testing.T) {
 	if err := verifyCheckpoint(c, testNS, "nginx-daemonset", false, false); err != nil {
 		t.Fatalf("verifyCheckpoint: %s", err)
 	}
-	return
+
+	waitForCheckpointDeactivation(t)
 }
