@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/v1"
 )
 
@@ -417,7 +417,7 @@ func TestSanitizeCheckpointPod(t *testing.T) {
 		if err != nil {
 			t.Errorf("\nUnexpected error: %v\n", err)
 		}
-		if !api.Semantic.DeepEqual(tc.expected, got) {
+		if !apiequality.Semantic.DeepEqual(tc.expected, got) {
 			t.Errorf("\nFor Test: %s\n\nExpected:\n%#v\nGot:\n%#v\n", tc.desc, tc.expected, got)
 		}
 	}
@@ -605,7 +605,7 @@ func TestCopyPod(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
-	if !api.Semantic.DeepEqual(pod, *got) {
+	if !apiequality.Semantic.DeepEqual(pod, *got) {
 		t.Errorf("Expected:\n%#v\nGot:\n%#v", pod, got)
 	}
 }
