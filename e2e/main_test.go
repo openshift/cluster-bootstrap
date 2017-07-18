@@ -18,10 +18,11 @@ import (
 
 // global clients for use by all tests
 var (
-	client          kubernetes.Interface
-	sshClient       *SSHClient
-	expectedMasters int // hint for tests to figure out how to fail or block on resources missing
-	namespace       string
+	client             kubernetes.Interface
+	sshClient          *SSHClient
+	expectedMasters    int // hint for tests to figure out how to fail or block on resources missing
+	namespace          string
+	enableExperimental = flag.Bool("enable-experimental", false, "If true, runs experimental/flaky tests.")
 )
 
 func init() {

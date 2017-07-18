@@ -2,10 +2,9 @@ package e2e
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
-
-	"golang.org/x/crypto/ssh"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -22,31 +21,17 @@ func TestReboot(t *testing.T) {
 
 	t.Logf("rebooting %v nodes", len(nodeList.Items))
 
+	var wg sync.WaitGroup
 	for _, node := range nodeList.Items {
-		var host string
-		for _, addr := range node.Status.Addresses {
-			if addr.Type == v1.NodeExternalIP {
-				host = addr.Address
-				break
+		wg.Add(1)
+		go func(node v1.Node) {
+			defer wg.Done()
+			if err := newNode(&node).Reboot(); err != nil {
+				t.Errorf("failed to reboot node: %v", err)
 			}
-		}
-		if host == "" {
-			t.Skip("could not get external node IP, kubelet must use cloud-provider flags")
-		}
-
-		// reboot
-		_, _, err := sshClient.SSH(host, "sudo reboot")
-		if _, ok := err.(*ssh.ExitMissingError); ok {
-			err = nil
-		}
-
-		if err != nil {
-			t.Fatalf("rebooting node: %v", err)
-		}
+		}(node)
 	}
-
-	// make sure nodes have chance to go down
-	time.Sleep(1 * time.Minute)
+	wg.Wait()
 
 	if err := nodesReady(client, nodeList, t); err != nil {
 		t.Fatalf("some or all nodes did not recover from reboot: %v", err)
@@ -63,12 +48,11 @@ func nodesReady(c kubernetes.Interface, expectedNodes *v1.NodeList, t *testing.T
 		expectedNodeSet[node.ObjectMeta.Name] = struct{}{}
 	}
 
-	f := func() error {
+	return retry(80, 5*time.Second, func() error {
 		list, err := c.CoreV1().Nodes().List(metav1.ListOptions{})
 		if err != nil {
 			return err
 		}
-
 		var recoveredNodes int
 		for _, node := range list.Items {
 			_, ok := expectedNodeSet[node.ObjectMeta.Name]
@@ -91,12 +75,6 @@ func nodesReady(c kubernetes.Interface, expectedNodes *v1.NodeList, t *testing.T
 		if recoveredNodes != len(expectedNodeSet) {
 			return fmt.Errorf("not enough nodes recovered, expected %v got %v", len(expectedNodeSet), recoveredNodes)
 		}
-
 		return nil
-	}
-
-	if err := retry(40, 10*time.Second, f); err != nil {
-		return err
-	}
-	return nil
+	})
 }

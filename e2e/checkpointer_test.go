@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -140,8 +141,8 @@ func waitCluster(t *testing.T) *Cluster {
 // apiserver-managed ones.
 // TODO(diegs): do something more scientific, like talking to docker.
 func waitForCheckpointDeactivation(t *testing.T) {
-	t.Log("Waiting 30 seconds for checkpoints to deactivate.")
-	time.Sleep(30 * time.Second)
+	t.Log("Waiting 60 seconds for checkpoints to deactivate.")
+	time.Sleep(60 * time.Second)
 	successes := 0
 	if err := retry(20, 3*time.Second, func() error {
 		_, err := client.Discovery().ServerVersion()
@@ -228,15 +229,21 @@ func TestCheckpointerUnscheduleCheckpointer(t *testing.T) {
 	}
 
 	// Disable the kubelet and reboot the masters.
+	var rebootGroup sync.WaitGroup
 	for i := range c.Masters {
-		stdout, stderr, err = c.Masters[i].SSH("sudo systemctl disable kubelet")
-		if err != nil {
-			t.Fatalf("Failed to disable kubelet on master %q: %v\nstdout: %s\nstderr: %s", c.Masters[i].Name, err, stdout, stderr)
-		}
-		if err := c.Masters[i].Reboot(); err != nil {
-			t.Fatalf("Failed to reboot master: %v", err)
-		}
+		rebootGroup.Add(1)
+		go func(i int) {
+			defer rebootGroup.Done()
+			stdout, stderr, err = c.Masters[i].SSH("sudo systemctl disable kubelet")
+			if err != nil {
+				t.Fatalf("Failed to disable kubelet on master %q: %v\nstdout: %s\nstderr: %s", c.Masters[i].Name, err, stdout, stderr)
+			}
+			if err := c.Masters[i].Reboot(); err != nil {
+				t.Fatalf("Failed to reboot master: %v", err)
+			}
+		}(i)
 	}
+	rebootGroup.Wait()
 
 	// Start the worker kubelet.
 	stdout, stderr, err = c.Workers[0].SSH("sudo systemctl enable kubelet && sudo systemctl start kubelet")
@@ -253,12 +260,18 @@ func TestCheckpointerUnscheduleCheckpointer(t *testing.T) {
 	}
 
 	// Start the master kubelet.
+	var enableGroup sync.WaitGroup
 	for i := range c.Masters {
-		stdout, stderr, err = c.Masters[i].SSH("sudo systemctl enable kubelet && sudo systemctl start kubelet")
-		if err != nil {
-			t.Fatalf("Failed to start kubelet on master %q: %v\nstdout: %s\nstderr: %s", c.Masters[i].Name, err, stdout, stderr)
-		}
+		enableGroup.Add(1)
+		go func(i int) {
+			defer enableGroup.Done()
+			stdout, stderr, err = c.Masters[i].SSH("sudo systemctl enable kubelet && sudo systemctl start kubelet")
+			if err != nil {
+				t.Fatalf("Failed to start kubelet on master %q: %v\nstdout: %s\nstderr: %s", c.Masters[i].Name, err, stdout, stderr)
+			}
+		}(i)
 	}
+	enableGroup.Wait()
 
 	// Verify that the pod-checkpointer is cleaned up but the daemonset is still running.
 	if err := verifyPod(c, "pod-checkpointer", false); err != nil {
@@ -346,15 +359,21 @@ func TestCheckpointerUnscheduleParent(t *testing.T) {
 	}
 
 	// Disable the kubelet and reboot the masters.
+	var rebootGroup sync.WaitGroup
 	for i := range c.Masters {
-		stdout, stderr, err = c.Masters[i].SSH("sudo systemctl disable kubelet")
-		if err != nil {
-			t.Fatalf("Failed to disable kubelet on master %q: %v\nstdout: %s\nstderr: %s", c.Masters[i].Name, err, stdout, stderr)
-		}
-		if err := c.Masters[i].Reboot(); err != nil {
-			t.Fatalf("Failed to reboot master: %v", err)
-		}
+		rebootGroup.Add(1)
+		go func(i int) {
+			defer rebootGroup.Done()
+			stdout, stderr, err = c.Masters[i].SSH("sudo systemctl disable kubelet")
+			if err != nil {
+				t.Fatalf("Failed to disable kubelet on master %q: %v\nstdout: %s\nstderr: %s", c.Masters[i].Name, err, stdout, stderr)
+			}
+			if err := c.Masters[i].Reboot(); err != nil {
+				t.Fatalf("Failed to reboot master: %v", err)
+			}
+		}(i)
 	}
+	rebootGroup.Wait()
 
 	// Start the worker kubelet.
 	stdout, stderr, err = c.Workers[0].SSH("sudo systemctl enable kubelet && sudo systemctl start kubelet")
@@ -371,12 +390,18 @@ func TestCheckpointerUnscheduleParent(t *testing.T) {
 	}
 
 	// Start the master kubelets.
+	var enableGroup sync.WaitGroup
 	for i := range c.Masters {
-		stdout, stderr, err = c.Masters[i].SSH("sudo systemctl enable kubelet && sudo systemctl start kubelet")
-		if err != nil {
-			t.Fatalf("unable to start kubelet on master %q: %v\nstdout: %s\nstderr: %s", c.Masters[i].Name, err, stdout, stderr)
-		}
+		enableGroup.Add(1)
+		go func(i int) {
+			defer enableGroup.Done()
+			stdout, stderr, err = c.Masters[i].SSH("sudo systemctl enable kubelet && sudo systemctl start kubelet")
+			if err != nil {
+				t.Fatalf("unable to start kubelet on master %q: %v\nstdout: %s\nstderr: %s", c.Masters[i].Name, err, stdout, stderr)
+			}
+		}(i)
 	}
+	enableGroup.Wait()
 
 	// Verify that checkpoint is cleaned up and not running, but the pod checkpointer should still be running.
 	if err := verifyPod(c, "pod-checkpointer", true); err != nil {
