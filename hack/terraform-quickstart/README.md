@@ -10,7 +10,7 @@ To start a cluster first fill out the terraform.tfvars.example with the needed s
 ```
 terraform plan
 terraform apply
-./start-cluster.sh
+IDENT=${path_to_your_ssh_key} ./start-cluster.sh
 ```
 
 To destroy a cluster:
