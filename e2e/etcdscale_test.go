@@ -26,12 +26,21 @@ func TestEtcdScale(t *testing.T) {
 	}
 	t.Run("ResizeSelfHostedEtcdTo3", func(t *testing.T) { resizeSelfHostedEtcd(t, 3) })
 	t.Run("CheckEtcdPodDistribution", func(t *testing.T) { checkEtcdPodDistribution(t, 3) })
-	t.Run("ResizeSelfHostedEtcdTo1", func(t *testing.T) { resizeSelfHostedEtcd(t, 1) })
+	if *enableExperimental {
+		// Experimental: currently does not work reliably.
+		// See: https://github.com/kubernetes-incubator/bootkube/issues/656.
+		t.Run("ResizeSelfHostedEtcdTo1", func(t *testing.T) { resizeSelfHostedEtcd(t, 1) })
+	} else {
+		t.Log("ResizeSelfHostedEtcdTo1: skipped because enable-experimental is false.")
+	}
 }
 
-// Skip if not running 3 or more master nodes unless explicitly told to be
-// expecting 3 or more. Then block until 3 are ready or fail. Also check that
-// etcd is self-hosted.
+// etcdScalePreCheck determines if the etcd scale tests should run. It returns an error if the tests
+// should be skipped.
+//
+// Criteria for running:
+// - etcd-operator is running.
+// - enough master nodes are available to accommodate new etcd pods.
 func etcdScalePreCheck(requiredMasters int) error {
 	// Check for etcd-operator by getting pod
 	l, err := client.CoreV1().Pods("kube-system").List(metav1.ListOptions{LabelSelector: "k8s-app=etcd-operator"})
