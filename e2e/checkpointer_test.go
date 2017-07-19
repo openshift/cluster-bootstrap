@@ -141,8 +141,8 @@ func waitCluster(t *testing.T) *Cluster {
 // apiserver-managed ones.
 // TODO(diegs): do something more scientific, like talking to docker.
 func waitForCheckpointDeactivation(t *testing.T) {
-	t.Log("Waiting 60 seconds for checkpoints to deactivate.")
-	time.Sleep(60 * time.Second)
+	t.Log("Waiting 120 seconds for checkpoints to deactivate.")
+	time.Sleep(120 * time.Second)
 	successes := 0
 	if err := retry(20, 3*time.Second, func() error {
 		_, err := client.Discovery().ServerVersion()
