@@ -2,6 +2,7 @@ package bootkube
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -154,9 +155,10 @@ func apiTest() error {
 	}
 
 	// API Server is responding
-	_, err = client.Discovery().ServerVersion()
-	if err != nil {
-		return err
+	healthStatus := 0
+	client.Discovery().RESTClient().Get().AbsPath("/healthz").Do().StatusCode(&healthStatus)
+	if healthStatus != http.StatusOK {
+		return fmt.Errorf("API Server http status: %d", healthStatus)
 	}
 
 	// System namespace has been created
