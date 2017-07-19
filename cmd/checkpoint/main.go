@@ -326,15 +326,6 @@ func process(localRunningPods, localParentPods, apiParentPods, activeCheckpoints
 //TODO(aaron): Add support for checkpointing configMaps
 func createCheckpointsForValidParents(client kubernetes.Interface, pods map[string]*v1.Pod) {
 	for _, pod := range pods {
-		// This merely check that the last kubelet pod state thinks this pod was running. It's possible that
-		// state is actually stale (only as recent as last successful contact with api-server). However, this
-		// does contain the full podSpec -- so we can still attempt to checkpoint with this "last known good state".
-		//
-		// We do not use the `localPodRunning` state, because while the runtime may think the pod/containers are running -
-		// they may actually be in a failing state - and we've not successfully sent that podStatus to any api-server.
-		if !isRunning(pod) {
-			continue
-		}
 		id := PodFullName(pod)
 
 		cp, err := copyPod(pod)
@@ -690,18 +681,6 @@ func handleStart(start []string) {
 			glog.Errorf("Failed to write active checkpoint manifest: %v", err)
 		}
 	}
-}
-
-func isRunning(pod *v1.Pod) bool {
-	// Determine if a pod is "running" by checking if each container status is in a "ready" state
-	// TODO(aaron): Figure out best sets of data to inspect. PodConditions, PodPhase, containerStatus, containerState, etc.
-	for _, containerStatus := range pod.Status.ContainerStatuses {
-		if !containerStatus.Ready {
-			glog.Infof("Container %s in pod %s not ready. Will not checkpoint", containerStatus.Name, pod.Name)
-			return false
-		}
-	}
-	return true
 }
 
 func podListToParentPods(pl *v1.PodList) map[string]*v1.Pod {

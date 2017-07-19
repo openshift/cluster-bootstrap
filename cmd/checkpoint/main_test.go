@@ -472,59 +472,6 @@ func TestPodListToParentPods(t *testing.T) {
 	}
 }
 
-func TestIsRunning(t *testing.T) {
-	type testCase struct {
-		desc     string
-		pod      *v1.Pod
-		expected bool
-	}
-
-	cases := []testCase{
-		{
-			desc: "Single container ready",
-			pod: &v1.Pod{
-				Status: v1.PodStatus{ContainerStatuses: []v1.ContainerStatus{{Ready: true}}},
-			},
-			expected: true,
-		},
-		{
-			desc: "Multiple containers, all ready",
-			pod: &v1.Pod{
-				Status: v1.PodStatus{ContainerStatuses: []v1.ContainerStatus{{Ready: true}, {Ready: true}}},
-			},
-			expected: true,
-		},
-		{
-			desc: "Single container not ready",
-			pod: &v1.Pod{
-				Status: v1.PodStatus{ContainerStatuses: []v1.ContainerStatus{{Ready: false}}},
-			},
-			expected: false,
-		},
-		{
-			desc: "Multiple containers, some not ready",
-			pod: &v1.Pod{
-				Status: v1.PodStatus{ContainerStatuses: []v1.ContainerStatus{{Ready: true}, {Ready: false}}},
-			},
-			expected: false,
-		},
-		{
-			desc: "Multiple containers, all not ready",
-			pod: &v1.Pod{
-				Status: v1.PodStatus{ContainerStatuses: []v1.ContainerStatus{{Ready: false}, {Ready: false}}},
-			},
-			expected: false,
-		},
-	}
-
-	for _, tc := range cases {
-		got := isRunning(tc.pod)
-		if tc.expected != got {
-			t.Errorf("Expected: %t Got: %t for test: %s", tc.expected, got, tc.desc)
-		}
-	}
-}
-
 func podWithAnnotations(a map[string]string) *v1.Pod {
 	return &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
