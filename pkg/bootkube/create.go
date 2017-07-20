@@ -2,6 +2,7 @@ package bootkube
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -81,18 +82,27 @@ func createAssets(manifestDir string) error {
 		return err
 	}
 
-	mapper, typer := f.Object()
+	mapper, _, err := f.UnstructuredObject()
+	if err != nil {
+		return err
+	}
+
+	builder, err := f.NewUnstructuredBuilder(true)
+	if err != nil {
+		return err
+	}
 
 	filenameOpts := &resource.FilenameOptions{
 		Filenames: []string{manifestDir},
 		Recursive: false,
 	}
 
-	r := resource.NewBuilder(mapper, typer, resource.ClientMapperFunc(f.ClientForMapping), f.Decoder(true)).
+	r := builder.
 		Schema(schema).
 		ContinueOnError().
 		NamespaceParam(cmdNamespace).DefaultNamespace().
 		FilenameParam(enforceNamespace, filenameOpts).
+		SelectorParam("").
 		Flatten().
 		Do()
 	err = r.Err()
@@ -145,9 +155,10 @@ func apiTest() error {
 	}
 
 	// API Server is responding
-	_, err = client.Discovery().ServerVersion()
-	if err != nil {
-		return err
+	healthStatus := 0
+	client.Discovery().RESTClient().Get().AbsPath("/healthz").Do().StatusCode(&healthStatus)
+	if healthStatus != http.StatusOK {
+		return fmt.Errorf("API Server http status: %d", healthStatus)
 	}
 
 	// System namespace has been created
