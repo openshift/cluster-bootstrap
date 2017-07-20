@@ -9,7 +9,7 @@ var DefaultImages = ImageVersions{
 	Calico:          "quay.io/calico/node:v1.3.0",
 	CalicoCNI:       "quay.io/calico/cni:v1.9.1-4-g23fcd5f",
 	Hyperkube:       "quay.io/coreos/hyperkube:v1.7.1_coreos.0",
-	Kenc:            "quay.io/coreos/kenc:8f6e2e885f790030fbbb0496ea2a2d8830e58b8f",
+	Kenc:            "quay.io/coreos/kenc:0.0.2",
 	KubeDNS:         "gcr.io/google_containers/k8s-dns-kube-dns-amd64:1.14.4",
 	KubeDNSMasq:     "gcr.io/google_containers/k8s-dns-dnsmasq-nanny-amd64:1.14.4",
 	KubeDNSSidecar:  "gcr.io/google_containers/k8s-dns-sidecar-amd64:1.14.4",
