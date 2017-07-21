@@ -4,7 +4,7 @@ package asset
 var DefaultImages = ImageVersions{
 	Etcd:            "quay.io/coreos/etcd:v3.1.8",
 	EtcdOperator:    "quay.io/coreos/etcd-operator:v0.4.2",
-	Flannel:         "quay.io/coreos/flannel:v0.7.1-amd64",
+	Flannel:         "quay.io/coreos/flannel:v0.8.0-amd64",
 	FlannelCNI:      "quay.io/coreos/flannel-cni:0.1.0",
 	Calico:          "quay.io/calico/node:v1.3.0",
 	CalicoCNI:       "quay.io/calico/cni:v1.9.1-4-g23fcd5f",
