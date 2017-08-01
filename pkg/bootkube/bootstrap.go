@@ -70,11 +70,13 @@ func copyFile(src, dst string, overwrite bool) error {
 	if err != nil {
 		return err
 	}
+	defer dstfile.Close()
 
 	srcfile, err := os.Open(src)
 	if err != nil {
 		return err
 	}
+	defer srcfile.Close()
 
 	_, err = io.Copy(dstfile, srcfile)
 	return err
