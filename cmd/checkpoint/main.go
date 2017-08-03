@@ -2,12 +2,9 @@ package main
 
 import (
 	"bytes"
-	"crypto/tls"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -20,9 +17,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -31,17 +32,10 @@ const (
 	podNameEnv      = "POD_NAME"
 	podNamespaceEnv = "POD_NAMESPACE"
 
-	// We must use both the :10255/pods and :10250/runningpods/ endpoints, because /pods endpoint could have stale data.
-	// The /pods endpoint will only show the last cached status which has successfully been written to an apiserver.
-	// However, if there is no apiserver, we may get stale state (e.g. saying pod is running, when it really is not).
-	kubeletAPIPodsURL        = "http://127.0.0.1:10255/pods"
-	kubeletAPIRunningPodsURL = "https://127.0.0.1:10250/runningpods/"
-
 	activeCheckpointPath    = "/etc/kubernetes/manifests"
 	inactiveCheckpointPath  = "/etc/kubernetes/inactive-manifests"
 	checkpointSecretPath    = "/etc/kubernetes/checkpoint-secrets"
 	checkpointConfigMapPath = "/etc/kubernetes/checkpoint-configmaps"
-	kubeconfigPath          = "/etc/kubernetes/kubeconfig"
 
 	shouldCheckpointAnnotation = "checkpointer.alpha.coreos.com/checkpoint"    // = "true"
 	checkpointParentAnnotation = "checkpointer.alpha.coreos.com/checkpoint-of" // = "podName"
@@ -55,13 +49,29 @@ var (
 	lockfilePath string
 
 	// TODO(yifan): Put these into a struct when necessary.
-	nodeName     string
-	podName      string
-	podNamespace string
+	nodeName       string
+	podName        string
+	podNamespace   string
+	kubeconfigPath string
+
+	// podSerializer is an encoder for writing checkpointed pods.
+	//
+	// Perfer this instead of json.Marshal because it corrects metadata before
+	// serializing. For example it automatically fills in the "apiVersion" field.
+	podSerializer = scheme.Codecs.EncoderForVersion(
+		json.NewSerializer(
+			json.DefaultMetaFactory,
+			scheme.Scheme, // client-go's default scheme.
+			scheme.Scheme,
+			false, // don't pretty print.
+		),
+		v1.SchemeGroupVersion,
+	)
 )
 
 func init() {
 	flag.StringVar(&lockfilePath, "lock-file", "/var/run/lock/pod-checkpointer.lock", "The path to lock file for checkpointer to use")
+	flag.StringVar(&kubeconfigPath, "kubeconfig", "/etc/kubernetes/kubeconfig", "Path to a kubeconfig file containing credentials used to talk to the kubelet.")
 	flag.Set("logtostderr", "true")
 }
 
@@ -110,8 +120,9 @@ func main() {
 	}
 
 	glog.Infof("Starting checkpointer for node: %s", nodeName)
-	// This is run as a static pod, so we can't use InClusterConfig (no secrets/service account)
-	// Use the same kubeconfig as the kubelet for auth and api-server location.
+	// This is run as a static pod, so we can't use InClusterConfig because
+	// KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT won't be set in
+	// the pod.
 	kubeConfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfigPath},
 		&clientcmd.ConfigOverrides{}).ClientConfig()
@@ -119,38 +130,9 @@ func main() {
 		glog.Fatalf("Failed to load kubeconfig: %v", err)
 	}
 	client := kubernetes.NewForConfigOrDie(kubeConfig)
-
-	load := func(rawData []byte, filepath string) []byte {
-		if len(rawData) > 0 {
-			return rawData
-		}
-		data, err := ioutil.ReadFile(filepath)
-		if err != nil {
-			glog.Fatalf("Failed to load %s: %v", filepath, err)
-		}
-		return data
-	}
-
-	// Grab the kubelet's client certificate out of its kubeconfig.
-	c := kubeConfig.TLSClientConfig
-	clientCert, err := tls.X509KeyPair(load(c.CertData, c.CertFile), load(c.KeyData, c.KeyFile))
+	kubelet, err := newKubeletClient(kubeConfig)
 	if err != nil {
-		glog.Fatalf("Failed to load kubelet client cert: %v", err)
-	}
-
-	// Use the kubelet's own client cert to talk to the kubelet's API.
-	// Kubelets with API auth enabled will require this.
-	kubelet := &kubeletClient{
-		client: &http.Client{
-			Transport: &http.Transport{
-				Proxy: http.ProxyFromEnvironment,
-				TLSClientConfig: &tls.Config{
-					Certificates: []tls.Certificate{clientCert},
-					// Kubelet is using a self signed cert.
-					InsecureSkipVerify: true,
-				},
-			},
-		},
+		glog.Fatalf("Failed to load kubelet client: %v", err)
 	}
 
 	run(client, kubelet)
@@ -160,18 +142,13 @@ func run(client kubernetes.Interface, kubelet *kubeletClient) {
 	for {
 		time.Sleep(3 * time.Second)
 
-		localParentPods, err := kubelet.localParentPods()
-		if err != nil {
-			// If we can't determine local state from kubelet api, we shouldn't make any decisions about checkpoints.
-			glog.Errorf("Failed to retrive pod list from kubelet api: %v", err)
-			continue
-		}
-
-		localRunningPods, err := kubelet.localRunningPods()
-		if err != nil {
-			glog.Errorf("Failed to retrieve running pods from kubelet api: %v", err)
-			continue
-		}
+		// We must use both the :10255/pods and :10250/runningpods/ endpoints, because /pods
+		// endpoint could have stale data. The /pods endpoint will only show the last cached
+		// status which has successfully been written to an apiserver. However, if there is
+		// no apiserver, we may get stale state (e.g. saying pod is running, when it really is
+		// not).
+		localParentPods := kubelet.localParentPods()
+		localRunningPods := kubelet.localRunningPods()
 
 		createCheckpointsForValidParents(client, localParentPods)
 
@@ -362,8 +339,8 @@ func createCheckpointsForValidParents(client kubernetes.Interface, pods map[stri
 
 // writeCheckpointManifest will save the pod to the inactive checkpoint location if it doesn't already exist.
 func writeCheckpointManifest(pod *v1.Pod) error {
-	b, err := json.Marshal(pod)
-	if err != nil {
+	buff := &bytes.Buffer{}
+	if err := podSerializer.Encode(pod, buff); err != nil {
 		return err
 	}
 	path := filepath.Join(inactiveCheckpointPath, pod.Namespace+"-"+pod.Name+".json")
@@ -371,7 +348,7 @@ func writeCheckpointManifest(pod *v1.Pod) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0600); err != nil {
 		return err
 	}
-	return writeManifestIfDifferent(path, PodFullName(pod), b)
+	return writeManifestIfDifferent(path, PodFullName(pod), buff.Bytes())
 }
 
 // writeManifestIfDifferent writes `data` to `path` if data is different from the existing content.
@@ -486,47 +463,56 @@ func getAPIParentPods(client kubernetes.Interface, nodeName string) map[string]*
 // A minimal kubelet client. It assumes the kubelet can be reached the kubelet's insecure API at
 // 127.0.0.1:10255 and the secure API at 127.0.0.1:10250.
 type kubeletClient struct {
-	client *http.Client
+	insecureClient *rest.RESTClient
+	secureClient   *rest.RESTClient
+}
+
+func newKubeletClient(config *rest.Config) (*kubeletClient, error) {
+	// Use the core API group serializer. Same logic as client-go.
+	// https://github.com/kubernetes/client-go/blob/v3.0.0/kubernetes/typed/core/v1/core_client.go#L147
+	config.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: scheme.Codecs}
+
+	// Kubelet is using a self-signed cert.
+	config.TLSClientConfig.Insecure = true
+	config.TLSClientConfig.CAFile = ""
+	config.TLSClientConfig.CAData = nil
+
+	// Shallow copy.
+	insecureConfig := *config
+	secureConfig := *config
+
+	insecureConfig.Host = "http://127.0.0.1:10255"
+	secureConfig.Host = "https://127.0.0.1:10250"
+
+	client := new(kubeletClient)
+	var err error
+	if client.insecureClient, err = rest.UnversionedRESTClientFor(&insecureConfig); err != nil {
+		return nil, fmt.Errorf("failed creating kubelet client for debug endpoints: %v", err)
+	}
+	if client.secureClient, err = rest.UnversionedRESTClientFor(&secureConfig); err != nil {
+		return nil, fmt.Errorf("failed creating kubelet client: %v", err)
+	}
+	return client, nil
 }
 
 // localParentPods will retrieve all pods from kubelet api that are parents & should be checkpointed
-func (c *kubeletClient) localParentPods() (map[string]*v1.Pod, error) {
-	resp, err := c.client.Get(kubeletAPIPodsURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to contact kubelet pod api: %v", err)
+func (c *kubeletClient) localParentPods() map[string]*v1.Pod {
+	podList := new(v1.PodList)
+	if err := c.insecureClient.Get().AbsPath("/pods/").Do().Into(podList); err != nil {
+		// Assume there are no local parent pods.
+		glog.Errorf("failed to list local parent pods, assuming none are running: %v", err)
 	}
-
-	defer resp.Body.Close()
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %v", err)
-	}
-
-	var podList v1.PodList
-	if err := json.Unmarshal(b, &podList); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal podlist: %v", err)
-	}
-	return podListToParentPods(&podList), nil
+	return podListToParentPods(podList)
 }
 
 // localRunningPods uses the /runningpods/ kubelet api to retrieve the local container runtime pod state
-func (c *kubeletClient) localRunningPods() (map[string]*v1.Pod, error) {
-	resp, err := c.client.Get(kubeletAPIRunningPodsURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to contact kubelet pod api: %v", err)
+func (c *kubeletClient) localRunningPods() map[string]*v1.Pod {
+	podList := new(v1.PodList)
+	if err := c.secureClient.Get().AbsPath("/runningpods/").Do().Into(podList); err != nil {
+		// Assume there are no local running pods.
+		glog.Errorf("failed to list local running pods, assuming none are ready: %v", err)
 	}
-
-	defer resp.Body.Close()
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %v", err)
-	}
-
-	var podList v1.PodList
-	if err := json.Unmarshal(b, &podList); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal podlist: %v", err)
-	}
-	return podListToMap(&podList, filterNone), nil
+	return podListToMap(podList, filterNone)
 }
 
 // checkpointSecretVolumes ensures that all pod secrets are checkpointed locally, then converts the secret volume to a hostpath.
@@ -710,7 +696,7 @@ func podListToMap(pl *v1.PodList, filter filterFn) map[string]*v1.Pod {
 		// Pods from Kubelet API do not have TypeMeta populated - set it here either way.
 		pods[id] = pod
 		pods[id].TypeMeta = metav1.TypeMeta{
-			APIVersion: pl.APIVersion,
+			APIVersion: "v1",
 			Kind:       "Pod",
 		}
 	}
