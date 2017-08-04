@@ -1237,6 +1237,8 @@ spec:
               value: "{{ .PodCIDR }}"
             - name: CALICO_IPV4POOL_IPIP
               value: "always"
+            - name: FELIX_HEALTHENABLED
+              value: "true"
             - name: NODENAME
               valueFrom:
                 fieldRef:
@@ -1248,6 +1250,18 @@ spec:
           resources:
             requests:
               cpu: 250m
+          livenessProbe:
+            httpGet:
+              path: /liveness
+              port: 9099
+            periodSeconds: 10
+            initialDelaySeconds: 10
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: 9099
+            periodSeconds: 10
           volumeMounts:
             - mountPath: /var/run/calico
               name: var-run-calico
@@ -1347,7 +1361,14 @@ rules:
       - watch
   - apiGroups: ["projectcalico.org"]
     resources:
+      - globalbgppeers
+    verbs:
+      - get
+      - list
+  - apiGroups: ["projectcalico.org"]
+    resources:
       - globalconfigs
+      - globalbgpconfigs
     verbs:
       - create
       - get
