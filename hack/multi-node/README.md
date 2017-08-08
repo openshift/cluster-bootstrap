@@ -10,6 +10,15 @@ This will generate the default assets in the `cluster` directory and launch mult
 ./bootkube-up
 ```
 
+## Running E2E tests
+
+```
+$ ssh-add ~/.vagrant.d/insecure_private_key
+$ export KUBECONFIG=$PWD/cluster/auth/kubeconfig
+$ cd ../.. # project root
+$ go test -v ./e2e/ --kubeconfig=$KUBECONFIG
+```
+
 ## Cleaning up
 
 To stop the running cluster and remove generated assets, run:

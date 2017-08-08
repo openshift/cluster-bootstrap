@@ -23,10 +23,10 @@ func newNode(n *v1.Node) *Node {
 	return &Node{n}
 }
 
-func (n *Node) ExternalIP() string {
+func (n *Node) GetIPByType(addrType v1.NodeAddressType) string {
 	var host string
 	for _, addr := range n.Status.Addresses {
-		if addr.Type == v1.NodeExternalIP {
+		if addr.Type == addrType {
 			host = addr.Address
 			break
 		}
@@ -34,10 +34,21 @@ func (n *Node) ExternalIP() string {
 	return host
 }
 
+func (n *Node) ExternalIP() string {
+	return n.GetIPByType(v1.NodeExternalIP)
+}
+
+func (n *Node) InternalIP() string {
+	return n.GetIPByType(v1.NodeInternalIP)
+}
+
 func (n *Node) SSH(cmd string) (stdout, stderr []byte, err error) {
 	host := n.ExternalIP()
 	if host == "" {
-		return nil, nil, fmt.Errorf("cannot find external IP for node %q", n.Name)
+		host = n.InternalIP()
+		if host == "" {
+			return nil, nil, fmt.Errorf("cannot find external or internal IP for node %q", n.Name)
+		}
 	}
 	return sshClient.SSH(host, cmd)
 }
