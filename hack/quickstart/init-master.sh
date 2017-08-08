@@ -50,7 +50,7 @@ EOF
 # Initialize a Master node
 function init_master_node() {
     systemctl daemon-reload
-    systemctl stop update-engine; systemctl mask update-engine
+    systemctl stop locksmithd; systemctl mask locksmithd
 
     if [ "$SELF_HOST_ETCD" = true ] ; then
         echo "WARNING: THIS IS NOT YET FULLY WORKING - merely here to make ongoing testing easier"
