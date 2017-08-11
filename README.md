@@ -1,6 +1,7 @@
 # Bootkube  
 
 [![Build Status](https://travis-ci.org/kubernetes-incubator/bootkube.svg?branch=master)](https://travis-ci.org/kubernetes-incubator/bootkube)
+[![GoDoc](https://godoc.org/github.com/kubernetes-incubator/bootkube?status.svg)](https://godoc.org/github.com/kubernetes-incubator/bootkube)
 
 Bootkube is a tool for launching self-hosted Kubernetes clusters.
 
