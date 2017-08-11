@@ -9,8 +9,3 @@ The number of nodes is required so that the setup can block on all nodes being r
 
 Implement whatever is needed to finish porting all functionality from pluton tests
 
-## Requirements
-
-Tests can't rely on network access to the cluster except via the kubernetes api. So no hitting nodes directly just because you can. This will maximize future portability with other setup tools.
-
-
