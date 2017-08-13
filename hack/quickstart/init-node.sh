@@ -56,7 +56,7 @@ if [ "${REMOTE_HOST}" != "local" ]; then
     ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "sudo REMOTE_USER=${REMOTE_USER} CLOUD_PROVIDER=${CLOUD_PROVIDER} /home/${REMOTE_USER}/init-node.sh local /home/${REMOTE_USER}/kubeconfig"
 
     # Cleanup
-    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "rm /home/${REMOTE_USER}/init-node.sh"
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "rm /home/${REMOTE_USER}/{init-node.sh,kubeconfig}"
 
     echo
     echo "Node bootstrap complete. It may take a few minutes for the node to become ready. Access your kubernetes cluster using:"
