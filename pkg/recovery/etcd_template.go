@@ -102,7 +102,7 @@ spec:
       --data-dir=/var/etcd/data &) && sleep 30 && \
       etcdctl \
       --endpoints=http://localhost:32379 \
-      del {{ .TPRKey }} && \
+      del {{ .CRDKey }} && \
       etcdctl \
       --endpoints=http://localhost:32379 \
       del --prefix {{ .MemberPodPrefix }}

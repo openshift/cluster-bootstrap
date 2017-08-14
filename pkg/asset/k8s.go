@@ -64,7 +64,7 @@ func newDynamicAssets(conf Config) Assets {
 			MustCreateAssetFromTemplate(AssetPathKenc, internal.KencTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathBootstrapEtcd, internal.BootstrapEtcdTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathBootstrapEtcdService, internal.BootstrapEtcdSvcTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathMigrateEtcdCluster, internal.EtcdTPRTemplate, conf))
+			MustCreateAssetFromTemplate(AssetPathMigrateEtcdCluster, internal.EtcdCRDTemplate, conf))
 	}
 	if conf.CalicoNetworkPolicy {
 		assets = append(assets,

@@ -8,16 +8,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/etcd-operator/pkg/spec"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/v1"
 )
 
 const (
-	kubeEtcdTPRURI = "/apis/etcd.coreos.com/v1beta1/namespaces/kube-system/clusters/kube-etcd"
-	pollTimeout    = 5 * time.Minute
-	pollInterval   = 5 * time.Second
+	pollTimeout  = 5 * time.Minute
+	pollInterval = 5 * time.Second
 )
 
 func TestEtcdScale(t *testing.T) {
@@ -83,40 +84,41 @@ func etcdScalePreCheck(requiredMasters int) error {
 // resizes self-hosted etcd and checks that the desired number of pods are in a running state
 func resizeSelfHostedEtcd(t *testing.T, size int) {
 	httpRestClient := client.ExtensionsV1beta1().RESTClient()
-	var tpr unstructured.Unstructured
+	kubeEtcdCRDURI := fmt.Sprintf("/apis/%s/namespaces/%s/%s/kube-etcd", spec.SchemeGroupVersion.String(), api.NamespaceSystem, spec.CRDResourcePlural)
+	var crd unstructured.Unstructured
 
-	// Resize cluster by updating TPR.
+	// Resize cluster by updating CRD.
 	if err := wait.PollImmediate(pollInterval, pollTimeout, func() (bool, error) {
-		// get tpr
-		b, err := httpRestClient.Get().RequestURI(kubeEtcdTPRURI).DoRaw()
+		// get crd
+		b, err := httpRestClient.Get().RequestURI(kubeEtcdCRDURI).DoRaw()
 		if err != nil {
-			log.Printf("Failed to get TPR: %v\n", err)
+			log.Printf("Failed to get CRD: %v\n", err)
 			return false, nil
 		}
 
-		if err := json.Unmarshal(b, &tpr); err != nil {
-			log.Printf("Failed to unmarshal TPR: %v\n", err)
+		if err := json.Unmarshal(b, &crd); err != nil {
+			log.Printf("Failed to unmarshal CRD: %v\n", err)
 			return false, nil
 		}
 
 		// change size
-		spec, ok := tpr.Object["spec"].(map[string]interface{})
+		spec, ok := crd.Object["spec"].(map[string]interface{})
 		if !ok {
-			log.Println("Could not get 'spec' from TPR")
+			log.Println("Could not get 'spec' from CRD")
 			return false, nil
 		}
 		spec["size"] = size
 
-		// update tpr
-		data, err := json.Marshal(&tpr)
+		// update crd
+		data, err := json.Marshal(&crd)
 		if err != nil {
-			log.Printf("Could not marshal TPR: %v\n", err)
+			log.Printf("Could not marshal CRD: %v\n", err)
 			return false, nil
 		}
 
-		result := httpRestClient.Put().RequestURI(kubeEtcdTPRURI).Body(data).Do()
+		result := httpRestClient.Put().RequestURI(kubeEtcdCRDURI).Body(data).Do()
 		if err := result.Error(); err != nil {
-			log.Printf("Error updating TPR: %v\n", err)
+			log.Printf("Error updating CRD: %v\n", err)
 			return false, nil
 		}
 		var statusCode int
@@ -131,34 +133,34 @@ func resizeSelfHostedEtcd(t *testing.T, size int) {
 		t.Fatalf("Failed to scale cluster: %v", err)
 	}
 
-	// Check that all pods are running by checking TPR.
+	// Check that all pods are running by checking CRD.
 	if err := wait.PollImmediate(pollInterval, pollTimeout, func() (bool, error) {
-		// get tpr
-		b, err := httpRestClient.Get().RequestURI(kubeEtcdTPRURI).DoRaw()
+		// get crd
+		b, err := httpRestClient.Get().RequestURI(kubeEtcdCRDURI).DoRaw()
 		if err != nil {
-			log.Printf("Failed to get TPR: %v\n", err)
+			log.Printf("Failed to get CRD: %v\n", err)
 			return false, nil
 		}
 
-		if err := json.Unmarshal(b, &tpr); err != nil {
-			log.Printf("Failed to unmarshal TPR: %v\n", err)
+		if err := json.Unmarshal(b, &crd); err != nil {
+			log.Printf("Failed to unmarshal CRD: %v\n", err)
 			return false, nil
 		}
 
 		// check status of members
-		status, ok := tpr.Object["status"].(map[string]interface{})
+		status, ok := crd.Object["status"].(map[string]interface{})
 		if !ok {
-			log.Println("Could not asset 'status' type from TPR")
+			log.Println("Could not assert 'status' type from CRD")
 			return false, nil
 		}
 		members, ok := status["members"].(map[string]interface{})
 		if !ok {
-			log.Println("Could not assert 'members' type from TPR")
+			log.Println("Could not assert 'members' type from CRD")
 			return false, nil
 		}
 		readyList, ok := members["ready"].([]interface{})
 		if !ok {
-			log.Println("Could not assert 'ready' type from TPR")
+			log.Println("Could not assert 'ready' type from CRD")
 			return false, nil
 		}
 

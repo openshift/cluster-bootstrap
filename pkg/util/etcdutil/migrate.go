@@ -35,7 +35,7 @@ var (
 	pollTimeout  = 300 * time.Second
 )
 
-func Migrate(kubeConfig clientcmd.ClientConfig, assetDir, svcPath, tprPath string) error {
+func Migrate(kubeConfig clientcmd.ClientConfig, assetDir, svcPath, crdPath string) error {
 	useEtcdTLS, err := detectEtcdTLS(assetDir)
 	if err != nil {
 		return err
@@ -58,11 +58,11 @@ func Migrate(kubeConfig clientcmd.ClientConfig, assetDir, svcPath, tprPath strin
 	}
 	restClient := kubecli.CoreV1().RESTClient()
 
-	err = waitEtcdTPRReady(restClient, api.NamespaceSystem)
+	err = waitEtcdCRDReady(restClient, api.NamespaceSystem)
 	if err != nil {
 		return err
 	}
-	glog.Infof("created etcd cluster TPR")
+	glog.Infof("created etcd cluster CRD")
 
 	if err := createBootstrapEtcdService(kubecli, etcdTLS, svcPath); err != nil {
 		return fmt.Errorf("failed to create bootstrap-etcd-service: %v", err)
@@ -75,7 +75,7 @@ func Migrate(kubeConfig clientcmd.ClientConfig, assetDir, svcPath, tprPath strin
 	}
 	glog.Infof("etcd-service IP is %s", etcdServiceIP)
 
-	if err := createMigratedEtcdCluster(restClient, tprPath); err != nil {
+	if err := createMigratedEtcdCluster(restClient, crdPath); err != nil {
 		return fmt.Errorf("failed to create etcd cluster for migration: %v", err)
 	}
 	glog.Infof("created etcd cluster for migration")
@@ -93,11 +93,11 @@ func Migrate(kubeConfig clientcmd.ClientConfig, assetDir, svcPath, tprPath strin
 }
 
 func listEtcdCluster(ns string, restClient restclient.Interface) restclient.Result {
-	uri := fmt.Sprintf("/apis/%s/%s/namespaces/%s/%s", spec.TPRGroup, spec.TPRVersion, ns, spec.TPRKindPlural)
+	uri := fmt.Sprintf("/apis/%s/namespaces/%s/%s", spec.SchemeGroupVersion.String(), ns, spec.CRDResourcePlural)
 	return restClient.Get().RequestURI(uri).Do()
 }
 
-func waitEtcdTPRReady(restClient restclient.Interface, ns string) error {
+func waitEtcdCRDReady(restClient restclient.Interface, ns string) error {
 	err := wait.Poll(pollInterval, pollTimeout, func() (bool, error) {
 		res := listEtcdCluster(ns, restClient)
 		if err := res.Error(); err != nil {
@@ -109,7 +109,7 @@ func waitEtcdTPRReady(restClient restclient.Interface, ns string) error {
 		return true, nil
 	})
 	if err != nil {
-		return fmt.Errorf("failed to wait for etcd TPR to be ready: %v", err)
+		return fmt.Errorf("failed to wait for etcd CRD to be ready: %v", err)
 	}
 	return nil
 }
@@ -141,25 +141,25 @@ func createBootstrapEtcdService(kubecli kubernetes.Interface, etcdTLS *tls.Confi
 	return nil
 }
 
-func createMigratedEtcdCluster(restclient restclient.Interface, tprPath string) error {
-	tpr, err := ioutil.ReadFile(tprPath)
+func createMigratedEtcdCluster(restclient restclient.Interface, crdPath string) error {
+	crd, err := ioutil.ReadFile(crdPath)
 	if err != nil {
 		return err
 	}
-	uri := fmt.Sprintf("/apis/%s/%s/namespaces/%s/%s", spec.TPRGroup, spec.TPRVersion, api.NamespaceSystem, spec.TPRKindPlural)
-	return restclient.Post().RequestURI(uri).SetHeader("Content-Type", "application/json").Body(tpr).Do().Error()
+	uri := fmt.Sprintf("/apis/%s/namespaces/%s/%s", spec.SchemeGroupVersion.String(), api.NamespaceSystem, spec.CRDResourcePlural)
+	return restclient.Post().RequestURI(uri).SetHeader("Content-Type", "application/json").Body(crd).Do().Error()
 }
 
 func waitEtcdClusterRunning(restclient restclient.Interface) error {
-	uri := fmt.Sprintf("/apis/%s/%s/namespaces/%s/%s/%s", spec.TPRGroup, spec.TPRVersion, api.NamespaceSystem, spec.TPRKindPlural, etcdClusterName)
+	uri := fmt.Sprintf("/apis/%s/namespaces/%s/%s/%s", spec.SchemeGroupVersion.String(), api.NamespaceSystem, spec.CRDResourcePlural, etcdClusterName)
 	err := wait.Poll(pollInterval, pollTimeout, func() (bool, error) {
 		b, err := restclient.Get().RequestURI(uri).DoRaw()
 		if err != nil {
-			glog.Errorf("failed to get etcd cluster TPR: %v", err)
+			glog.Errorf("failed to get etcd cluster CRD: %v", err)
 			return false, nil
 		}
 
-		e := &spec.Cluster{}
+		e := &spec.EtcdCluster{}
 		if err := json.Unmarshal(b, e); err != nil {
 			return false, err
 		}
