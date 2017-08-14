@@ -1,5 +1,5 @@
-hash: bf876d1418388c7a41b6b86550896591d5454d7a18bd108fd043a4fe13d819bc
-updated: 2017-08-16T13:36:19.720849182-07:00
+hash: ab12801edb0786b1f132c590b285eb4ce75ca4de783e7bc5c5ee19728e5bf20d
+updated: 2017-08-21T23:27:46.075577677+02:00
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -66,7 +66,7 @@ imports:
   - pkg/tlsutil
   - pkg/transport
 - name: github.com/coreos/etcd-operator
-  version: 3b29ba343aace053d5d3cee9731cbf7ad7bfe157
+  version: 257d52fbcb28f473cfa0df33c646de988c0cff2d
   subpackages:
   - pkg/spec
 - name: github.com/coreos/go-systemd
@@ -204,11 +204,11 @@ imports:
   subpackages:
   - pbutil
 - name: github.com/pborman/uuid
-  version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
+  version: 5007efa264d92316c43112bc573e754bc889b7b1
 - name: github.com/pkg/errors
   version: a22138067af1c4942683050411a841ade67fe1eb
 - name: github.com/pkg/sftp
-  version: 1a91f318a0be84de50afcf22d3b3d78bfe32025c
+  version: 19d66c2d96909b16635f38e4552015c49f45fb7b
 - name: github.com/prometheus/client_golang
   version: c5b7fccd204277076155f10851dad72b76a49317
   subpackages:
@@ -316,28 +316,9 @@ imports:
 - name: gopkg.in/yaml.v2
   version: 53feefa2559fb8dfa8d81baad31be332c97d6c77
 - name: k8s.io/api
-  version: 4fe9229aaa9d704f8a2a21cdcd50de2bbb6e1b57
+  version: e532fdb5587debfd7aade56dabe9eb5df9544baf
   subpackages:
-  - admissionregistration/v1alpha1
-  - apps/v1beta1
-  - authentication/v1
-  - authentication/v1beta1
-  - authorization/v1
-  - authorization/v1beta1
-  - autoscaling/v1
-  - autoscaling/v2alpha1
-  - batch/v1
-  - batch/v2alpha1
-  - certificates/v1beta1
   - core/v1
-  - extensions/v1beta1
-  - networking/v1
-  - policy/v1beta1
-  - rbac/v1alpha1
-  - rbac/v1beta1
-  - settings/v1alpha1
-  - storage/v1
-  - storage/v1beta1
 - name: k8s.io/apimachinery
   version: abe34e4f5b4413c282a83011892cbeea5b32223b
   subpackages:
