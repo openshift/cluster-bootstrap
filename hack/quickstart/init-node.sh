@@ -33,7 +33,7 @@ function init_worker_node() {
 
     # Start services
     systemctl daemon-reload
-    systemctl stop update-engine; systemctl mask update-engine
+    systemctl stop locksmithd; systemctl mask locksmithd
     systemctl enable kubelet; sudo systemctl start kubelet
 }
 
