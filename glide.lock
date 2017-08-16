@@ -1,5 +1,5 @@
-hash: 9251f7d6d9e93bc949e37febe3d135622b7ee6b1eb634dd5bdf4f5f7f1138818
-updated: 2017-07-13T15:43:05.969488566-07:00
+hash: bf876d1418388c7a41b6b86550896591d5454d7a18bd108fd043a4fe13d819bc
+updated: 2017-08-16T13:36:19.720849182-07:00
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -208,7 +208,7 @@ imports:
 - name: github.com/pkg/errors
   version: a22138067af1c4942683050411a841ade67fe1eb
 - name: github.com/pkg/sftp
-  version: 314a5ccb89b21e053d7d96c3a706eacaf2b18231
+  version: 1a91f318a0be84de50afcf22d3b3d78bfe32025c
 - name: github.com/prometheus/client_golang
   version: c5b7fccd204277076155f10851dad72b76a49317
   subpackages:
@@ -490,7 +490,7 @@ imports:
   - util/jsonpath
   - util/workqueue
 - name: k8s.io/kubernetes
-  version: d3ada0119e776222f11ec7945e6d860061339aad
+  version: 2c2fe6e8278a5db2d15a013987b53968c743f2a1
   subpackages:
   - cmd/kubeadm/app/apis/kubeadm
   - federation/apis/federation
@@ -658,7 +658,7 @@ imports:
   - plugin/pkg/scheduler/schedulercache
   - plugin/pkg/scheduler/util
 - name: k8s.io/metrics
-  version: 8efbc8e22d00b9c600afec5f1c14073fd2412fce
+  version: 47b323a05a15045603e688280c01d1d782ce4b68
   subpackages:
   - pkg/apis/metrics
   - pkg/apis/metrics/v1alpha1

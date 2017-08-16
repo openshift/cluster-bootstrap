@@ -39,7 +39,7 @@ import:
   - tools/cache
   - tools/clientcmd
 - package: k8s.io/kubernetes
-  version: v1.7.0
+  version: v1.7.3
   subpackages:
   - pkg/kubectl/cmd/util
   - pkg/kubectl/resource
