@@ -118,7 +118,7 @@ if [ "${REMOTE_HOST}" != "local" ]; then
     scp -q -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} -r ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/assets/* ${CLUSTER_DIR}
 
     # Cleanup
-    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "rm -rf /home/${REMOTE_USER}/assets && rm -rf /home/${REMOTE_USER}/init-master.sh"
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "rm -rf /home/${REMOTE_USER}/{assets,init-master.sh,bootkube}"
 
     echo "Cluster assets copied to ${CLUSTER_DIR}"
     echo
