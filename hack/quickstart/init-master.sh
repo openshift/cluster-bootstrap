@@ -107,8 +107,18 @@ if [ "${REMOTE_HOST}" != "local" ]; then
     ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "sudo mv /home/${REMOTE_USER}/kubelet.master /etc/systemd/system/kubelet.service"
 
     # Copy bootkube binary to remote host.
-    scp -i ${IDENT} -P ${REMOTE_PORT} -C ${SSH_OPTS} ../../_output/bin/linux/bootkube ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/bootkube
-
+    if [ -e "../../_output/bin/linux/bootkube" ]; then
+        scp -i ${IDENT} -P ${REMOTE_PORT} -C ${SSH_OPTS} ../../_output/bin/linux/bootkube ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/bootkube
+    else
+        echo "Error: Local static bootkube binary not found."
+        echo "Falling back to bootkube binary in path."
+        if which bootkube &>/dev/null; then
+            scp -i ${IDENT} -P ${REMOTE_PORT} -C ${SSH_OPTS} "$(which bootkube)" ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/bootkube
+        else
+            echo "Error: bootkube not found in PATH."
+            exit 1
+        fi
+    fi
     # Copy self to remote host so script can be executed in "local" mode
     scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${BASH_SOURCE[0]} ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/init-master.sh
     ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "sudo REMOTE_USER=${REMOTE_USER} CLOUD_PROVIDER=${CLOUD_PROVIDER} SELF_HOST_ETCD=${SELF_HOST_ETCD} CALICO_NETWORK_POLICY=${CALICO_NETWORK_POLICY} /home/${REMOTE_USER}/init-master.sh local"
