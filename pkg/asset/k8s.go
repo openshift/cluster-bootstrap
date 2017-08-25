@@ -72,7 +72,11 @@ func newDynamicAssets(conf Config) Assets {
 			MustCreateAssetFromTemplate(AssetPathKubeCalcioRole, internal.KubeCalicoRoleTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathKubeCalcioRoleBinding, internal.KubeCalicoRoleBindingTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathKubeCalcioSA, internal.KubeCalicoServiceAccountTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathKubeCalico, internal.KubeCalicoTemplate, conf))
+			MustCreateAssetFromTemplate(AssetPathKubeCalico, internal.KubeCalicoTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoBGPConfigsCRD, internal.CalicoBGPConfigsCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoFelixConfigsCRD, internal.CalicoFelixConfigsCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoNetworkPoliciesCRD, internal.CalicoNetworkPoliciesCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoIPPoolsCRD, internal.CalicoIPPoolsCRD, conf))
 	}
 	return assets
 }

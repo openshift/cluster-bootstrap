@@ -1228,6 +1228,8 @@ spec:
               value: "info"
             - name: CALICO_NETWORKING_BACKEND
               value: "none"
+            - name: CLUSTER_TYPE
+              value: "bootkube,canal"
             - name: CALICO_DISABLE_FILE_LOGGING
               value: "true"
             - name: FELIX_DEFAULTENDPOINTTOHOSTACTION
@@ -1240,14 +1242,14 @@ spec:
               value: "{{ .PodCIDR }}"
             - name: CALICO_IPV4POOL_IPIP
               value: "always"
-            - name: FELIX_HEALTHENABLED
-              value: "true"
             - name: NODENAME
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
             - name: IP
               value: ""
+            - name: FELIX_HEALTHENABLED
+              value: "true"
           securityContext:
             privileged: true
           resources:
@@ -1266,6 +1268,9 @@ spec:
               port: 9099
             periodSeconds: 10
           volumeMounts:
+            - mountPath: /lib/modules
+              name: lib-modules
+              readOnly: true
             - mountPath: /var/run/calico
               name: var-run-calico
               readOnly: false
@@ -1292,6 +1297,9 @@ spec:
             - mountPath: /host/etc/cni/net.d
               name: cni-net-dir
       volumes:
+        - name: lib-modules
+          hostPath:
+            path: /lib/modules
         - name: var-run-calico
           hostPath:
             path: /var/run/calico
@@ -1305,6 +1313,66 @@ spec:
     rollingUpdate:
       maxUnavailable: 1
     type: RollingUpdate
+`)
+
+var CalicoBGPConfigsCRD = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+description: Calico Global BGP Configuration
+kind: CustomResourceDefinition
+metadata:
+  name: globalbgpconfigs.crd.projectcalico.org
+spec:
+  scope: Cluster
+  group: crd.projectcalico.org
+  version: v1
+  names:
+    kind: GlobalBGPConfig
+    plural: globalbgpconfigs
+    singular: globalbgpconfig
+`)
+
+var CalicoFelixConfigsCRD = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+description: Calico Global Felix Configuration
+kind: CustomResourceDefinition
+metadata:
+   name: globalfelixconfigs.crd.projectcalico.org
+spec:
+  scope: Cluster
+  group: crd.projectcalico.org
+  version: v1
+  names:
+    kind: GlobalFelixConfig
+    plural: globalfelixconfigs
+    singular: globalfelixconfig
+`)
+
+var CalicoNetworkPoliciesCRD = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+description: Calico Global Network Policies
+kind: CustomResourceDefinition
+metadata:
+  name: globalnetworkpolicies.crd.projectcalico.org
+spec:
+  scope: Cluster
+  group: crd.projectcalico.org
+  version: v1
+  names:
+    kind: GlobalNetworkPolicy
+    plural: globalnetworkpolicies
+    singular: globalnetworkpolicy
+`)
+
+var CalicoIPPoolsCRD = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+description: Calico IP Pools
+kind: CustomResourceDefinition
+metadata:
+  name: ippools.crd.projectcalico.org
+spec:
+  scope: Cluster
+  group: crd.projectcalico.org
+  version: v1
+  names:
+    kind: IPPool
+    plural: ippools
+    singular: ippool
 `)
 
 var KubeCalicoServiceAccountTemplate = []byte(`apiVersion: v1
@@ -1349,51 +1417,23 @@ rules:
       - watch
   - apiGroups: ["extensions"]
     resources:
-      - thirdpartyresources
-    verbs:
-      - create
-      - get
-      - list
-      - watch
-  - apiGroups: ["extensions"]
-    resources:
       - networkpolicies
     verbs:
       - get
       - list
       - watch
-  - apiGroups: ["projectcalico.org"]
+  - apiGroups: ["crd.projectcalico.org"]
     resources:
-      - globalbgppeers
-    verbs:
-      - get
-      - list
-  - apiGroups: ["projectcalico.org"]
-    resources:
-      - globalconfigs
+      - globalfelixconfigs
+      - bgppeers
       - globalbgpconfigs
-    verbs:
-      - create
-      - get
-      - list
-      - update
-      - watch
-  - apiGroups: ["projectcalico.org"]
-    resources:
       - ippools
+      - globalnetworkpolicies
     verbs:
       - create
-      - delete
       - get
       - list
       - update
-      - watch
-  - apiGroups: ["alpha.projectcalico.org"]
-    resources:
-      - systemnetworkpolicies
-    verbs:
-      - get
-      - list
       - watch
 `)
 
