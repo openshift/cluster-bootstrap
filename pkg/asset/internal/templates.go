@@ -908,6 +908,9 @@ spec:
       containers:
       - name: etcd-operator
         image: {{ .Images.EtcdOperator }}
+        command:
+        - /usr/local/bin/etcd-operator
+        - --analytics=false
         env:
         - name: MY_POD_NAMESPACE
           valueFrom:
