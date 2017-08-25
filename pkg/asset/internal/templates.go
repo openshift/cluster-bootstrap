@@ -1018,9 +1018,9 @@ var BootstrapEtcdSvcTemplate = []byte(`{
   }
 }`)
 
-var EtcdTPRTemplate = []byte(`{
-  "apiVersion": "etcd.coreos.com/v1beta1",
-  "kind": "Cluster",
+var EtcdCRDTemplate = []byte(`{
+  "apiVersion": "etcd.database.coreos.com/v1beta2",
+  "kind": "EtcdCluster",
   "metadata": {
     "name": "kube-etcd",
     "namespace": "kube-system"

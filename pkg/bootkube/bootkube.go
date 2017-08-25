@@ -89,8 +89,8 @@ func (b *bootkube) Run() error {
 		UserOutput("Migrating to self-hosted etcd cluster...\n")
 
 		svcPath := filepath.Join(b.assetDir, asset.AssetPathBootstrapEtcdService)
-		tprPath := filepath.Join(b.assetDir, asset.AssetPathMigrateEtcdCluster)
-		err = etcdutil.Migrate(kubeConfig, b.assetDir, svcPath, tprPath)
+		crdPath := filepath.Join(b.assetDir, asset.AssetPathMigrateEtcdCluster)
+		err = etcdutil.Migrate(kubeConfig, b.assetDir, svcPath, crdPath)
 		if err != nil {
 			return err
 		}

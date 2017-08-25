@@ -85,7 +85,7 @@ type controlPlane struct {
 	// for self hosted etcd recovery if not nil
 	bootEtcd        *asset.Asset
 	bootEtcdService *asset.Asset
-	tpr             *asset.Asset
+	crd             *asset.Asset
 }
 
 // Recover recovers a control plane using the provided backend and kubeConfigPath, returning assets
@@ -144,7 +144,7 @@ func (cp *controlPlane) renderBootstrap() (asset.Assets, error) {
 	if cp.bootEtcd != nil {
 		as = append(as, *cp.bootEtcd)
 		as = append(as, *cp.bootEtcdService)
-		as = append(as, *cp.tpr)
+		as = append(as, *cp.crd)
 	}
 	return as, nil
 }

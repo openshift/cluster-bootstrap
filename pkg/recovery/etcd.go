@@ -20,7 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/pkg/api"
-	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
 // etcdBackend is a backend that extracts a controlPlane from an etcd instance.
@@ -121,7 +120,7 @@ func (s *etcdBackend) list(ctx context.Context, key string, listObj runtime.Obje
 
 const (
 	assetPathRecoveryEtcd  = "recovery-etcd.yaml"
-	etcdTPRKey             = "ThirdPartyResourceData/etcd.coreos.com/clusters/kube-system/kube-etcd"
+	etcdCRDKey             = "etcd.database.coreos.com/etcdclusters/kube-system/kube-etcd"
 	etcdMemberPodPrefix    = "pods/kube-system/kube-etcd-"
 	RecoveryEtcdClientAddr = "http://localhost:52379"
 )
@@ -153,28 +152,22 @@ func (s *etcdSelfhostedBackend) read(ctx context.Context) (*controlPlane, error)
 		return nil, err
 	}
 
-	d, err := s.getBytes(ctx, etcdTPRKey)
+	d, err := s.getBytes(ctx, etcdCRDKey)
 	if err != nil {
 		return nil, err
 	}
 
-	var tpr v1beta1.ThirdPartyResourceData
-	err = decode(s.decoder, d, &tpr)
+	var kubeetcd spec.EtcdCluster
+	err = decode(s.decoder, d, &kubeetcd)
 	if err != nil {
 		return nil, err
 	}
 
-	var kubeetcd spec.Cluster
-	err = json.Unmarshal(tpr.Data, &kubeetcd)
+	ecrd, err := createEtcdCRDAsset(kubeetcd)
 	if err != nil {
 		return nil, err
 	}
-
-	etpr, err := createEtcdTPRAsset(kubeetcd)
-	if err != nil {
-		return nil, err
-	}
-	cp.tpr = etpr
+	cp.crd = ecrd
 
 	serviceIP, err := getServiceIPFromClusterSpec(kubeetcd.Spec)
 	if err != nil {
@@ -223,7 +216,7 @@ func createBootEtcdAsset(pathPrefix, backupPath, serviceIP string) asset.Asset {
 		BackupFile        string
 		BackupDir         string
 		BootEtcdServiceIP string
-		TPRKey            string
+		CRDKey            string
 		MemberPodPrefix   string
 		ClusterToken      string
 	}{
@@ -231,7 +224,7 @@ func createBootEtcdAsset(pathPrefix, backupPath, serviceIP string) asset.Asset {
 		BackupFile:        f,
 		BackupDir:         d,
 		BootEtcdServiceIP: serviceIP,
-		TPRKey:            path.Join(pathPrefix, etcdTPRKey),
+		CRDKey:            path.Join(pathPrefix, etcdCRDKey),
 		MemberPodPrefix:   path.Join(pathPrefix, etcdMemberPodPrefix),
 		ClusterToken:      "bootkube-recovery-" + uuid.New(),
 	}
@@ -245,8 +238,8 @@ func createBootEtcdServiceAsset(serviceIP string) asset.Asset {
 	return asset.MustCreateAssetFromTemplate(asset.AssetPathBootstrapEtcdService, recoveryEtcdSvcTemplate, config)
 }
 
-func createEtcdTPRAsset(s spec.Cluster) (*asset.Asset, error) {
-	clone := cloneEtcdClusterTPR(s)
+func createEtcdCRDAsset(s spec.EtcdCluster) (*asset.Asset, error) {
+	clone := cloneEtcdClusterCRD(s)
 
 	data, err := json.Marshal(clone)
 	if err != nil {
@@ -268,11 +261,11 @@ func getServiceIPFromClusterSpec(s spec.ClusterSpec) (string, error) {
 	return stripPort(u.Host), nil
 }
 
-func cloneEtcdClusterTPR(s spec.Cluster) spec.Cluster {
-	var clone spec.Cluster
+func cloneEtcdClusterCRD(s spec.EtcdCluster) spec.EtcdCluster {
+	var clone spec.EtcdCluster
 	clone.Spec = s.Spec
-	clone.Metadata.SetName(s.Metadata.GetName())
-	clone.Metadata.SetNamespace(s.Metadata.GetNamespace())
+	clone.ObjectMeta.SetName(s.ObjectMeta.GetName())
+	clone.ObjectMeta.SetNamespace(s.ObjectMeta.GetNamespace())
 	clone.APIVersion = s.APIVersion
 	clone.Kind = s.Kind
 
