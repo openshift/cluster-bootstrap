@@ -1163,10 +1163,10 @@ spec:
     type: RollingUpdate
 `)
 
-var KubeCalicoCfgTemplate = []byte(`apiVersion: v1
+var CalicoCfgTemplate = []byte(`apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: kube-calico-cfg
+  name: calico-config
   namespace: kube-system
 data:
   # The CNI network configuration to install on each node.
@@ -1193,33 +1193,33 @@ data:
     }
 `)
 
-var KubeCalicoTemplate = []byte(`apiVersion: extensions/v1beta1
+var CalicoNodeTemplate = []byte(`apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
-  name: kube-calico
+  name: calico-node
   namespace: kube-system
   labels:
-    k8s-app: kube-calico
+    k8s-app: calico-node
 spec:
   selector:
     matchLabels:
-      k8s-app: kube-calico
+      k8s-app: calico-node
   template:
     metadata:
       labels:
-        k8s-app: kube-calico
+        k8s-app: calico-node
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       hostNetwork: true
-      serviceAccountName: kube-calico
+      serviceAccountName: calico-node
       tolerations:
         - key: node-role.kubernetes.io/master
           effect: NoSchedule
         - key: "CriticalAddonsOnly"
           operator: "Exists"
       containers:
-        - name: kube-calico
+        - name: calico-node
           image: {{ .Images.Calico }}
           env:
             - name: DATASTORE_TYPE
@@ -1281,7 +1281,7 @@ spec:
             - name: CNI_NETWORK_CONFIG
               valueFrom:
                 configMapKeyRef:
-                  name: kube-calico-cfg
+                  name: calico-config
                   key: cni_network_config
             - name: CNI_NET_DIR
               value: "/etc/kubernetes/cni/net.d"
@@ -1375,17 +1375,17 @@ spec:
     singular: ippool
 `)
 
-var KubeCalicoServiceAccountTemplate = []byte(`apiVersion: v1
+var CalicoServiceAccountTemplate = []byte(`apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: kube-calico
+  name: calico-node
   namespace: kube-system
 `)
 
-var KubeCalicoRoleTemplate = []byte(`apiVersion: rbac.authorization.k8s.io/v1beta1
+var CalicoRoleTemplate = []byte(`apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
-  name: kube-calico
+  name: calico-node
   namespace: kube-system
 rules:
   - apiGroups: [""]
@@ -1437,17 +1437,17 @@ rules:
       - watch
 `)
 
-var KubeCalicoRoleBindingTemplate = []byte(`apiVersion: rbac.authorization.k8s.io/v1beta1
+var CalicoRoleBindingTemplate = []byte(`apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
 metadata:
-  name: kube-calico
+  name: calico-node
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: kube-calico
+  name: calico-node
 subjects:
 - kind: ServiceAccount
-  name: kube-calico
+  name: calico-node
   namespace: kube-system
 `)
 

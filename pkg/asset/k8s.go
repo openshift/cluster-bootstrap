@@ -68,11 +68,11 @@ func newDynamicAssets(conf Config) Assets {
 	}
 	if conf.CalicoNetworkPolicy {
 		assets = append(assets,
-			MustCreateAssetFromTemplate(AssetPathKubeCalicoCfg, internal.KubeCalicoCfgTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathKubeCalcioRole, internal.KubeCalicoRoleTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathKubeCalcioRoleBinding, internal.KubeCalicoRoleBindingTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathKubeCalcioSA, internal.KubeCalicoServiceAccountTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathKubeCalico, internal.KubeCalicoTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoCfg, internal.CalicoCfgTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathCalcioRole, internal.CalicoRoleTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathCalcioRoleBinding, internal.CalicoRoleBindingTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathCalcioSA, internal.CalicoServiceAccountTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathCalico, internal.CalicoNodeTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoBGPConfigsCRD, internal.CalicoBGPConfigsCRD, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoFelixConfigsCRD, internal.CalicoFelixConfigsCRD, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoNetworkPoliciesCRD, internal.CalicoNetworkPoliciesCRD, conf),
