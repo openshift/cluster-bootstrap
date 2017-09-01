@@ -30,7 +30,7 @@ import:
   - pkg/util/wait
   - pkg/watch
 - package: k8s.io/client-go
-  version: v4.0.0-beta.0
+  version: v4.0.0
   subpackages:
   - kubernetes
   - pkg/api
@@ -39,7 +39,7 @@ import:
   - tools/cache
   - tools/clientcmd
 - package: k8s.io/kubernetes
-  version: v1.7.3
+  version: v1.7.5
   subpackages:
   - pkg/kubectl/cmd/util
   - pkg/kubectl/resource
@@ -52,4 +52,4 @@ import:
   - ssh/agent
   - curve25519
 - package: github.com/coreos/ktestutil
-  version: 1c5a59f93ffab7cf69fde8b805fee942fd467cdc 
+  version: 1c5a59f93ffab7cf69fde8b805fee942fd467cdc
