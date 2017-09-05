@@ -19,9 +19,10 @@ const (
 )
 
 type CertConfig struct {
-	CommonName   string
-	Organization []string
-	AltNames     AltNames
+	CommonName         string
+	Organization       []string
+	OrganizationalUnit []string
+	AltNames           AltNames
 }
 
 // AltNames contains the domain names and IP addresses that will be added
@@ -69,8 +70,9 @@ func NewSelfSignedCACertificate(cfg CertConfig, key *rsa.PrivateKey) (*x509.Cert
 	tmpl := x509.Certificate{
 		SerialNumber: new(big.Int).SetInt64(0),
 		Subject: pkix.Name{
-			CommonName:   cfg.CommonName,
-			Organization: cfg.Organization,
+			CommonName:         cfg.CommonName,
+			Organization:       cfg.Organization,
+			OrganizationalUnit: cfg.OrganizationalUnit,
 		},
 		NotBefore:             now.UTC(),
 		NotAfter:              now.Add(Duration365d * 10).UTC(),
