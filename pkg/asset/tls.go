@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/url"
 
+	"github.com/pborman/uuid"
+
 	"github.com/kubernetes-incubator/bootkube/pkg/tlsutil"
 )
 
@@ -55,8 +57,9 @@ func newCACert() (*rsa.PrivateKey, *x509.Certificate, error) {
 	}
 
 	config := tlsutil.CertConfig{
-		CommonName:   "kube-ca",
-		Organization: []string{"bootkube"},
+		CommonName:         "kube-ca",
+		Organization:       []string{uuid.New()},
+		OrganizationalUnit: []string{"bootkube"},
 	}
 
 	cert, err := tlsutil.NewSelfSignedCACertificate(config, key)
