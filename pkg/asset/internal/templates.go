@@ -1129,6 +1129,8 @@ spec:
         image: {{ .Images.FlannelCNI }}
         command: ["/install-cni.sh"]
         env:
+        - name: CNI_CONF_NAME
+          value: "10-flannel.conf"
         - name: CNI_NETWORK_CONFIG
           valueFrom:
             configMapKeyRef:
