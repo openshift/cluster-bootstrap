@@ -1070,10 +1070,21 @@ data:
   cni-conf.json: |
     {
       "name": "cbr0",
-      "type": "flannel",
-      "delegate": {
-        "isDefaultGateway": true
-      }
+      "cniVersion": "0.3.1",
+      "plugins": [
+        {
+          "type": "flannel",
+          "delegate": {
+            "isDefaultGateway": true
+          }
+        },
+        {
+          "type": "portmap",
+          "capabilities": {
+            "portMappings": true
+          }
+        }
+      ]
     }
   net-conf.json: |
     {
@@ -1129,8 +1140,6 @@ spec:
         image: {{ .Images.FlannelCNI }}
         command: ["/install-cni.sh"]
         env:
-        - name: CNI_CONF_NAME
-          value: "10-flannel.conf"
         - name: CNI_NETWORK_CONFIG
           valueFrom:
             configMapKeyRef:
