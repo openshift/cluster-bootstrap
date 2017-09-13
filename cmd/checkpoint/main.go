@@ -13,18 +13,24 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/v1alpha1/runtime"
+	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
+	"k8s.io/kubernetes/pkg/kubelet/util"
 )
 
 const (
@@ -43,16 +49,21 @@ const (
 
 	shouldCheckpoint = "true"
 	podSourceFile    = "file"
+
+	defaultRuntimeEndpoint       = "unix:///var/run/dockershim.sock"
+	defaultRuntimeRequestTimeout = 2 * time.Minute
 )
 
 var (
 	lockfilePath string
 
 	// TODO(yifan): Put these into a struct when necessary.
-	nodeName       string
-	podName        string
-	podNamespace   string
-	kubeconfigPath string
+	nodeName              string
+	podName               string
+	podNamespace          string
+	kubeconfigPath        string
+	remoteRuntimeEndpoint string
+	runtimeRequestTimeout time.Duration
 
 	// podSerializer is an encoder for writing checkpointed pods.
 	//
@@ -73,6 +84,8 @@ func init() {
 	flag.StringVar(&lockfilePath, "lock-file", "/var/run/lock/pod-checkpointer.lock", "The path to lock file for checkpointer to use")
 	flag.StringVar(&kubeconfigPath, "kubeconfig", "/etc/kubernetes/kubeconfig", "Path to a kubeconfig file containing credentials used to talk to the kubelet.")
 	flag.Set("logtostderr", "true")
+	flag.StringVar(&remoteRuntimeEndpoint, "container-runtime-endpoint", defaultRuntimeEndpoint, "[Experimental] The endpoint of remote runtime service. Currently unix socket is supported on Linux, and tcp is supported on windows.  Examples:'unix:///var/run/dockershim.sock', 'tcp://localhost:3735'")
+	flag.DurationVar(&runtimeRequestTimeout, "runtime-request-timeout", defaultRuntimeRequestTimeout, "Timeout of all runtime requests except long running request - pull, logs, exec and attach. When timeout exceeded, kubelet will cancel the request, throw out an error and retry later.")
 }
 
 // flock tries to grab a flock on the given path.
@@ -142,7 +155,7 @@ func run(client kubernetes.Interface, kubelet *kubeletClient) {
 	for {
 		time.Sleep(3 * time.Second)
 
-		// We must use both the :10255/pods and :10250/runningpods/ endpoints, because /pods
+		// We must use both the :10255/pods endpoint and CRI shim, because /pods
 		// endpoint could have stale data. The /pods endpoint will only show the last cached
 		// status which has successfully been written to an apiserver. However, if there is
 		// no apiserver, we may get stale state (e.g. saying pod is running, when it really is
@@ -176,7 +189,7 @@ func run(client kubernetes.Interface, kubelet *kubeletClient) {
 // process() makes decisions on which checkpoints need to be started, stopped, or removed.
 // It makes this decision based on inspecting the states from kubelet, apiserver, active/inactive checkpoints.
 //
-// - localRunningPods: running pods retrieved from kubelet api. Minimal amount of info (no podStatus) as it is extracted from container runtime.
+// - localRunningPods: running pods retrieved from CRI shim. Minimal amount of info (no podStatus) as it is extracted from container runtime.
 // - localParentPods: pod state from kubelet api for all "to be checkpointed" pods - podStatus may be stale (only as recent as last apiserver contact)
 // - apiParentPods: pod state from the api server for all "to be checkpointed" pods
 // - activeCheckpoints: checkpoint pod manifests which are currently active & in the static pod manifest
@@ -465,6 +478,7 @@ func getAPIParentPods(client kubernetes.Interface, nodeName string) map[string]*
 type kubeletClient struct {
 	insecureClient *rest.RESTClient
 	secureClient   *rest.RESTClient
+	criClient      *RemoteRuntimeService
 }
 
 func newKubeletClient(config *rest.Config) (*kubeletClient, error) {
@@ -492,7 +506,33 @@ func newKubeletClient(config *rest.Config) (*kubeletClient, error) {
 	if client.secureClient, err = rest.UnversionedRESTClientFor(&secureConfig); err != nil {
 		return nil, fmt.Errorf("failed creating kubelet client: %v", err)
 	}
+
+	// Open a GRPC connection to the CRI shim
+	client.criClient, err = NewRemoteRuntimeService(remoteRuntimeEndpoint, runtimeRequestTimeout)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to CRI server: %v", err)
+	}
+
 	return client, nil
+}
+
+func NewRemoteRuntimeService(endpoint string, connectionTimeout time.Duration) (*RemoteRuntimeService, error) {
+	glog.Infof("Connecting to runtime service %s", endpoint)
+	addr, dialer, err := util.GetAddressAndDialer(endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithTimeout(connectionTimeout), grpc.WithDialer(dialer))
+	if err != nil {
+		glog.Errorf("Connect remote runtime %s failed: %v", addr, err)
+		return nil, err
+	}
+
+	return &RemoteRuntimeService{
+		timeout:       connectionTimeout,
+		runtimeClient: runtimeapi.NewRuntimeServiceClient(conn),
+	}, nil
 }
 
 // localParentPods will retrieve all pods from kubelet api that are parents & should be checkpointed
@@ -505,14 +545,82 @@ func (c *kubeletClient) localParentPods() map[string]*v1.Pod {
 	return podListToParentPods(podList)
 }
 
-// localRunningPods uses the /runningpods/ kubelet api to retrieve the local container runtime pod state
+// localRunningPods uses the CRI shim to retrieve the local container runtime pod state
 func (c *kubeletClient) localRunningPods() map[string]*v1.Pod {
-	podList := new(v1.PodList)
-	if err := c.secureClient.Get().AbsPath("/runningpods/").Do().Into(podList); err != nil {
-		// Assume there are no local running pods.
-		glog.Errorf("failed to list local running pods, assuming none are ready: %v", err)
+
+	pods := make(map[string]*v1.Pod)
+
+	// Retrieving sandboxes is likely redudant but is done to maintain sameness with what the kubelet does
+	sandboxes, err := c.getRunningKubeletSandboxes()
+	if err != nil {
+		glog.Errorf("failed to list running sandboxes: %v", err)
+		return nil
 	}
-	return podListToMap(podList, filterNone)
+
+	// Add pods from all sandboxes
+	for _, s := range sandboxes {
+		if s.Metadata == nil {
+			glog.V(4).Infof("Sandbox does not have metadata: %+v", s)
+			continue
+		}
+
+		podName := s.Metadata.Namespace + "/" + s.Metadata.Name
+		if _, ok := pods[podName]; !ok {
+			p := &v1.Pod{}
+			p.UID = types.UID(s.Metadata.Uid)
+			p.Name = s.Metadata.Name
+			p.Namespace = s.Metadata.Namespace
+
+			pods[podName] = p
+		}
+	}
+
+	containers, err := c.getRunningKubeletContainers()
+	if err != nil {
+		glog.Errorf("failed to list running containers: %v", err)
+		return nil
+	}
+
+	// Add all pods that containers are apart of
+	for _, c := range containers {
+		if c.Metadata == nil {
+			glog.V(4).Infof("Container does not have metadata: %+v", c)
+			continue
+		}
+
+		podName := c.Labels[kubelettypes.KubernetesPodNamespaceLabel] + "/" + c.Labels[kubelettypes.KubernetesPodNameLabel]
+		if _, ok := pods[podName]; !ok {
+			p := &v1.Pod{}
+			p.UID = types.UID(c.Labels[kubelettypes.KubernetesPodUIDLabel])
+			p.Name = c.Labels[kubelettypes.KubernetesPodNameLabel]
+			p.Namespace = c.Labels[kubelettypes.KubernetesPodNamespaceLabel]
+
+			pods[podName] = p
+		}
+	}
+
+	return pods
+}
+
+func (c *kubeletClient) getRunningKubeletContainers() ([]*runtimeapi.Container, error) {
+	filter := &runtimeapi.ContainerFilter{}
+
+	// Filter out non-running containers
+	filter.State = &runtimeapi.ContainerStateValue{
+		State: runtimeapi.ContainerState_CONTAINER_RUNNING,
+	}
+
+	return c.criClient.listContainers(filter)
+}
+
+func (c *kubeletClient) getRunningKubeletSandboxes() ([]*runtimeapi.PodSandbox, error) {
+	filter := &runtimeapi.PodSandboxFilter{}
+
+	// Filter out non-running sandboxes
+	filter.State = &runtimeapi.PodSandboxStateValue{
+		State: runtimeapi.PodSandboxState_SANDBOX_READY,
+	}
+	return c.criClient.listPodSandbox(filter)
 }
 
 // checkpointSecretVolumes ensures that all pod secrets are checkpointed locally, then converts the secret volume to a hostpath.
@@ -768,4 +876,39 @@ func writeAndAtomicRename(path string, data []byte, perm os.FileMode) error {
 		return err
 	}
 	return os.Rename(tmpfile, path)
+}
+
+type RemoteRuntimeService struct {
+	timeout       time.Duration
+	runtimeClient runtimeapi.RuntimeServiceClient
+}
+
+func (r *RemoteRuntimeService) listPodSandbox(filter *runtimeapi.PodSandboxFilter) ([]*runtimeapi.PodSandbox, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
+	defer cancel()
+
+	resp, err := r.runtimeClient.ListPodSandbox(ctx, &runtimeapi.ListPodSandboxRequest{
+		Filter: filter,
+	})
+	if err != nil {
+		glog.Errorf("ListPodSandbox with filter %q from runtime sevice failed: %v", filter, err)
+		return nil, err
+	}
+
+	return resp.Items, nil
+}
+
+func (r *RemoteRuntimeService) listContainers(filter *runtimeapi.ContainerFilter) ([]*runtimeapi.Container, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
+	defer cancel()
+
+	resp, err := r.runtimeClient.ListContainers(ctx, &runtimeapi.ListContainersRequest{
+		Filter: filter,
+	})
+	if err != nil {
+		glog.Errorf("ListContainers with filter %q from runtime service failed: %v", filter, err)
+		return nil, err
+	}
+
+	return resp.Containers, nil
 }
