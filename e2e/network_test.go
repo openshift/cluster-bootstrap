@@ -27,13 +27,13 @@ const (
 // 5. create NetworkPolicy that allows `allow=access`
 // 6. create a wget job with label `allow=access` that hits the nginx service
 func TestNetwork(t *testing.T) {
-	// check if kube-calico daemonset exists
+	// check if calico-node daemonset exists
 	// if absent skip this test
-	if _, err := client.ExtensionsV1beta1().DaemonSets("kube-system").Get("kube-calico", metav1.GetOptions{}); err != nil {
+	if _, err := client.ExtensionsV1beta1().DaemonSets("kube-system").Get("calico-node", metav1.GetOptions{}); err != nil {
 		if apierrors.IsNotFound(err) {
-			t.Skip("kube-calico daemonset is not installed")
+			t.Skip("calico-node daemonset is not installed")
 		}
-		t.Fatalf("error getting kube-calico daemonset: %v", err)
+		t.Fatalf("error getting calico-node daemonset: %v", err)
 	}
 
 	var nginx *testworkload.Nginx
