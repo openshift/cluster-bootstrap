@@ -52,9 +52,12 @@ const (
 
 	defaultRuntimeEndpoint       = "unix:///var/run/dockershim.sock"
 	defaultRuntimeRequestTimeout = 2 * time.Minute
+	defaultFrequency             = 3 * time.Second
+	defaultCheckpointTimeout     = 1 * time.Minute
 )
 
 var (
+	frequency    time.Duration
 	lockfilePath string
 
 	// TODO(yifan): Put these into a struct when necessary.
@@ -64,6 +67,8 @@ var (
 	kubeconfigPath        string
 	remoteRuntimeEndpoint string
 	runtimeRequestTimeout time.Duration
+	lastCheckpoint        time.Time
+	checkPointTimeout     time.Duration
 
 	// podSerializer is an encoder for writing checkpointed pods.
 	//
@@ -86,6 +91,8 @@ func init() {
 	flag.Set("logtostderr", "true")
 	flag.StringVar(&remoteRuntimeEndpoint, "container-runtime-endpoint", defaultRuntimeEndpoint, "[Experimental] The endpoint of remote runtime service. Currently unix socket is supported on Linux, and tcp is supported on windows.  Examples:'unix:///var/run/dockershim.sock', 'tcp://localhost:3735'")
 	flag.DurationVar(&runtimeRequestTimeout, "runtime-request-timeout", defaultRuntimeRequestTimeout, "Timeout of all runtime requests except long running request - pull, logs, exec and attach. When timeout exceeded, kubelet will cancel the request, throw out an error and retry later.")
+	flag.DurationVar(&frequency, "frequency", defaultFrequency, "Rate at which the kubelet and CRI shim is polled for running pods information")
+	flag.DurationVar(&checkPointTimeout, "api-poll-timeout", defaultCheckpointTimeout, "Rate at which the API server is polled for changes to secrets and configmaps")
 }
 
 // flock tries to grab a flock on the given path.
@@ -153,7 +160,7 @@ func main() {
 
 func run(client kubernetes.Interface, kubelet *kubeletClient) {
 	for {
-		time.Sleep(3 * time.Second)
+		time.Sleep(frequency)
 
 		// We must use both the :10255/pods endpoint and CRI shim, because /pods
 		// endpoint could have stale data. The /pods endpoint will only show the last cached
@@ -324,59 +331,69 @@ func createCheckpointsForValidParents(client kubernetes.Interface, pods map[stri
 			continue
 		}
 
-		cp, err = checkpointSecretVolumes(client, cp)
-		if err != nil {
-			//TODO(aaron): This can end up spamming logs at times when api-server is unavailable. To reduce spam
-			//             we could only log error if api-server can't be contacted and existing secret doesn't exist.
-			glog.Errorf("Failed to checkpoint secrets for pod %s: %v", id, err)
-			continue
-		}
-		cp, err = checkpointConfigMapVolumes(client, cp)
-		if err != nil {
-			//TODO(aaron): This can end up spamming logs at times when api-server is unavailable. To reduce spam
-			//             we could only log error if api-server can't be contacted and existing configmap doesn't exist.
-			glog.Errorf("Failed to checkpoint configMaps for pod %s: %v", id, err)
-			continue
-		}
-
 		cp, err = sanitizeCheckpointPod(cp)
 		if err != nil {
 			glog.Errorf("Failed to sanitize manifest for %s: %v", id, err)
 			continue
 		}
-		if err := writeCheckpointManifest(cp); err != nil {
+
+		podChanged, err := writeCheckpointManifest(cp)
+		if err != nil {
 			glog.Errorf("Failed to write checkpoint for %s: %v", id, err)
+			continue
+		}
+
+		// Check for secret and configmap changes if the pods have change or they haven't been checked in a while
+		if podChanged || lastCheckpoint.IsZero() || time.Since(lastCheckpoint) >= checkPointTimeout {
+
+			_, err = checkpointSecretVolumes(client, pod)
+			if err != nil {
+				//TODO(aaron): This can end up spamming logs at times when api-server is unavailable. To reduce spam
+				//             we could only log error if api-server can't be contacted and existing secret doesn't exist.
+				glog.Errorf("Failed to checkpoint secrets for pod %s: %v", id, err)
+				continue
+			}
+
+			lastCheckpoint = time.Now()
+
+			_, err = checkpointConfigMapVolumes(client, pod)
+			if err != nil {
+				//TODO(aaron): This can end up spamming logs at times when api-server is unavailable. To reduce spam
+				//             we could only log error if api-server can't be contacted and existing configmap doesn't exist.
+				glog.Errorf("Failed to checkpoint configMaps for pod %s: %v", id, err)
+				continue
+			}
 		}
 	}
 }
 
 // writeCheckpointManifest will save the pod to the inactive checkpoint location if it doesn't already exist.
-func writeCheckpointManifest(pod *v1.Pod) error {
+func writeCheckpointManifest(pod *v1.Pod) (bool, error) {
 	buff := &bytes.Buffer{}
 	if err := podSerializer.Encode(pod, buff); err != nil {
-		return err
+		return false, err
 	}
 	path := filepath.Join(inactiveCheckpointPath, pod.Namespace+"-"+pod.Name+".json")
 	// Make sure the inactive checkpoint path exists.
 	if err := os.MkdirAll(filepath.Dir(path), 0600); err != nil {
-		return err
+		return false, err
 	}
 	return writeManifestIfDifferent(path, PodFullName(pod), buff.Bytes())
 }
 
 // writeManifestIfDifferent writes `data` to `path` if data is different from the existing content.
 // The `name` parameter is used for debug output.
-func writeManifestIfDifferent(path, name string, data []byte) error {
+func writeManifestIfDifferent(path, name string, data []byte) (bool, error) {
 	existing, err := ioutil.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
-		return err
+		return false, err
 	}
 	if bytes.Equal(existing, data) {
 		glog.V(4).Infof("Checkpoint manifest for %q already exists. Skipping", name)
-		return nil
+		return false, nil
 	}
 	glog.Infof("Writing manifest for %q to %q", name, path)
-	return writeAndAtomicRename(path, data, 0644)
+	return true, writeAndAtomicRename(path, data, 0644)
 }
 
 // isPodCheckpointer returns true if the manifest is the pod checkpointer (has the same name as the parent).
@@ -419,6 +436,18 @@ func sanitizeCheckpointPod(cp *v1.Pod) (*v1.Pod, error) {
 	// Remove Service Account
 	cp.Spec.ServiceAccountName = ""
 	cp.Spec.DeprecatedServiceAccount = ""
+
+	// Sanitize the volumes
+	for i := range cp.Spec.Volumes {
+		v := &cp.Spec.Volumes[i]
+		if v.Secret != nil {
+			v.HostPath = &v1.HostPathVolumeSource{Path: secretPath(cp.Namespace, cp.Name, v.Secret.SecretName)}
+			v.Secret = nil
+		} else if v.ConfigMap != nil {
+			v.HostPath = &v1.HostPathVolumeSource{Path: configMapPath(cp.Namespace, cp.Name, v.ConfigMap.Name)}
+			v.ConfigMap = nil
+		}
+	}
 
 	// Clear pod status
 	cp.Status.Reset()
@@ -631,14 +660,10 @@ func checkpointSecretVolumes(client kubernetes.Interface, pod *v1.Pod) (*v1.Pod,
 			continue
 		}
 
-		path, err := checkpointSecret(client, pod.Namespace, pod.Name, v.Secret.SecretName)
+		_, err := checkpointSecret(client, pod.Namespace, pod.Name, v.Secret.SecretName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to checkpoint secret for pod %s/%s: %v", pod.Namespace, pod.Name, err)
 		}
-
-		v.HostPath = &v1.HostPathVolumeSource{Path: path}
-		v.Secret = nil
-
 	}
 	return pod, nil
 }
@@ -673,13 +698,10 @@ func checkpointConfigMapVolumes(client kubernetes.Interface, pod *v1.Pod) (*v1.P
 			continue
 		}
 
-		path, err := checkpointConfigMap(client, pod.Namespace, pod.Name, v.ConfigMap.Name)
+		_, err := checkpointConfigMap(client, pod.Namespace, pod.Name, v.ConfigMap.Name)
 		if err != nil {
 			return nil, fmt.Errorf("failed to checkpoint configMap for pod %s/%s: %v", pod.Namespace, pod.Name, err)
 		}
-
-		v.HostPath = &v1.HostPathVolumeSource{Path: path}
-		v.ConfigMap = nil
 	}
 	return pod, nil
 }
@@ -771,7 +793,7 @@ func handleStart(start []string) {
 		}
 
 		dst := PodFullNameToActiveCheckpointPath(id)
-		if err := writeManifestIfDifferent(dst, id, data); err != nil {
+		if _, err := writeManifestIfDifferent(dst, id, data); err != nil {
 			glog.Errorf("Failed to write active checkpoint manifest: %v", err)
 		}
 	}
