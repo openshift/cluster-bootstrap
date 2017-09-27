@@ -116,7 +116,7 @@ BUILD_IMAGE=checkpoint PUSH_IMAGE=true ./build/build-image.sh
 
 ### Update checkpointer manifest
 
-In `pkg/asset/internal/templates.go` change:
+In `pkg/asset/images.go` change:
 
-`CheckpointerTemplate` manifest to use the image built in previous step.
+`PodCheckpointer` in `DefaultImages` to use the image built in previous step.
 
