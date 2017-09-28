@@ -50,8 +50,8 @@ var (
 		serviceCIDR         string
 		selfHostKubelet     bool
 		cloudProvider       string
+		networkProvider     string
 		selfHostedEtcd      bool
-		calicoNetworkPolicy bool
 	}
 
 	imageVersions = asset.DefaultImages
@@ -72,8 +72,8 @@ func init() {
 	cmdRender.Flags().StringVar(&renderOpts.serviceCIDR, "service-cidr", "10.3.0.0/24", "The CIDR range of cluster services.")
 	cmdRender.Flags().BoolVar(&renderOpts.selfHostKubelet, "experimental-self-hosted-kubelet", false, "(Experimental) Create a self-hosted kubelet daemonset.")
 	cmdRender.Flags().StringVar(&renderOpts.cloudProvider, "cloud-provider", "", "The provider for cloud services.  Empty string for no provider")
+	cmdRender.Flags().StringVar(&renderOpts.networkProvider, "network-provider", "flannel", "CNI network provider (flannel or experimental-canal).")
 	cmdRender.Flags().BoolVar(&renderOpts.selfHostedEtcd, "experimental-self-hosted-etcd", false, "(Experimental) Create self-hosted etcd assets.")
-	cmdRender.Flags().BoolVar(&renderOpts.calicoNetworkPolicy, "experimental-calico-network-policy", false, "(Experimental) Add network policy support by calico.")
 }
 
 func runCmdRender(cmd *cobra.Command, args []string) error {
@@ -112,6 +112,9 @@ func validateRenderOpts(cmd *cobra.Command, args []string) error {
 	}
 	if renderOpts.apiServers == "" {
 		return errors.New("Missing requried flag: --api-servers")
+	}
+	if renderOpts.networkProvider != asset.NetworkFlannel && renderOpts.networkProvider != asset.NetworkCanal {
+		return errors.New("Must specify --network-provider flannel or experimental-canal")
 	}
 	return nil
 }
@@ -223,26 +226,26 @@ func flagsToAssetConfig() (c *asset.Config, err error) {
 	}
 
 	return &asset.Config{
-		EtcdCACert:          etcdCACert,
-		EtcdClientCert:      etcdClientCert,
-		EtcdClientKey:       etcdClientKey,
-		EtcdServers:         etcdServers,
-		EtcdUseTLS:          etcdUseTLS,
-		CACert:              caCert,
-		CAPrivKey:           caPrivKey,
-		APIServers:          apiServers,
-		AltNames:            altNames,
-		PodCIDR:             podNet,
-		ServiceCIDR:         serviceNet,
-		APIServiceIP:        apiServiceIP,
-		BootEtcdServiceIP:   bootEtcdServiceIP,
-		DNSServiceIP:        dnsServiceIP,
-		EtcdServiceIP:       etcdServiceIP,
-		SelfHostKubelet:     renderOpts.selfHostKubelet,
-		CloudProvider:       renderOpts.cloudProvider,
-		SelfHostedEtcd:      renderOpts.selfHostedEtcd,
-		CalicoNetworkPolicy: renderOpts.calicoNetworkPolicy,
-		Images:              imageVersions,
+		EtcdCACert:        etcdCACert,
+		EtcdClientCert:    etcdClientCert,
+		EtcdClientKey:     etcdClientKey,
+		EtcdServers:       etcdServers,
+		EtcdUseTLS:        etcdUseTLS,
+		CACert:            caCert,
+		CAPrivKey:         caPrivKey,
+		APIServers:        apiServers,
+		AltNames:          altNames,
+		PodCIDR:           podNet,
+		ServiceCIDR:       serviceNet,
+		APIServiceIP:      apiServiceIP,
+		BootEtcdServiceIP: bootEtcdServiceIP,
+		DNSServiceIP:      dnsServiceIP,
+		EtcdServiceIP:     etcdServiceIP,
+		SelfHostKubelet:   renderOpts.selfHostKubelet,
+		CloudProvider:     renderOpts.cloudProvider,
+		NetworkProvider:   renderOpts.networkProvider,
+		SelfHostedEtcd:    renderOpts.selfHostedEtcd,
+		Images:            imageVersions,
 	}, nil
 }
 
