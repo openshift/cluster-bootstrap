@@ -100,8 +100,8 @@ type Config struct {
 	EtcdServiceName        string
 	SelfHostKubelet        bool
 	SelfHostedEtcd         bool
-	CalicoNetworkPolicy    bool
 	CloudProvider          string
+	NetworkProvider        string
 	BootstrapSecretsSubdir string
 	Images                 ImageVersions
 }

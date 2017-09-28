@@ -19,6 +19,9 @@ const (
 	SecretEtcdServer = "etcd-server-tls"
 	SecretEtcdClient = "etcd-client-tls"
 
+	NetworkFlannel = "flannel"
+	NetworkCanal   = "experimental-canal"
+
 	secretNamespace     = "kube-system"
 	secretAPIServerName = "kube-apiserver"
 	secretCMName        = "kube-controller-manager"
@@ -46,8 +49,6 @@ func newDynamicAssets(conf Config) Assets {
 		MustCreateAssetFromTemplate(AssetPathControllerManager, internal.ControllerManagerTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathAPIServer, internal.APIServerTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathProxy, internal.ProxyTemplate, conf),
-		MustCreateAssetFromTemplate(AssetPathKubeFlannelCfg, internal.KubeFlannelCfgTemplate, conf),
-		MustCreateAssetFromTemplate(AssetPathKubeFlannel, internal.KubeFlannelTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathKubeDNSSvc, internal.DNSSvcTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathBootstrapAPIServer, internal.BootstrapAPIServerTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathBootstrapControllerManager, internal.BootstrapControllerManagerTemplate, conf),
@@ -66,7 +67,13 @@ func newDynamicAssets(conf Config) Assets {
 			MustCreateAssetFromTemplate(AssetPathBootstrapEtcdService, internal.BootstrapEtcdSvcTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathMigrateEtcdCluster, internal.EtcdCRDTemplate, conf))
 	}
-	if conf.CalicoNetworkPolicy {
+	switch conf.NetworkProvider {
+	case NetworkFlannel:
+		assets = append(assets,
+			MustCreateAssetFromTemplate(AssetPathKubeFlannelCfg, internal.KubeFlannelCfgTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathKubeFlannel, internal.KubeFlannelTemplate, conf),
+		)
+	case NetworkCanal:
 		assets = append(assets,
 			MustCreateAssetFromTemplate(AssetPathCalicoCfg, internal.CalicoCfgTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathCalcioRole, internal.CalicoRoleTemplate, conf),

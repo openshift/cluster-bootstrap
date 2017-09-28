@@ -28,9 +28,9 @@ variable "self_host_etcd" {
   default = "true"
 }
 
-variable "calico_network_policy" {
+variable "network_provider" {
   type    = "string"
-  default = "true"
+  default = "flannel"
 }
 
 variable "num_workers" {
