@@ -61,6 +61,8 @@ function init_master_node() {
 
     if [ "$NETWORK_PROVIDER" = "canal" ]; then
         network_provider_flags="--network-provider=experimental-canal"
+    elif [ "$NETWORK_PROVIDER" = "calico" ]; then
+        network_provider_flags="--network-provider=experimental-calico"
     else
         network_provider_flags="--network-provider=flannel"
     fi
