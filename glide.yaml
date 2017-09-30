@@ -24,15 +24,6 @@ import:
   version: a7f02eb8e3920e446965036c9610ec52a7ede92f
 - package: k8s.io/apimachinery
   version: 1fd2e63a9a370677308a42f24fd40c86438afddf
-- package: k8s.io/metrics
-  version: 02cccda7258b5d9709c19dd7413ccb15e15d03ce
-  subpackages:
-  - pkg/api/errors
-  - pkg/apis/meta/v1
-  - pkg/fields
-  - pkg/runtime
-  - pkg/util/wait
-  - pkg/watch
 - package: k8s.io/client-go
   version: v4.0.0
   subpackages:
@@ -43,7 +34,7 @@ import:
   - tools/cache
   - tools/clientcmd
 - package: k8s.io/kubernetes
-  version: v1.7.5
+  version: v1.7.7
   subpackages:
   - pkg/kubectl/cmd/util
   - pkg/kubectl/resource
