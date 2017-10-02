@@ -1186,7 +1186,7 @@ data:
         "name": "k8s-pod-network",
         "cniVersion": "0.3.0",
         "type": "calico",
-        "log_level": "debug",
+        "log_level": "info",
         "datastore_type": "kubernetes",
         "nodename": "__KUBERNETES_NODE_NAME__",
         "ipam": {
@@ -1290,7 +1290,7 @@ spec:
               name: var-run-calico
               readOnly: false
         - name: install-cni
-          image: quay.io/calico/cni:v1.10.0
+          image: {{ .Images.CalicoCNI }} 
           command: ["/install-cni.sh"]
           env:
             - name: CNI_NETWORK_CONFIG
