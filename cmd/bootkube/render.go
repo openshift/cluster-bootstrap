@@ -113,8 +113,8 @@ func validateRenderOpts(cmd *cobra.Command, args []string) error {
 	if renderOpts.apiServers == "" {
 		return errors.New("Missing requried flag: --api-servers")
 	}
-	if renderOpts.networkProvider != asset.NetworkFlannel && renderOpts.networkProvider != asset.NetworkCanal {
-		return errors.New("Must specify --network-provider flannel or experimental-canal")
+	if renderOpts.networkProvider != asset.NetworkFlannel && renderOpts.networkProvider != asset.NetworkCalico && renderOpts.networkProvider != asset.NetworkCanal {
+		return errors.New("Must specify --network-provider flannel or experimental-calico or experimental-canal")
 	}
 	return nil
 }

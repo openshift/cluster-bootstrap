@@ -20,6 +20,7 @@ const (
 	SecretEtcdClient = "etcd-client-tls"
 
 	NetworkFlannel = "flannel"
+	NetworkCalico  = "experimental-calico"
 	NetworkCanal   = "experimental-canal"
 
 	secretNamespace     = "kube-system"
@@ -73,13 +74,24 @@ func newDynamicAssets(conf Config) Assets {
 			MustCreateAssetFromTemplate(AssetPathKubeFlannelCfg, internal.KubeFlannelCfgTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathKubeFlannel, internal.KubeFlannelTemplate, conf),
 		)
-	case NetworkCanal:
+	case NetworkCalico:
 		assets = append(assets,
 			MustCreateAssetFromTemplate(AssetPathCalicoCfg, internal.CalicoCfgTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathCalcioRole, internal.CalicoRoleTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathCalcioRoleBinding, internal.CalicoRoleBindingTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathCalcioSA, internal.CalicoServiceAccountTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathCalico, internal.CalicoNodeTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoBGPConfigsCRD, internal.CalicoBGPConfigsCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoFelixConfigsCRD, internal.CalicoFelixConfigsCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoNetworkPoliciesCRD, internal.CalicoNetworkPoliciesCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoIPPoolsCRD, internal.CalicoIPPoolsCRD, conf))
+	case NetworkCanal:
+		assets = append(assets,
+			MustCreateAssetFromTemplate(AssetPathCalicoCfg, internal.CalicoCfgTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathCalcioRole, internal.CalicoRoleTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathCalcioRoleBinding, internal.CalicoRoleBindingTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathCalcioSA, internal.CalicoServiceAccountTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoPolicyOnly, internal.CalicoPolicyOnlyTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoBGPConfigsCRD, internal.CalicoBGPConfigsCRD, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoFelixConfigsCRD, internal.CalicoFelixConfigsCRD, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoNetworkPoliciesCRD, internal.CalicoNetworkPoliciesCRD, conf),
