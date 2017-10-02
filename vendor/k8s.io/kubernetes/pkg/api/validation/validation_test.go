@@ -2418,7 +2418,7 @@ func TestValidateVolumes(t *testing.T) {
 func TestAlphaLocalStorageCapacityIsolation(t *testing.T) {
 
 	testCases := []api.VolumeSource{
-		{EmptyDir: &api.EmptyDirVolumeSource{SizeLimit: *resource.NewQuantity(int64(5), resource.BinarySI)}},
+		{EmptyDir: &api.EmptyDirVolumeSource{SizeLimit: resource.NewQuantity(int64(5), resource.BinarySI)}},
 	}
 	// Enable alpha feature LocalStorageCapacityIsolation
 	err := utilfeature.DefaultFeatureGate.Set("LocalStorageCapacityIsolation=true")
@@ -5781,6 +5781,54 @@ func TestValidatePodUpdate(t *testing.T) {
 			"metadata.annotations[kubernetes.io/config.mirror]",
 			"changed mirror pod annotation",
 		},
+		{
+			api.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+				Spec:       api.PodSpec{Hostname: "bar"},
+			},
+			api.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+				Spec:       api.PodSpec{Hostname: ""},
+			},
+			"",
+			"update empty hostname",
+		},
+		{
+			api.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+				Spec:       api.PodSpec{Subdomain: "bar"},
+			},
+			api.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+				Spec:       api.PodSpec{Subdomain: ""},
+			},
+			"",
+			"update empty subdomain",
+		},
+		{
+			api.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+				Spec:       api.PodSpec{Hostname: "bar"},
+			},
+			api.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+				Spec:       api.PodSpec{Hostname: "baz"},
+			},
+			"spec: Forbidden",
+			"update hostname",
+		},
+		{
+			api.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+				Spec:       api.PodSpec{Subdomain: "bar"},
+			},
+			api.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+				Spec:       api.PodSpec{Subdomain: "baz"},
+			},
+			"spec: Forbidden",
+			"update subdomain",
+		},
 	}
 
 	for _, test := range tests {
@@ -7811,6 +7859,33 @@ func TestValidateNodeUpdate(t *testing.T) {
 					api.ResourceName(api.ResourceMemory): resource.MustParse("10G"),
 					helper.OpaqueIntResourceName("A"):    resource.MustParse("4.5"),
 				},
+			},
+		}, false},
+		{api.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "update-provider-id-when-not-set",
+			},
+		}, api.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "update-provider-id-when-not-set",
+			},
+			Spec: api.NodeSpec{
+				ProviderID: "provider:///new",
+			},
+		}, true},
+		{api.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "update-provider-id-when-set",
+			},
+			Spec: api.NodeSpec{
+				ProviderID: "provider:///old",
+			},
+		}, api.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "update-provider-id-when-set",
+			},
+			Spec: api.NodeSpec{
+				ProviderID: "provider:///new",
 			},
 		}, false},
 	}

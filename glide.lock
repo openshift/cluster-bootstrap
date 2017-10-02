@@ -1,5 +1,5 @@
-hash: ed8e8897a8a4e084945803ca1baad28972b46c38a17b047c35c5ff584d2f168e
-updated: 2017-09-26T17:22:54.152482584-07:00
+hash: e085afb5e85127c871c147b71098d37a2b8f3f04c8554beb81b978988ba2db9f
+updated: 2017-09-29T17:40:10.829772733-07:00
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -479,7 +479,7 @@ imports:
   - util/jsonpath
   - util/workqueue
 - name: k8s.io/kubernetes
-  version: 17d7182a7ccbb167074be7a87f0a68bd00d58d97
+  version: 8e1552342355496b62754e61ad5f802a0f3f1fa7
   subpackages:
   - cmd/kubeadm/app/apis/kubeadm
   - federation/apis/federation
@@ -649,19 +649,13 @@ imports:
   - plugin/pkg/scheduler/schedulercache
   - plugin/pkg/scheduler/util
 - name: k8s.io/metrics
-  version: 02cccda7258b5d9709c19dd7413ccb15e15d03ce
+  version: 8efbc8e22d00b9c600afec5f1c14073fd2412fce
   subpackages:
-  - pkg/api/errors
-  - pkg/apis/meta/v1
   - pkg/apis/metrics
   - pkg/apis/metrics/v1alpha1
   - pkg/client/clientset_generated/clientset
   - pkg/client/clientset_generated/clientset/scheme
   - pkg/client/clientset_generated/clientset/typed/metrics/v1alpha1
-  - pkg/fields
-  - pkg/runtime
-  - pkg/util/wait
-  - pkg/watch
 - name: vbom.ml/util
   version: db5cfe13f5cc80a4990d98e2e1b0707a4d1a5394
   subpackages:
