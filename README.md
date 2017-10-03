@@ -13,7 +13,7 @@ Additionally, bootkube can be used to generate all of the necessary assets for u
 ## Details of self-hosting
 
 * [KubeCon self-hosted presentation video](https://www.youtube.com/watch?v=EbNxGK9MwN4)
-* [Kubernetes self-hosted design document](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/self-hosted-kubernetes.md)
+* [Kubernetes self-hosted design document](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/cluster-lifecycle/self-hosted-kubernetes.md)
 
 ## Guides
 
@@ -77,7 +77,7 @@ See [Documentation/development.md](Documentation/development.md) for more inform
 
 Want to contribute to bootkube? Have Questions? We are looking for active participation from the community
 
-You can find us at the bootkube channel on [Kubernetes slack](https://github.com/kubernetes/community#slack-chat)
+You can find us at the bootkube channel on [Kubernetes slack](https://github.com/kubernetes/community/blob/master/communication.md#social-media)
 
 ## Related Links
 
