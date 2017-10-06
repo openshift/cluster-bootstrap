@@ -322,6 +322,9 @@ func process(localRunningPods, localParentPods, apiParentPods, activeCheckpoints
 // - store the manifest on disk in an "inactive" checkpoint location
 //TODO(aaron): Add support for checkpointing configMaps
 func createCheckpointsForValidParents(client kubernetes.Interface, pods map[string]*v1.Pod) {
+
+	needsCheckpointUpdate := lastCheckpoint.IsZero() || time.Since(lastCheckpoint) >= checkPointTimeout
+
 	for _, pod := range pods {
 		id := PodFullName(pod)
 
@@ -344,7 +347,7 @@ func createCheckpointsForValidParents(client kubernetes.Interface, pods map[stri
 		}
 
 		// Check for secret and configmap changes if the pods have change or they haven't been checked in a while
-		if podChanged || lastCheckpoint.IsZero() || time.Since(lastCheckpoint) >= checkPointTimeout {
+		if podChanged || needsCheckpointUpdate {
 
 			_, err = checkpointSecretVolumes(client, pod)
 			if err != nil {
@@ -354,8 +357,6 @@ func createCheckpointsForValidParents(client kubernetes.Interface, pods map[stri
 				continue
 			}
 
-			lastCheckpoint = time.Now()
-
 			_, err = checkpointConfigMapVolumes(client, pod)
 			if err != nil {
 				//TODO(aaron): This can end up spamming logs at times when api-server is unavailable. To reduce spam
@@ -364,6 +365,11 @@ func createCheckpointsForValidParents(client kubernetes.Interface, pods map[stri
 				continue
 			}
 		}
+	}
+
+	// If the secrets/manifests were checked update the lastCheckpoint
+	if needsCheckpointUpdate {
+		lastCheckpoint = time.Now()
 	}
 }
 
