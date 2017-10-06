@@ -57,8 +57,7 @@ const (
 )
 
 var (
-	pollingFrequency time.Duration
-	lockfilePath     string
+	lockfilePath string
 
 	// TODO(yifan): Put these into a struct when necessary.
 	nodeName              string
@@ -68,7 +67,6 @@ var (
 	remoteRuntimeEndpoint string
 	runtimeRequestTimeout time.Duration
 	lastCheckpoint        time.Time
-	checkPointTimeout     time.Duration
 
 	// podSerializer is an encoder for writing checkpointed pods.
 	//
@@ -91,8 +89,6 @@ func init() {
 	flag.Set("logtostderr", "true")
 	flag.StringVar(&remoteRuntimeEndpoint, "container-runtime-endpoint", defaultRuntimeEndpoint, "[Experimental] The endpoint of remote runtime service. Currently unix socket is supported on Linux, and tcp is supported on windows.  Examples:'unix:///var/run/dockershim.sock', 'tcp://localhost:3735'")
 	flag.DurationVar(&runtimeRequestTimeout, "runtime-request-timeout", defaultRuntimeRequestTimeout, "Timeout of all runtime requests except long running request - pull, logs, exec and attach. When timeout exceeded, kubelet will cancel the request, throw out an error and retry later.")
-	flag.DurationVar(&pollingFrequency, "polling-frequency", defaultPollingFrequency, "Rate at which the kubelet and CRI shim is polled for running pods information")
-	flag.DurationVar(&checkPointTimeout, "api-poll-timeout", defaultCheckpointTimeout, "Rate at which the API server is polled for changes to secrets and configmaps")
 }
 
 // flock tries to grab a flock on the given path.
@@ -160,7 +156,7 @@ func main() {
 
 func run(client kubernetes.Interface, kubelet *kubeletClient) {
 	for {
-		time.Sleep(pollingFrequency)
+		time.Sleep(defaultPollingFrequency)
 
 		// We must use both the :10255/pods endpoint and CRI shim, because /pods
 		// endpoint could have stale data. The /pods endpoint will only show the last cached
@@ -323,7 +319,7 @@ func process(localRunningPods, localParentPods, apiParentPods, activeCheckpoints
 //TODO(aaron): Add support for checkpointing configMaps
 func createCheckpointsForValidParents(client kubernetes.Interface, pods map[string]*v1.Pod) {
 
-	needsCheckpointUpdate := lastCheckpoint.IsZero() || time.Since(lastCheckpoint) >= checkPointTimeout
+	needsCheckpointUpdate := lastCheckpoint.IsZero() || time.Since(lastCheckpoint) >= defaultCheckpointTimeout
 
 	for _, pod := range pods {
 		id := PodFullName(pod)
