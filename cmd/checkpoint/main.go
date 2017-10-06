@@ -52,13 +52,13 @@ const (
 
 	defaultRuntimeEndpoint       = "unix:///var/run/dockershim.sock"
 	defaultRuntimeRequestTimeout = 2 * time.Minute
-	defaultFrequency             = 3 * time.Second
+	defaultPollingFrequency      = 3 * time.Second
 	defaultCheckpointTimeout     = 1 * time.Minute
 )
 
 var (
-	frequency    time.Duration
-	lockfilePath string
+	pollingFrequency time.Duration
+	lockfilePath     string
 
 	// TODO(yifan): Put these into a struct when necessary.
 	nodeName              string
@@ -91,7 +91,7 @@ func init() {
 	flag.Set("logtostderr", "true")
 	flag.StringVar(&remoteRuntimeEndpoint, "container-runtime-endpoint", defaultRuntimeEndpoint, "[Experimental] The endpoint of remote runtime service. Currently unix socket is supported on Linux, and tcp is supported on windows.  Examples:'unix:///var/run/dockershim.sock', 'tcp://localhost:3735'")
 	flag.DurationVar(&runtimeRequestTimeout, "runtime-request-timeout", defaultRuntimeRequestTimeout, "Timeout of all runtime requests except long running request - pull, logs, exec and attach. When timeout exceeded, kubelet will cancel the request, throw out an error and retry later.")
-	flag.DurationVar(&frequency, "frequency", defaultFrequency, "Rate at which the kubelet and CRI shim is polled for running pods information")
+	flag.DurationVar(&pollingFrequency, "polling-frequency", defaultPollingFrequency, "Rate at which the kubelet and CRI shim is polled for running pods information")
 	flag.DurationVar(&checkPointTimeout, "api-poll-timeout", defaultCheckpointTimeout, "Rate at which the API server is polled for changes to secrets and configmaps")
 }
 
@@ -160,7 +160,7 @@ func main() {
 
 func run(client kubernetes.Interface, kubelet *kubeletClient) {
 	for {
-		time.Sleep(frequency)
+		time.Sleep(pollingFrequency)
 
 		// We must use both the :10255/pods endpoint and CRI shim, because /pods
 		// endpoint could have stale data. The /pods endpoint will only show the last cached
