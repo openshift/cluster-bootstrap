@@ -222,8 +222,8 @@ func TestCheckpointerUnscheduleCheckpointer(t *testing.T) {
 	}
 
 	// Delete the pod checkpointer on the worker node by updating the daemonset.
-	patch = `[{"op": "replace", "path": "/spec/template/spec/nodeSelector", "value": {"node-role.kubernetes.io/master":""}}]`
-	_, err = client.ExtensionsV1beta1().DaemonSets("kube-system").Patch("pod-checkpointer", types.JSONPatchType, []byte(patch))
+	patch = `{"spec":{"template":{"spec":{"nodeSelector":{"node-role.kubernetes.io/master":""}}}}}`
+	_, err = client.ExtensionsV1beta1().DaemonSets("kube-system").Patch("pod-checkpointer", types.MergePatchType, []byte(patch))
 	if err != nil {
 		t.Fatalf("Failed to patch checkpointer: %v", err)
 	}
@@ -352,8 +352,8 @@ func TestCheckpointerUnscheduleParent(t *testing.T) {
 	}
 
 	// Delete test pod on the workers.
-	patch = `[{"op": "replace", "path": "/spec/template/spec/nodeSelector", "value": {"node-role.kubernetes.io/master":""}}]`
-	_, err = client.ExtensionsV1beta1().DaemonSets(testNS).Patch("nginx-daemonset", types.JSONPatchType, []byte(patch))
+	patch = `{"spec":{"template":{"spec":{"nodeSelector":{"node-role.kubernetes.io/master":""}}}}}`
+	_, err = client.ExtensionsV1beta1().DaemonSets(testNS).Patch("nginx-daemonset", types.MergePatchType, []byte(patch))
 	if err != nil {
 		t.Fatalf("unable to patch daemonset: %v", err)
 	}
