@@ -70,7 +70,7 @@ func init() {
 	cmdRender.Flags().StringVar(&renderOpts.altNames, "api-server-alt-names", "", "List of SANs to use in api-server certificate. Example: 'IP=127.0.0.1,IP=127.0.0.2,DNS=localhost'. If empty, SANs will be extracted from the --api-servers flag.")
 	cmdRender.Flags().StringVar(&renderOpts.podCIDR, "pod-cidr", "10.2.0.0/16", "The CIDR range of cluster pods.")
 	cmdRender.Flags().StringVar(&renderOpts.serviceCIDR, "service-cidr", "10.3.0.0/24", "The CIDR range of cluster services.")
-	cmdRender.Flags().BoolVar(&renderOpts.selfHostKubelet, "experimental-self-hosted-kubelet", false, "(Experimental) Create a self-hosted kubelet daemonset.")
+	cmdRender.Flags().BoolVar(&renderOpts.selfHostKubelet, "deprecated-self-hosted-kubelet", false, "(DEPRECATED) Create a self-hosted kubelet daemonset.")
 	cmdRender.Flags().StringVar(&renderOpts.cloudProvider, "cloud-provider", "", "The provider for cloud services.  Empty string for no provider")
 	cmdRender.Flags().StringVar(&renderOpts.networkProvider, "network-provider", "flannel", "CNI network provider (flannel or experimental-canal).")
 	cmdRender.Flags().BoolVar(&renderOpts.selfHostedEtcd, "experimental-self-hosted-etcd", false, "(Experimental) Create self-hosted etcd assets.")
