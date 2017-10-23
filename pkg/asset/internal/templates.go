@@ -706,6 +706,9 @@ spec:
         securityContext:
           privileged: true
         volumeMounts:
+        - mountPath: /lib/modules
+          name: lib-modules
+          readOnly: true
         - mountPath: /etc/ssl/certs
           name: ssl-certs-host
           readOnly: true
@@ -720,9 +723,12 @@ spec:
         operator: Exists
         effect: NoSchedule
       volumes:
-      - hostPath:
+      - name: lib-modules
+        hostPath:
+          path: /lib/modules
+      - name: ssl-certs-host
+        hostPath:
           path: /usr/share/ca-certificates
-        name: ssl-certs-host
       - name: etc-kubernetes
         hostPath:
           path: /etc/kubernetes
