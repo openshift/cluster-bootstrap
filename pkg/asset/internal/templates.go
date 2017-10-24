@@ -1106,6 +1106,7 @@ data:
         {
           "type": "flannel",
           "delegate": {
+            "hairpinMode": true,
             "isDefaultGateway": true
           }
         },
