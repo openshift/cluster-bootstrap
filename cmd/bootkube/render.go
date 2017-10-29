@@ -217,7 +217,7 @@ func flagsToAssetConfig() (c *asset.Config, err error) {
 	}
 
 	if etcdUseTLS && etcdCACert == nil && !renderOpts.selfHostedEtcd {
-		bootkube.UserOutput("NOTE: --etcd-servers=%s but --etcd-ca-path, --etcd-certificate-path, and --etcd-private-key-path were not set. Bootkube will create etcd certificates under '%s/tls'. You must configure etcd to use these certificates before invoking 'bootkube run'.\n", renderOpts.etcdServers, renderOpts.assetDir)
+		bootkube.UserOutput("NOTE: --etcd-servers=%s but --etcd-ca-path, --etcd-certificate-path, and --etcd-private-key-path were not set. Bootkube will create etcd certificates under '%s/tls'. You must configure etcd to use these certificates before invoking 'bootkube start'.\n", renderOpts.etcdServers, renderOpts.assetDir)
 	}
 
 	// TODO: Find better option than asking users to make manual changes
