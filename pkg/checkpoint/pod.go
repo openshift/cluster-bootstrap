@@ -1,8 +1,6 @@
 package checkpoint
 
 import (
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -162,12 +160,4 @@ func podFullNameToInactiveCheckpointPath(id string) string {
 
 func podFullNameToActiveCheckpointPath(id string) string {
 	return filepath.Join(activeCheckpointPath, strings.Replace(id, "/", "-", -1)+".json")
-}
-
-func writeAndAtomicRename(path string, data []byte, perm os.FileMode) error {
-	tmpfile := filepath.Join(filepath.Dir(path), "."+filepath.Base(path))
-	if err := ioutil.WriteFile(tmpfile, data, perm); err != nil {
-		return err
-	}
-	return os.Rename(tmpfile, path)
 }

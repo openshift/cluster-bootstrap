@@ -73,3 +73,11 @@ func writeManifestIfDifferent(path, name string, data []byte) (bool, error) {
 	glog.Infof("Writing manifest for %q to %q", name, path)
 	return true, writeAndAtomicRename(path, data, 0644)
 }
+
+func writeAndAtomicRename(path string, data []byte, perm os.FileMode) error {
+	tmpfile := filepath.Join(filepath.Dir(path), "."+filepath.Base(path))
+	if err := ioutil.WriteFile(tmpfile, data, perm); err != nil {
+		return err
+	}
+	return os.Rename(tmpfile, path)
+}
