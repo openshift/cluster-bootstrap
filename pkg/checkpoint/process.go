@@ -1,6 +1,7 @@
 package checkpoint
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"time"
@@ -9,138 +10,212 @@ import (
 	"k8s.io/client-go/pkg/api/v1"
 )
 
-// process() makes decisions on which checkpoints need to be started, stopped, or removed.
-// It makes this decision based on inspecting the states from kubelet, apiserver, active/inactive checkpoints.
-//
-// - localRunningPods: running pods retrieved from CRI shim. Minimal amount of info (no podStatus) as it is extracted from container runtime.
-// - localParentPods: pod state from kubelet api for all "to be checkpointed" pods - podStatus may be stale (only as recent as last apiserver contact)
-// - apiParentPods: pod state from the api server for all "to be checkpointed" pods
-// - activeCheckpoints: checkpoint pod manifests which are currently active & in the static pod manifest
-// - inactiveCheckpoints: checkpoint pod manifest which are stored in an inactive directory, but are ready to be activated
-//
-// The return values are checkpoints which should be started or stopped, and checkpoints which need to be removed altogether.
-// The removal of a checkpoint means its parent is no longer scheduled to this node, and we need to GC active / inactive
-// checkpoints as well as any secrets / configMaps which are no longer necessary.
-func process(localRunningPods, localParentPods, apiParentPods, activeCheckpoints, inactiveCheckpoints map[string]*v1.Pod, checkpointerPod CheckpointerPod) (start, stop, remove []string) {
-	// If this variable is filled, then it means we need to remove the pod-checkpointer's checkpoint.
-	// We treat the pod-checkpointer's checkpoint specially because we want to put it at the end of
-	// the remove queue.
-	var podCheckpointerID string
+// checkpoint holds the state of a single checkpointed pod. A checkpoint can move between states
+// based on the apiCondition that the checkpointer sees.
+type checkpoint struct {
+	// name is the name of the checkpointed pod.
+	name string
+	// pod is the most up-to-date v1.Pod data.
+	pod *v1.Pod
+	// state is the current state of the checkpoint.
+	state checkpointState
+}
 
-	// We can only make some GC decisions if we've successfully contacted an apiserver.
-	// When apiParentPods == nil, that means we were not able to get an updated list of pods.
-	removeMap := make(map[string]struct{})
-	if len(apiParentPods) != 0 {
+// String() implements fmt.Stringer.String().
+func (c checkpoint) String() string {
+	return fmt.Sprintf("%s (%s)", c.name, c.state)
+}
 
-		// Scan for inacive checkpoints we should GC
-		for id := range inactiveCheckpoints {
-			// If the inactive checkpoint still has a parent pod, do nothing.
-			// This means the kubelet thinks it should still be running, which has the same scheduling info that we do --
-			// so we won't make any decisions about its checkpoint.
-			// TODO(aaron): This is a safety check, and may not be necessary -- question is do we trust that the api state we received
-			//              is accurate -- and that we should ignore our local state (or assume it could be inaccurate). For example,
-			//              local kubelet pod state will be innacurate in the case that we can't contact apiserver (kubelet only keeps
-			//              cached responses from api) -- however, we're assuming we've been able to contact api, so this likely is moot.
-			if _, ok := localParentPods[id]; ok {
-				glog.V(4).Infof("API GC: skipping inactive checkpoint %s", id)
-				continue
+// checkpoints holds the state of the checkpoints.
+type checkpoints struct {
+	checkpoints    map[string]*checkpoint
+	selfCheckpoint *checkpoint
+}
+
+// update updates the checkpoints using the information retrieved from the various API endpoints.
+func (cs *checkpoints) update(localRunningPods, localParentPods, apiParentPods, activeCheckpoints, inactiveCheckpoints map[string]*v1.Pod, checkpointerPod CheckpointerPod) {
+	if cs.checkpoints == nil {
+		cs.checkpoints = make(map[string]*checkpoint)
+	}
+
+	// Temporarily add the self-checkpointer into the map so it is updated as well.
+	if cs.selfCheckpoint != nil {
+		cs.checkpoints[cs.selfCheckpoint.name] = cs.selfCheckpoint
+	}
+
+	// Make sure all on-disk checkpoints are represented in memory, i.e. if we are restarting from a crash.
+	for name, pod := range activeCheckpoints {
+		if _, ok := cs.checkpoints[name]; !ok {
+			cs.checkpoints[name] = &checkpoint{
+				name:  name,
+				state: stateActive{},
+				pod:   pod,
 			}
+			// Override the state for the self-checkpointer.
+			if isPodCheckpointer(pod, checkpointerPod) {
+				cs.checkpoints[name].state = stateSelfCheckpointActive{}
+			}
+		}
+	}
 
-			// If the inactive checkpoint does not have a parent in the api-server, we must assume it should no longer be running on this node.
-			// NOTE: It's possible that a replacement for this pod has not been rescheduled elsewhere, but that's not something we can base our decision on.
-			//       For example, if a single scheduler is running, and the node is drained, the scheduler pod will be deleted and there will be no replacement.
-			//       However, we don't know this, and as far as the checkpointer is concerned - that pod is no longer scheduled to this node.
-			if _, ok := apiParentPods[id]; !ok {
-				glog.V(4).Infof("API GC: should remove inactive checkpoint %s", id)
+	for name, pod := range inactiveCheckpoints {
+		if _, ok := cs.checkpoints[name]; !ok {
+			cs.checkpoints[name] = &checkpoint{
+				name:  name,
+				state: stateInactive{},
+				pod:   pod,
+			}
+			// Override the state for the self-checkpointer.
+			if isPodCheckpointer(pod, checkpointerPod) {
+				cs.checkpoints[name].state = stateSelfCheckpointActive{}
+			}
+		}
+	}
 
-				removeMap[id] = struct{}{}
-				if isPodCheckpointer(inactiveCheckpoints[id], checkpointerPod) {
-					podCheckpointerID = id
-					break
+	// Add union of parent pods from other sources.
+	for name, pod := range localParentPods {
+		if _, ok := cs.checkpoints[name]; !ok {
+			cs.checkpoints[name] = &checkpoint{
+				name:  name,
+				state: stateNone{},
+			}
+		}
+		// Always overwrite with the localParentPod since it is a better source of truth.
+		cs.checkpoints[name].pod = pod
+	}
+
+	for name, pod := range apiParentPods {
+		if _, ok := cs.checkpoints[name]; !ok {
+			cs.checkpoints[name] = &checkpoint{
+				name:  name,
+				state: stateNone{},
+			}
+		}
+		// Always overwrite with the apiParentPod since it is a better source of truth.
+		cs.checkpoints[name].pod = pod
+	}
+
+	// Find the self-checkpointer pod if it exists and remove it from the map.
+	for _, cp := range cs.checkpoints {
+		if isPodCheckpointer(cp.pod, checkpointerPod) {
+			// Separate the self-checkpoint from the map, as it is handled separately.
+			cs.selfCheckpoint = cp
+			delete(cs.checkpoints, cp.name)
+
+			// If this is a new self-checkpoint make sure the state is set correctly.
+			if cp.state.action() == none {
+				cp.state = stateSelfCheckpointActive{}
+			}
+		}
+	}
+}
+
+// process uses the apiserver inputs and curren time to determine which checkpoints to start, stop,
+// or remove.
+func (cs *checkpoints) process(now time.Time, apiAvailable bool, localRunningPods, localParentPods, apiParentPods map[string]*v1.Pod) (starts, stops, removes []string) {
+	// The checkpointer must be handled specially: the checkpoint always needs to remain active, and
+	// if it is removed from the apiserver then all other checkpoints need to be removed first.
+	if cs.selfCheckpoint != nil {
+		state := cs.selfCheckpoint.state.transition(now, apiCondition{
+			apiAvailable: apiAvailable,
+			apiParent:    apiParentPods[cs.selfCheckpoint.name] != nil,
+			localRunning: localRunningPods[cs.selfCheckpoint.name] != nil,
+			localParent:  localParentPods[cs.selfCheckpoint.name] != nil,
+		})
+
+		if state != cs.selfCheckpoint.state {
+			glog.Infof("Self-checkpoint %s transitioning from state %s -> state %s", cs.selfCheckpoint, cs.selfCheckpoint.state, state)
+			cs.selfCheckpoint.state = state
+		}
+
+		switch cs.selfCheckpoint.state.action() {
+		case none:
+			glog.Errorf("Unexpected transition to state %s with action 'none'", state)
+		case start:
+			// The selfCheckpoint must always be active to ensure that it can perform its functions in
+			// the face of a full control plane restart.
+			starts = append(starts, cs.selfCheckpoint.name)
+		case stop:
+			// If the checkpointer is stopped then stop all checkpoints. Next cycle they may restart.
+			for name, cp := range cs.checkpoints {
+				if cp.state.action() != none {
+					stops = append(stops, name)
 				}
-
-				delete(inactiveCheckpoints, id)
 			}
-		}
-
-		// Scan active checkpoints we should GC
-		for id := range activeCheckpoints {
-			// If the active checkpoint does not have a parent in the api-server, we must assume it should no longer be running on this node.
-			if _, ok := apiParentPods[id]; !ok {
-				glog.V(4).Infof("API GC: should remove active checkpoint %s", id)
-
-				removeMap[id] = struct{}{}
-				if isPodCheckpointer(activeCheckpoints[id], checkpointerPod) {
-					podCheckpointerID = id
-					break
+			stops = append(stops, cs.selfCheckpoint.name)
+			return starts, stops, removes
+		case remove:
+			// If the checkpointer is removed then remove all checkpoints, putting the selfCheckpoint
+			// last and removing all state.
+			for name, cp := range cs.checkpoints {
+				if cp.state.action() != none {
+					removes = append(removes, name)
+					delete(cs.checkpoints, name)
 				}
-
-				delete(activeCheckpoints, id)
 			}
+			removes = append(removes, cs.selfCheckpoint.name)
+			delete(cs.checkpoints, cs.selfCheckpoint.name)
+			cs.selfCheckpoint = nil
+			return starts, stops, removes
+		default:
+			panic(fmt.Sprintf("unhandled action: %s", cs.selfCheckpoint.state.action()))
 		}
 	}
 
-	// Remove all checkpoints if we need to remove the pod checkpointer itself.
-	if podCheckpointerID != "" {
-		glog.V(4).Info("Pod checkpointer is removed, removing all checkpoints")
-		for id := range inactiveCheckpoints {
-			removeMap[id] = struct{}{}
-			delete(inactiveCheckpoints, id)
-		}
-		for id := range activeCheckpoints {
-			removeMap[id] = struct{}{}
-			delete(activeCheckpoints, id)
+	// Update states for all the checkpoints and compute which to start / stop / remove.
+	for name, cp := range cs.checkpoints {
+		state := cp.state.transition(now, apiCondition{
+			apiAvailable: apiAvailable,
+			apiParent:    apiParentPods[name] != nil,
+			localRunning: localRunningPods[name] != nil,
+			localParent:  localParentPods[name] != nil,
+		})
+
+		if state != cp.state {
+			// Apply state transition.
+			// TODO(diegs): always apply this.
+			if cp.state.action() != state.action() {
+				switch state.action() {
+				case none:
+					glog.Errorf("Unexpected transition to state %s with action 'none'", state)
+				case start:
+					starts = append(starts, cp.name)
+				case stop:
+					stops = append(stops, cp.name)
+				case remove:
+					removes = append(removes, cp.name)
+					delete(cs.checkpoints, cp.name)
+				default:
+					panic(fmt.Sprintf("unhandled action: %s", state.action()))
+				}
+			}
+
+			glog.Infof("Checkpoint %s transitioning from state %s -> state %s", cp, cp.state, state)
+			cp.state = state
 		}
 	}
 
-	// Can make decisions about starting/stopping checkpoints just with local state.
-	//
-	// If there is an inactive checkpoint, and no parent pod is running, or the checkpoint
-	// is the pod-checkpointer, start the checkpoint.
-	for id := range inactiveCheckpoints {
-		_, ok := localRunningPods[id]
-		if !ok || isPodCheckpointer(inactiveCheckpoints[id], checkpointerPod) {
-			glog.V(4).Infof("Should start checkpoint %s", id)
-			start = append(start, id)
-		}
-	}
-
-	// If there is an active checkpoint and a running parent pod, stop the active checkpoint
-	// unless this is the pod-checkpointer.
-	// The parent may not be in a running state, but the kubelet is trying to start it
-	// so we should get out of the way.
-	for id := range activeCheckpoints {
-		_, ok := localRunningPods[id]
-		if ok && !isPodCheckpointer(activeCheckpoints[id], checkpointerPod) {
-			glog.V(4).Infof("Should stop checkpoint %s", id)
-			stop = append(stop, id)
-		}
-	}
-
-	// De-duped checkpoints to remove. If we decide to GC a checkpoint, we will clean up both inactive/active.
-	for k := range removeMap {
-		if k == podCheckpointerID {
-			continue
-		}
-		remove = append(remove, k)
-	}
-	// Put pod checkpoint at the last of the queue.
-	if podCheckpointerID != "" {
-		remove = append(remove, podCheckpointerID)
-	}
-
-	return start, stop, remove
+	return starts, stops, removes
 }
 
 // createCheckpointsForValidParents will iterate through pods which are candidates for checkpointing, then:
 // - checkpoint any remote assets they need (e.g. secrets, configmaps)
 // - sanitize their podSpec, removing unnecessary information
 // - store the manifest on disk in an "inactive" checkpoint location
-func (c *checkpointer) createCheckpointsForValidParents(pods map[string]*v1.Pod) {
+func (c *checkpointer) createCheckpointsForValidParents() {
+	// Assemble the list of parent pods to checkpoint.
+	var parents []*v1.Pod
+	for _, cp := range c.checkpoints.checkpoints {
+		parents = append(parents, cp.pod)
+	}
+	if c.checkpoints.selfCheckpoint != nil {
+		parents = append(parents, c.checkpoints.selfCheckpoint.pod)
+	}
 
+	// Update the checkpoints.
 	needsCheckpointUpdate := lastCheckpoint.IsZero() || time.Since(lastCheckpoint) >= defaultCheckpointTimeout
 
-	for _, pod := range pods {
+	for _, pod := range parents {
 		id := podFullName(pod)
 
 		cp, err := copyPod(pod)

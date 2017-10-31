@@ -4,8 +4,10 @@ package checkpoint
 
 import (
 	"fmt"
+	"os"
 	"time"
 
+	"github.com/golang/glog"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 )
@@ -23,12 +25,14 @@ const (
 	shouldCheckpoint = "true"
 	podSourceFile    = "file"
 
-	defaultPollingFrequency  = 3 * time.Second
-	defaultCheckpointTimeout = 1 * time.Minute
+	defaultPollingFrequency      = 5 * time.Second
+	defaultCheckpointTimeout     = 1 * time.Minute
+	defaultCheckpointGracePeriod = 1 * time.Minute
 )
 
 var (
-	lastCheckpoint time.Time
+	lastCheckpoint        time.Time
+	checkpointGracePeriod = defaultCheckpointGracePeriod
 )
 
 // Options defines the parameters that are required to start the checkpointer.
@@ -59,6 +63,7 @@ type checkpointer struct {
 	kubelet         *kubeletClient
 	cri             *remoteRuntimeService
 	checkpointerPod CheckpointerPod
+	checkpoints     checkpoints
 }
 
 // Run instantiates and starts a new checkpointer. Returns error if there was a problem creating
@@ -90,6 +95,11 @@ func Run(opts Options) error {
 
 // run is the main checkpointing loop.
 func (c *checkpointer) run() {
+	// Make sure the inactive checkpoint path exists.
+	if err := os.MkdirAll(inactiveCheckpointPath, 0700); err != nil {
+		glog.Fatalf("Could not create inactive checkpoint path: %v", err)
+	}
+
 	for {
 		time.Sleep(defaultPollingFrequency)
 
@@ -101,20 +111,24 @@ func (c *checkpointer) run() {
 		localParentPods := c.kubelet.localParentPods()
 		localRunningPods := c.cri.localRunningPods()
 
-		c.createCheckpointsForValidParents(localParentPods)
-
 		// Try to get scheduled pods from the apiserver.
 		// These will be used to GC checkpoints for parents no longer scheduled to this node.
-		// A return value of nil is assumed to be "could not contact apiserver"
 		// TODO(aaron): only check this every 30 seconds or so
-		apiParentPods := c.getAPIParentPods(c.checkpointerPod.NodeName)
+		apiAvailable, apiParentPods := c.getAPIParentPods(c.checkpointerPod.NodeName)
 
 		// Get on disk copies of (in)active checkpoints
 		//TODO(aaron): Could be racy to load from disk each time, but much easier than trying to keep in-memory state in sync.
 		activeCheckpoints := getFileCheckpoints(activeCheckpointPath)
 		inactiveCheckpoints := getFileCheckpoints(inactiveCheckpointPath)
 
-		start, stop, remove := process(localRunningPods, localParentPods, apiParentPods, activeCheckpoints, inactiveCheckpoints, c.checkpointerPod)
+		// Update checkpoints using the latest information from the APIs.
+		c.checkpoints.update(localRunningPods, localParentPods, apiParentPods, activeCheckpoints, inactiveCheckpoints, c.checkpointerPod)
+
+		// Update on-disk manifests based on updated checkpoint state.
+		c.createCheckpointsForValidParents()
+
+		// Update checkpoint states and determine which checkpoints to start, stop, or remove.
+		start, stop, remove := c.checkpoints.process(time.Now(), apiAvailable, localRunningPods, localParentPods, apiParentPods)
 
 		// Handle remove at last because we may still have some work to do
 		// before removing the checkpointer itself.

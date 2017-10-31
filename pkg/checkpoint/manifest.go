@@ -52,10 +52,6 @@ func writeCheckpointManifest(pod *v1.Pod) (bool, error) {
 		return false, err
 	}
 	path := filepath.Join(inactiveCheckpointPath, pod.Namespace+"-"+pod.Name+".json")
-	// Make sure the inactive checkpoint path exists.
-	if err := os.MkdirAll(filepath.Dir(path), 0600); err != nil {
-		return false, err
-	}
 	return writeManifestIfDifferent(path, podFullName(pod), buff.Bytes())
 }
 
