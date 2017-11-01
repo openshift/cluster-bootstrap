@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -23,6 +24,16 @@ func getFileCheckpoints(path string) map[string]*v1.Pod {
 
 	for _, f := range fi {
 		manifest := filepath.Join(path, f.Name())
+
+		// Check for leftover temporary checkpoints.
+		if strings.HasPrefix(filepath.Base(manifest), ".") {
+			glog.V(4).Infof("Found temporary checkpoint %s, removing.", manifest)
+			if err := os.Remove(manifest); err != nil {
+				glog.V(4).Infof("Error removing temporary checkpoint %s: %v.", manifest, err)
+			}
+			continue
+		}
+
 		b, err := ioutil.ReadFile(manifest)
 		if err != nil {
 			glog.Errorf("Error reading manifest: %v", err)
@@ -52,10 +63,6 @@ func writeCheckpointManifest(pod *v1.Pod) (bool, error) {
 		return false, err
 	}
 	path := filepath.Join(inactiveCheckpointPath, pod.Namespace+"-"+pod.Name+".json")
-	// Make sure the inactive checkpoint path exists.
-	if err := os.MkdirAll(filepath.Dir(path), 0600); err != nil {
-		return false, err
-	}
 	return writeManifestIfDifferent(path, podFullName(pod), buff.Bytes())
 }
 
@@ -72,4 +79,22 @@ func writeManifestIfDifferent(path, name string, data []byte) (bool, error) {
 	}
 	glog.Infof("Writing manifest for %q to %q", name, path)
 	return true, writeAndAtomicRename(path, data, 0644)
+}
+
+func writeAndAtomicRename(path string, data []byte, perm os.FileMode) error {
+	// Ensure that the temporary file is on the same filesystem so that os.Rename() does not error.
+	tmpfile, err := ioutil.TempFile(filepath.Dir(path), ".")
+	if err != nil {
+		return err
+	}
+	if _, err := tmpfile.Write(data); err != nil {
+		return err
+	}
+	if err := tmpfile.Close(); err != nil {
+		return err
+	}
+	if err := tmpfile.Chmod(perm); err != nil {
+		return err
+	}
+	return os.Rename(tmpfile.Name(), path)
 }

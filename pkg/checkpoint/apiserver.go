@@ -9,7 +9,8 @@ import (
 )
 
 // getAPIParentPods will retrieve all pods from apiserver that are parents & should be checkpointed
-func (c *checkpointer) getAPIParentPods(nodeName string) map[string]*v1.Pod {
+// Returns false if we could not contact the apiserver.
+func (c *checkpointer) getAPIParentPods(nodeName string) (bool, map[string]*v1.Pod) {
 	opts := metav1.ListOptions{
 		FieldSelector: fields.OneTermEqualSelector(api.PodHostField, nodeName).String(),
 	}
@@ -17,7 +18,7 @@ func (c *checkpointer) getAPIParentPods(nodeName string) map[string]*v1.Pod {
 	podList, err := c.apiserver.CoreV1().Pods(api.NamespaceAll).List(opts)
 	if err != nil {
 		glog.Warningf("Unable to contact APIServer, skipping garbage collection: %v", err)
-		return nil
+		return false, nil
 	}
-	return podListToParentPods(podList)
+	return true, podListToParentPods(podList)
 }
