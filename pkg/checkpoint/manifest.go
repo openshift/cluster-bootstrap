@@ -90,10 +90,10 @@ func writeAndAtomicRename(path string, data []byte, perm os.FileMode) error {
 	if _, err := tmpfile.Write(data); err != nil {
 		return err
 	}
-	if err := tmpfile.Close(); err != nil {
+	if err := tmpfile.Chmod(perm); err != nil {
 		return err
 	}
-	if err := tmpfile.Chmod(perm); err != nil {
+	if err := tmpfile.Close(); err != nil {
 		return err
 	}
 	return os.Rename(tmpfile.Name(), path)
