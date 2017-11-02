@@ -28,8 +28,13 @@ var (
 	)
 )
 
-func sanitizeCheckpointPod(cp *v1.Pod) (*v1.Pod, error) {
+func sanitizeCheckpointPod(cp *v1.Pod) *v1.Pod {
 	trueVar := true
+
+	// Check if this is already sanitized, i.e. it was read back from a checkpoint on disk.
+	if _, ok := cp.Annotations[checkpointParentAnnotation]; ok {
+		return cp
+	}
 
 	// Keep same name, namespace, and labels as parent.
 	cp.ObjectMeta = metav1.ObjectMeta{
@@ -73,7 +78,7 @@ func sanitizeCheckpointPod(cp *v1.Pod) (*v1.Pod, error) {
 	// Clear pod status
 	cp.Status.Reset()
 
-	return cp, nil
+	return cp
 }
 
 // isPodCheckpointer returns true if the manifest is the pod checkpointer (has the same name as the parent).

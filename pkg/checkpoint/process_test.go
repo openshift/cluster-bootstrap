@@ -1,7 +1,6 @@
 package checkpoint
 
 import (
-	"flag"
 	"reflect"
 	"testing"
 	"time"
@@ -11,9 +10,6 @@ import (
 )
 
 func TestProcess(t *testing.T) {
-	flag.Set("logtostderr", "true")
-	flag.Parse()
-
 	type testCase struct {
 		desc                string
 		localRunning        map[string]*v1.Pod

@@ -139,13 +139,41 @@ func TestSanitizeCheckpointPod(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "Pod is already sanitized.",
+			pod: &v1.Pod{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1",
+					Kind:       "Pod",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "podname",
+					Namespace:   "podnamespace",
+					Annotations: map[string]string{checkpointParentAnnotation: "podname"},
+					OwnerReferences: []metav1.OwnerReference{
+						{APIVersion: "v1", Kind: "Pod", Name: "podname", UID: "pod-uid", Controller: &trueVar},
+					},
+				},
+			},
+			expected: &v1.Pod{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1",
+					Kind:       "Pod",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "podname",
+					Namespace:   "podnamespace",
+					Annotations: map[string]string{checkpointParentAnnotation: "podname"},
+					OwnerReferences: []metav1.OwnerReference{
+						{APIVersion: "v1", Kind: "Pod", Name: "podname", UID: "pod-uid", Controller: &trueVar},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
-		got, err := sanitizeCheckpointPod(tc.pod)
-		if err != nil {
-			t.Errorf("\nUnexpected error: %v\n", err)
-		}
+		got := sanitizeCheckpointPod(tc.pod)
 		if !apiequality.Semantic.DeepEqual(tc.expected, got) {
 			t.Errorf("\nFor Test: %s\n\nExpected:\n%#v\nGot:\n%#v\n", tc.desc, tc.expected, got)
 		}

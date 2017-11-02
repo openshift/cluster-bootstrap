@@ -43,7 +43,8 @@ func (cs *checkpoints) update(localRunningPods, localParentPods, apiParentPods, 
 		cs.checkpoints[cs.selfCheckpoint.name] = cs.selfCheckpoint
 	}
 
-	// Make sure all on-disk checkpoints are represented in memory, i.e. if we are restarting from a crash.
+	// Make sure all on-disk checkpoints are represented in memory, i.e. if we are restarting from a
+	// crash.
 	for name, pod := range activeCheckpoints {
 		if _, ok := cs.checkpoints[name]; !ok {
 			cs.checkpoints[name] = &checkpoint{
@@ -224,11 +225,7 @@ func (c *checkpointer) createCheckpointsForValidParents() {
 			continue
 		}
 
-		cp, err = sanitizeCheckpointPod(cp)
-		if err != nil {
-			glog.Errorf("Failed to sanitize manifest for %s: %v", id, err)
-			continue
-		}
+		cp = sanitizeCheckpointPod(cp)
 
 		podChanged, err := writeCheckpointManifest(cp)
 		if err != nil {
