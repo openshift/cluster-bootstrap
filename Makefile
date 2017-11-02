@@ -10,7 +10,17 @@ LDFLAGS=-X github.com/kubernetes-incubator/bootkube/pkg/version.Version=$(shell 
 all: \
 	_output/bin/linux/bootkube \
 	_output/bin/darwin/bootkube \
+	_output/bin/linux/checkpoint
+
+cross: \
+	_output/bin/linux/bootkube \
+	_output/bin/darwin/bootkube \
 	_output/bin/linux/checkpoint \
+	_output/bin/linux/amd64/checkpoint \
+	_output/bin/linux/arm/checkpoint \
+	_output/bin/linux/arm64/checkpoint \
+	_output/bin/linux/ppc64le/checkpoint \
+	_output/bin/linux/s390x/checkpoint
 
 release: \
 	clean \
@@ -25,9 +35,12 @@ check:
 install: _output/bin/$(LOCAL_OS)/bootkube
 	cp $< $(GOPATH_BIN)
 
+_output/bin/%: GOOS=$(word 1, $(subst /, ,$*))
+_output/bin/%: GOARCH=$(word 2, $(subst /, ,$*))
+_output/bin/%: GOARCH:=amd64  # default to amd64 to support release scripts
 _output/bin/%: $(GOFILES)
 	mkdir -p $(dir $@)
-	GOOS=$(word 1, $(subst /, ,$*)) go build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $@ github.com/kubernetes-incubator/bootkube/cmd/$(notdir $@)
+	GOOS=$(GOOS) GOARCH=$(GOARCH) go build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $@ github.com/kubernetes-incubator/bootkube/cmd/$(notdir $@)
 
 _output/release/bootkube.tar.gz: _output/bin/linux/bootkube _output/bin/darwin/bootkube _output/bin/linux/checkpoint
 	mkdir -p $(dir $@)
