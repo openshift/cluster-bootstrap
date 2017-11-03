@@ -69,7 +69,6 @@ spec:
         - --lock-file=/var/run/lock/kubelet.lock
         - --network-plugin=cni
         - --pod-manifest-path=/etc/kubernetes/manifests
-        - --require-kubeconfig
         env:
           - name: NODE_NAME
             valueFrom:
