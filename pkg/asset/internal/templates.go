@@ -390,7 +390,6 @@ spec:
         image: {{ .Images.PodCheckpointer }}
         command:
         - /checkpoint
-        - --v=4
         - --lock-file=/var/run/lock/pod-checkpointer.lock
         env:
         - name: NODE_NAME
