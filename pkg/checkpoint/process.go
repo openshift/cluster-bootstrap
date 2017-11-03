@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/golang/glog"
@@ -143,6 +144,7 @@ func (cs *checkpoints) process(now time.Time, apiAvailable bool, localRunningPod
 					stops = append(stops, name)
 				}
 			}
+			sort.Strings(stops) // Ensure stable ordering.
 			stops = append(stops, cs.selfCheckpoint.name)
 			return starts, stops, removes
 		case remove:
@@ -154,6 +156,7 @@ func (cs *checkpoints) process(now time.Time, apiAvailable bool, localRunningPod
 					delete(cs.checkpoints, name)
 				}
 			}
+			sort.Strings(removes) // Ensure stable ordering.
 			removes = append(removes, cs.selfCheckpoint.name)
 			delete(cs.checkpoints, cs.selfCheckpoint.name)
 			cs.selfCheckpoint = nil

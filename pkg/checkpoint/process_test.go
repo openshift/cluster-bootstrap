@@ -56,6 +56,13 @@ func TestProcess(t *testing.T) {
 			expectStart:         []string{"AA"},
 		},
 		{
+			desc:                "Inactive checkpoint and only api and kubelet parents: should start",
+			inactiveCheckpoints: map[string]*v1.Pod{"AA": {}},
+			apiParents:          map[string]*v1.Pod{"AA": {}},
+			localParents:        map[string]*v1.Pod{"AA": {}},
+			expectStart:         []string{"AA"},
+		},
+		{
 			desc:              "Active checkpoint and no local running: no change",
 			activeCheckpoints: map[string]*v1.Pod{"AA": {}},
 		},
