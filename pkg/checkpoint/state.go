@@ -65,7 +65,7 @@ type checkpointState interface {
 // stateSelfCheckpointActive represents a checkpoint of the checkpointer itself, which has special
 // behavior.
 //
-// stateSelfCheckpointActive can transition to stateInactiveGracePeriod.
+// stateSelfCheckpointActive can transition to stateActiveGracePeriod.
 type stateSelfCheckpointActive struct{}
 
 // transition implements state.transition()
@@ -80,9 +80,9 @@ func (s stateSelfCheckpointActive) transition(now time.Time, apis apiCondition) 
 		return s
 	}
 
-	// The apiserver parent pod is deleted, transition to stateInactiveGracePeriod.
+	// The apiserver parent pod is deleted, transition to stateActiveGracePeriod.
 	// TODO(diegs): this is a little hacky, perhaps clean it up with a constructor.
-	return stateInactiveGracePeriod{gracePeriodEnd: now.Add(checkpointGracePeriod)}.checkGracePeriod(now, apis)
+	return stateActiveGracePeriod{gracePeriodEnd: now.Add(checkpointGracePeriod)}.checkGracePeriod(now, apis)
 }
 
 // action implements state.action()
