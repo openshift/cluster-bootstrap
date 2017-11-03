@@ -166,8 +166,9 @@ func TestProcess(t *testing.T) {
 				},
 				"AA": {},
 			},
-			expectStop:        []string{"AA", "kube-system/pod-checkpointer"},
-			expectGraceRemove: []string{"AA", "kube-system/pod-checkpointer"},
+			expectStart:       []string{"kube-system/pod-checkpointer"},
+			expectStop:        []string{"BB"},
+			expectGraceRemove: []string{"AA", "BB", "kube-system/pod-checkpointer"},
 		},
 		{
 			desc:         "Inactive pod-checkpointer, no local parent, no api parent: should remove all",
@@ -183,7 +184,7 @@ func TestProcess(t *testing.T) {
 				},
 				"AA": {},
 			},
-			expectStop:        []string{"AA", "kube-system/pod-checkpointer"},
+			expectStart:       []string{"kube-system/pod-checkpointer"},
 			expectGraceRemove: []string{"AA", "kube-system/pod-checkpointer"},
 		},
 		{
@@ -200,7 +201,8 @@ func TestProcess(t *testing.T) {
 				},
 				"AA": {},
 			},
-			expectStop:        []string{"AA", "kube-system/pod-checkpointer"},
+			expectStart:       []string{"kube-system/pod-checkpointer"},
+			expectStop:        []string{"AA"},
 			expectGraceRemove: []string{"AA", "kube-system/pod-checkpointer"},
 		},
 		{
@@ -264,8 +266,8 @@ func TestProcess(t *testing.T) {
 				},
 				"AA": {},
 			},
-			expectStop:        []string{"AA", "kube-system/pod-checkpointer"},
-			expectGraceRemove: []string{"AA", "kube-system/pod-checkpointer"},
+			expectStart:       []string{"kube-system/pod-checkpointer", "BB"},
+			expectGraceRemove: []string{"AA", "BB", "kube-system/pod-checkpointer"},
 		},
 		{
 			desc:         "Running as an on-disk checkpointer: Inactive pod-checkpointer, no local parent, no api parent: should remove all",
@@ -282,7 +284,7 @@ func TestProcess(t *testing.T) {
 				},
 				"AA": {},
 			},
-			expectStop:        []string{"AA", "kube-system/pod-checkpointer"},
+			expectStart:       []string{"kube-system/pod-checkpointer"},
 			expectGraceRemove: []string{"AA", "kube-system/pod-checkpointer"},
 		},
 		{
@@ -300,7 +302,8 @@ func TestProcess(t *testing.T) {
 				},
 				"AA": {},
 			},
-			expectStop:        []string{"AA", "kube-system/pod-checkpointer"},
+			expectStart:       []string{"kube-system/pod-checkpointer"},
+			expectStop:        []string{"AA"},
 			expectGraceRemove: []string{"AA", "kube-system/pod-checkpointer"},
 		},
 	}

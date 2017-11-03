@@ -31,7 +31,7 @@ func TestAllowedStateTransitions(t *testing.T) {
 		want  []checkpointState
 	}{{
 		state: stateSelfCheckpointActive{},
-		want:  []checkpointState{stateSelfCheckpointActive{}, stateInactiveGracePeriod{}},
+		want:  []checkpointState{stateSelfCheckpointActive{}, stateActiveGracePeriod{}},
 	}, {
 		state: stateNone{},
 		want:  []checkpointState{stateNone{}, stateInactive{}, stateInactiveGracePeriod{}, stateActive{}},
