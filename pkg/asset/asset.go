@@ -36,7 +36,10 @@ const (
 	AssetPathKubeConfig                  = "auth/kubeconfig"
 	AssetPathManifests                   = "manifests"
 	AssetPathKubelet                     = "manifests/kubelet.yaml"
+	AssetPathKubeConfigInCluster         = "manifests/kubeconfig-in-cluster.yaml"
 	AssetPathProxy                       = "manifests/kube-proxy.yaml"
+	AssetPathProxySA                     = "manifests/kube-proxy-sa.yaml"
+	AssetPathProxyRoleBinding            = "manifests/kube-proxy-role-binding.yaml"
 	AssetPathKubeFlannel                 = "manifests/kube-flannel.yaml"
 	AssetPathKubeFlannelCfg              = "manifests/kube-flannel-cfg.yaml"
 	AssetPathCalico                      = "manifests/calico.yaml"
@@ -60,6 +63,9 @@ const (
 	AssetPathKubeDNSSvc                  = "manifests/kube-dns-svc.yaml"
 	AssetPathSystemNamespace             = "manifests/kube-system-ns.yaml"
 	AssetPathCheckpointer                = "manifests/pod-checkpointer.yaml"
+	AssetPathCheckpointerSA              = "manifests/pod-checkpointer-sa.yaml"
+	AssetPathCheckpointerRole            = "manifests/pod-checkpointer-role.yaml"
+	AssetPathCheckpointerRoleBinding     = "manifests/pod-checkpointer-role-binding.yaml"
 	AssetPathEtcdOperator                = "manifests/etcd-operator.yaml"
 	AssetPathEtcdSvc                     = "manifests/etcd-service.yaml"
 	AssetPathEtcdClientSecret            = "manifests/etcd-client-tls.yaml"
@@ -174,12 +180,11 @@ func NewDefaultAssets(conf Config) (Assets, error) {
 		}
 	}
 
-	// K8S kubeconfig
-	kubeConfig, err := newKubeConfigAsset(as, conf)
+	kubeConfigAssets, err := newKubeConfigAssets(as, conf)
 	if err != nil {
 		return Assets{}, err
 	}
-	as = append(as, kubeConfig)
+	as = append(as, kubeConfigAssets...)
 
 	// K8S APIServer secret
 	apiSecret, err := newAPIServerSecretAsset(as, conf.EtcdUseTLS)
