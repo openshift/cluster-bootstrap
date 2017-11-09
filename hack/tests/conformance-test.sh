@@ -2,7 +2,7 @@
 set -euo pipefail
 
 CONFORMANCE_REPO=${CONFORMANCE_REPO:-github.com/kubernetes/kubernetes}
-CONFORMANCE_VERSION=${CONFORMANCE_VERSION:-v1.8.2}
+CONFORMANCE_VERSION=${CONFORMANCE_VERSION:-v1.8.3}
 
 usage() {
     echo "USAGE:"
