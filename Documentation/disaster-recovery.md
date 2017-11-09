@@ -71,6 +71,16 @@ ssh user@master-node
 sudo ./bootkube start --asset-dir=recovered
 ```
 
+Note: the `bootkube start` invocation will print the following warning message:
+
+```
+WARNING: recovered/manifests does not exist, not creating any self-hosted assets.
+```
+
+This message can be safely ignored. It is printed because recovery does not
+attempt to recreate self-hosted assets; it only runs a temporary control plane
+to allow the self-hosted control plane to recover itself.
+
 For complete recovery examples see the
 [hack/multi-node/bootkube-test-recovery](https://github.com/kubernetes-incubator/bootkube/blob/master/hack/multi-node/bootkube-test-recovery)
 and
