@@ -390,6 +390,7 @@ spec:
         command:
         - /checkpoint
         - --lock-file=/var/run/lock/pod-checkpointer.lock
+        - --kubeconfig=/etc/checkpointer/kubeconfig
         env:
         - name: NODE_NAME
           valueFrom:
@@ -405,10 +406,13 @@ spec:
               fieldPath: metadata.namespace
         imagePullPolicy: Always
         volumeMounts:
+        - mountPath: /etc/checkpointer
+          name: kubeconfig
         - mountPath: /etc/kubernetes
           name: etc-kubernetes
         - mountPath: /var/run
           name: var-run
+      serviceAccountName: pod-checkpointer
       hostNetwork: true
       nodeSelector:
         node-role.kubernetes.io/master: ""
@@ -418,6 +422,9 @@ spec:
         operator: Exists
         effect: NoSchedule
       volumes:
+      - name: kubeconfig
+        secret:
+          secretName: kubeconfig-in-cluster
       - name: etc-kubernetes
         hostPath:
           path: /etc/kubernetes
@@ -428,6 +435,43 @@ spec:
     rollingUpdate:
       maxUnavailable: 1
     type: RollingUpdate
+`)
+
+var CheckpointerServiceAccount = []byte(`apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: kube-system
+  name: pod-checkpointer
+`)
+
+// TODO: Drop checkpointer RBAC resources to a Role and RoleBinding if
+// the checkpoint switches to only watching kube-system.
+
+var CheckpointerRole = []byte(`apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pod-checkpointer
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["secrets", "configmaps"]
+  verbs: ["get"]
+`)
+
+var CheckpointerRoleBinding = []byte(`apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pod-checkpointer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pod-checkpointer
+subjects:
+- kind: ServiceAccount
+  name: pod-checkpointer
+  namespace: kube-system
 `)
 
 var ControllerManagerTemplate = []byte(`apiVersion: apps/v1beta2
@@ -712,10 +756,11 @@ spec:
         - mountPath: /etc/ssl/certs
           name: ssl-certs-host
           readOnly: true
-        - name: etc-kubernetes
+        - name: kubeconfig
           mountPath: /etc/kubernetes
           readOnly: true
       hostNetwork: true
+      serviceAccountName: kube-proxy
       tolerations:
       - key: CriticalAddonsOnly
         operator: Exists
@@ -729,13 +774,66 @@ spec:
       - name: ssl-certs-host
         hostPath:
           path: /usr/share/ca-certificates
-      - name: etc-kubernetes
-        hostPath:
-          path: /etc/kubernetes
+      - name: kubeconfig
+        secret:
+          secretName: kubeconfig-in-cluster
   updateStrategy:
     rollingUpdate:
       maxUnavailable: 1
     type: RollingUpdate
+`)
+
+var ProxyServiceAccount = []byte(`apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: kube-system
+  name: kube-proxy
+`)
+
+var ProxyClusterRoleBinding = []byte(`apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-proxy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:node-proxier # Automatically created system role.
+subjects:
+- kind: ServiceAccount
+  name: kube-proxy
+  namespace: kube-system
+`)
+
+// KubeConfigInCluster instructs clients to use their service account token,
+// but unlike an in-cluster client doesn't rely on the `KUBERNETES_SERVICE_PORT`
+// and `KUBERNETES_PORT` to determine the API servers address.
+//
+// This kubeconfig is used by bootstrapping pods that might not have access to
+// these env vars, such as kube-proxy, which sets up the API server endpoint
+// (chicken and egg), and the checkpointer, which needs to run as a static pod
+// even if the API server isn't available.
+var KubeConfigInClusterTemplate = []byte(`apiVersion: v1
+kind: Secret
+metadata:
+  name: kubeconfig-in-cluster
+  namespace: kube-system
+stringData:
+  kubeconfig: |
+    apiVersion: v1
+    clusters:
+    - name: local
+      cluster:
+        server: {{ .Server }}
+        certificate-authority-data: {{ .CACert }}
+    users:
+    - name: service-account
+      user:
+        # Use service account token
+        tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    contexts:
+    - context:
+        cluster: local
+        user: service-account
 `)
 
 var DNSDeploymentTemplate = []byte(`apiVersion: apps/v1beta2

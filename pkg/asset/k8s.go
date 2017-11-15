@@ -3,6 +3,7 @@ package asset
 import (
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"path/filepath"
 	"text/template"
 
@@ -40,6 +41,9 @@ func newStaticAssets(imageVersions ImageVersions) Assets {
 		MustCreateAssetFromTemplate(AssetPathControllerManagerDisruption, internal.ControllerManagerDisruptionTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathKubeDNSDeployment, internal.DNSDeploymentTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathCheckpointer, internal.CheckpointerTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathCheckpointerSA, internal.CheckpointerServiceAccount, conf),
+		MustCreateAssetFromTemplate(AssetPathCheckpointerRole, internal.CheckpointerRole, conf),
+		MustCreateAssetFromTemplate(AssetPathCheckpointerRoleBinding, internal.CheckpointerRoleBinding, conf),
 		MustCreateAssetFromTemplate(AssetPathKubeSystemSARoleBinding, internal.KubeSystemSARoleBindingTemplate, conf),
 	}
 	return assets
@@ -50,6 +54,8 @@ func newDynamicAssets(conf Config) Assets {
 		MustCreateAssetFromTemplate(AssetPathControllerManager, internal.ControllerManagerTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathAPIServer, internal.APIServerTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathProxy, internal.ProxyTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathProxySA, internal.ProxyServiceAccount, conf),
+		MustCreateAssetFromTemplate(AssetPathProxyRoleBinding, internal.ProxyClusterRoleBinding, conf),
 		MustCreateAssetFromTemplate(AssetPathKubeDNSSvc, internal.DNSSvcTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathBootstrapAPIServer, internal.BootstrapAPIServerTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathBootstrapControllerManager, internal.BootstrapControllerManagerTemplate, conf),
@@ -100,35 +106,51 @@ func newDynamicAssets(conf Config) Assets {
 	return assets
 }
 
-func newKubeConfigAsset(assets Assets, conf Config) (Asset, error) {
+func newKubeConfigAssets(assets Assets, conf Config) ([]Asset, error) {
 	caCert, err := assets.Get(AssetPathCACert)
 	if err != nil {
-		return Asset{}, err
+		return nil, err
 	}
 
 	kubeletCert, err := assets.Get(AssetPathKubeletCert)
 	if err != nil {
-		return Asset{}, err
+		return nil, err
 	}
 
 	kubeletKey, err := assets.Get(AssetPathKubeletKey)
 	if err != nil {
-		return Asset{}, err
+		return nil, err
 	}
 
-	type templateCfg struct {
+	cfg := struct {
 		Server      string
 		CACert      string
 		KubeletCert string
 		KubeletKey  string
-	}
-
-	return assetFromTemplate(AssetPathKubeConfig, internal.KubeConfigTemplate, templateCfg{
+	}{
 		Server:      conf.APIServers[0].String(),
 		CACert:      base64.StdEncoding.EncodeToString(caCert.Data),
 		KubeletCert: base64.StdEncoding.EncodeToString(kubeletCert.Data),
 		KubeletKey:  base64.StdEncoding.EncodeToString(kubeletKey.Data),
-	})
+	}
+
+	templates := []struct {
+		path string
+		tmpl []byte
+	}{
+		{AssetPathKubeConfig, internal.KubeConfigTemplate},
+		{AssetPathKubeConfigInCluster, internal.KubeConfigInClusterTemplate},
+	}
+
+	var as []Asset
+	for _, t := range templates {
+		a, err := assetFromTemplate(t.path, t.tmpl, cfg)
+		if err != nil {
+			return nil, fmt.Errorf("rendering template %s: %v", t.path, err)
+		}
+		as = append(as, a)
+	}
+	return as, nil
 }
 
 func newSelfHostedEtcdSecretAssets(assets Assets) (Assets, error) {
