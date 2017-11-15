@@ -1293,7 +1293,7 @@ spec:
             - name: CALICO_IPV4POOL_CIDR
               value: "{{ .PodCIDR }}"
             - name: CALICO_IPV4POOL_IPIP
-              value: "always"
+              value: "Always"
             - name: FELIX_IPINIPENABLED
               value: "true"
             - name: NODENAME
@@ -1350,6 +1350,7 @@ spec:
               name: cni-bin-dir
             - mountPath: /host/etc/cni/net.d
               name: cni-net-dir
+      terminationGracePeriodSeconds: 0
       volumes:
         - name: lib-modules
           hostPath:
@@ -1417,7 +1418,7 @@ spec:
             - name: CALICO_IPV4POOL_CIDR
               value: "{{ .PodCIDR }}"
             - name: CALICO_IPV4POOL_IPIP
-              value: "always"
+              value: "Always"
             - name: NODENAME
               valueFrom:
                 fieldRef:
@@ -1472,6 +1473,7 @@ spec:
               name: cni-bin-dir
             - mountPath: /host/etc/cni/net.d
               name: cni-net-dir
+      terminationGracePeriodSeconds: 0
       volumes:
         - name: lib-modules
           hostPath:
