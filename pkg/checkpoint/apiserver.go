@@ -15,7 +15,7 @@ func (c *checkpointer) getAPIParentPods(nodeName string) (bool, map[string]*v1.P
 		FieldSelector: fields.OneTermEqualSelector(api.PodHostField, nodeName).String(),
 	}
 
-	podList, err := c.apiserver.CoreV1().Pods(api.NamespaceAll).List(opts)
+	podList, err := c.apiserver.CoreV1().Pods(c.checkpointerPod.PodNamespace).List(opts)
 	if err != nil {
 		glog.Warningf("Unable to contact APIServer, skipping garbage collection: %v", err)
 		return false, nil
