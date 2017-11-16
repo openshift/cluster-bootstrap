@@ -2,6 +2,7 @@ package asset
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/base64"
 	"fmt"
 	"path/filepath"
@@ -44,6 +45,9 @@ func newStaticAssets(imageVersions ImageVersions) Assets {
 		MustCreateAssetFromTemplate(AssetPathCheckpointerSA, internal.CheckpointerServiceAccount, conf),
 		MustCreateAssetFromTemplate(AssetPathCheckpointerRole, internal.CheckpointerRole, conf),
 		MustCreateAssetFromTemplate(AssetPathCheckpointerRoleBinding, internal.CheckpointerRoleBinding, conf),
+		MustCreateAssetFromTemplate(AssetPathCSRApproverRoleBinding, internal.CSRApproverRoleBindingTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathCSRBootstrapRoleBinding, internal.CSRNodeBootstrapTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathCSRRenewalRoleBinding, internal.CSRRenewalRoleBindingTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathKubeSystemSARoleBinding, internal.KubeSystemSARoleBindingTemplate, conf),
 	}
 	return assets
@@ -105,40 +109,68 @@ func newDynamicAssets(conf Config) Assets {
 	return assets
 }
 
+const validBootstrapTokenChars = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+// newBootstrapToken constructs a bootstrap token in conformance with the following format:
+// https://kubernetes.io/docs/admin/bootstrap-tokens/#token-format
+func newBootstrapToken() (id string, secret string, err error) {
+	// Read 6 random bytes for the id and 16 random bytes for the token (see spec for details).
+	token := make([]byte, 6+16)
+	if _, err := rand.Read(token); err != nil {
+		return "", "", err
+	}
+
+	for i, b := range token {
+		token[i] = validBootstrapTokenChars[int(b)%len(validBootstrapTokenChars)]
+	}
+	return string(token[:6]), string(token[6:]), nil
+}
+
 func newKubeConfigAssets(assets Assets, conf Config) ([]Asset, error) {
 	caCert, err := assets.Get(AssetPathCACert)
 	if err != nil {
 		return nil, err
 	}
 
-	kubeletCert, err := assets.Get(AssetPathKubeletCert)
+	adminCert, err := assets.Get(AssetPathAdminCert)
 	if err != nil {
 		return nil, err
 	}
 
-	kubeletKey, err := assets.Get(AssetPathKubeletKey)
+	adminKey, err := assets.Get(AssetPathAdminKey)
+	if err != nil {
+		return nil, err
+	}
+
+	bootstrapTokenID, bootstrapTokenSecret, err := newBootstrapToken()
 	if err != nil {
 		return nil, err
 	}
 
 	cfg := struct {
-		Server      string
-		CACert      string
-		KubeletCert string
-		KubeletKey  string
+		Server               string
+		CACert               string
+		AdminCert            string
+		AdminKey             string
+		BootstrapTokenID     string
+		BootstrapTokenSecret string
 	}{
-		Server:      conf.APIServers[0].String(),
-		CACert:      base64.StdEncoding.EncodeToString(caCert.Data),
-		KubeletCert: base64.StdEncoding.EncodeToString(kubeletCert.Data),
-		KubeletKey:  base64.StdEncoding.EncodeToString(kubeletKey.Data),
+		Server:               conf.APIServers[0].String(),
+		CACert:               base64.StdEncoding.EncodeToString(caCert.Data),
+		AdminCert:            base64.StdEncoding.EncodeToString(adminCert.Data),
+		AdminKey:             base64.StdEncoding.EncodeToString(adminKey.Data),
+		BootstrapTokenID:     bootstrapTokenID,
+		BootstrapTokenSecret: bootstrapTokenSecret,
 	}
 
 	templates := []struct {
 		path string
 		tmpl []byte
 	}{
-		{AssetPathKubeConfig, internal.KubeConfigTemplate},
+		{AssetPathAdminKubeConfig, internal.AdminKubeConfigTemplate},
 		{AssetPathKubeConfigInCluster, internal.KubeConfigInClusterTemplate},
+		{AssetPathKubeletKubeConfig, internal.KubeletKubeConfigTemplate},
+		{AssetPathKubeletBootstrapToken, internal.KubeletBootstrappingToken},
 	}
 
 	var as []Asset
@@ -214,7 +246,8 @@ func newAPIServerSecretAsset(assets Assets, etcdUseTLS bool) (Asset, error) {
 func newControllerManagerSecretAsset(assets Assets) (Asset, error) {
 	secretAssets := []string{
 		AssetPathServiceAccountPrivKey,
-		AssetPathCACert, //TODO(aaron): do we want this also distributed as secret? or expect available on host?
+		AssetPathCACert,
+		AssetPathCAKey,
 	}
 
 	secretYAML, err := secretFromAssets(secretCMName, secretNamespace, secretAssets, assets)

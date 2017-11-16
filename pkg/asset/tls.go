@@ -32,7 +32,7 @@ func newTLSAssets(caCert *x509.Certificate, caPrivKey *rsa.PrivateKey, altNames 
 		return assets, err
 	}
 
-	kubeletKey, kubeletCert, err := newKubeletKeyAndCert(caCert, caPrivKey)
+	adminKey, adminCert, err := newAdminKeyAndCert(caCert, caPrivKey)
 	if err != nil {
 		return assets, err
 	}
@@ -44,8 +44,8 @@ func newTLSAssets(caCert *x509.Certificate, caPrivKey *rsa.PrivateKey, altNames 
 		{Name: AssetPathAPIServerCert, Data: tlsutil.EncodeCertificatePEM(apiCert)},
 		{Name: AssetPathServiceAccountPrivKey, Data: tlsutil.EncodePrivateKeyPEM(saPrivKey)},
 		{Name: AssetPathServiceAccountPubKey, Data: saPubKey},
-		{Name: AssetPathKubeletKey, Data: tlsutil.EncodePrivateKeyPEM(kubeletKey)},
-		{Name: AssetPathKubeletCert, Data: tlsutil.EncodeCertificatePEM(kubeletCert)},
+		{Name: AssetPathAdminKey, Data: tlsutil.EncodePrivateKeyPEM(adminKey)},
+		{Name: AssetPathAdminCert, Data: tlsutil.EncodeCertificatePEM(adminCert)},
 	}...)
 	return assets, nil
 }
@@ -94,12 +94,9 @@ func newAPIKeyAndCert(caCert *x509.Certificate, caPrivKey *rsa.PrivateKey, altNa
 	return key, cert, err
 }
 
-func newKubeletKeyAndCert(caCert *x509.Certificate, caPrivKey *rsa.PrivateKey) (*rsa.PrivateKey, *x509.Certificate, error) {
+func newAdminKeyAndCert(caCert *x509.Certificate, caPrivKey *rsa.PrivateKey) (*rsa.PrivateKey, *x509.Certificate, error) {
 	// TLS organizations map to Kubernetes groups, and "system:masters"
 	// is a well-known Kubernetes group that gives a user admin power.
-	//
-	// For now, put the kubelets in this group. Later we can restrict
-	// their credentials, likely with the help of TLS bootstrapping.
 	const orgSystemMasters = "system:masters"
 
 	key, err := tlsutil.NewPrivateKey()
@@ -107,7 +104,7 @@ func newKubeletKeyAndCert(caCert *x509.Certificate, caPrivKey *rsa.PrivateKey) (
 		return nil, nil, err
 	}
 	config := tlsutil.CertConfig{
-		CommonName:   "kubelet",
+		CommonName:   "admin",
 		Organization: []string{orgSystemMasters},
 	}
 	cert, err := tlsutil.NewSignedCertificate(config, key, caCert, caPrivKey)

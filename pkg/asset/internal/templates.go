@@ -1,7 +1,25 @@
 // Package internal holds asset templates used by bootkube.
 package internal
 
-var KubeConfigTemplate = []byte(`apiVersion: v1
+var AdminKubeConfigTemplate = []byte(`apiVersion: v1
+kind: Config
+clusters:
+- name: local
+  cluster:
+    server: {{ .Server }}
+    certificate-authority-data: {{ .CACert }}
+users:
+- name: admin
+  user:
+    client-certificate-data: {{ .AdminCert }}
+    client-key-data: {{ .AdminKey }}
+contexts:
+- context:
+    cluster: local
+    user: admin
+`)
+
+var KubeletKubeConfigTemplate = []byte(`apiVersion: v1
 kind: Config
 clusters:
 - name: local
@@ -11,12 +29,81 @@ clusters:
 users:
 - name: kubelet
   user:
-    client-certificate-data: {{ .KubeletCert}}
-    client-key-data: {{ .KubeletKey }}
+    token: {{ .BootstrapTokenID }}.{{ .BootstrapTokenSecret }}
 contexts:
 - context:
     cluster: local
     user: kubelet
+`)
+
+var KubeletBootstrappingToken = []byte(`apiVersion: v1
+kind: Secret
+metadata:
+  name: bootstrap-token-{{ .BootstrapTokenID }}
+  namespace: kube-system
+type: bootstrap.kubernetes.io/token
+stringData:
+  token-id: "{{ .BootstrapTokenID }}"
+  token-secret: "{{ .BootstrapTokenSecret }}"
+  usage-bootstrap-authentication: "true"
+`)
+
+// CSRNodeBootstrapTemplate lets bootstrapping tokens and nodes request CSRs.
+var CSRNodeBootstrapTemplate = []byte(`kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: system-bootstrap-node-bootstrapper
+subjects:
+- kind: Group
+  name: system:bootstrappers
+  apiGroup: rbac.authorization.k8s.io
+- kind: Group
+  name: system:nodes
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: system:node-bootstrapper
+  apiGroup: rbac.authorization.k8s.io
+`)
+
+// CSRApproverRoleBindingTemplate instructs the csrapprover controller to
+// automatically approve CSRs made by bootstrapping tokens for client
+// credentials.
+//
+// This binding should be removed to disable CSR auto-approval.
+var CSRApproverRoleBindingTemplate = []byte(`kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: system-bootstrap-approve-node-client-csr
+subjects:
+- kind: Group
+  name: system:bootstrappers
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: system:certificates.k8s.io:certificatesigningrequests:nodeclient
+  apiGroup: rbac.authorization.k8s.io
+`)
+
+// CSRRenewalRoleBindingTemplate instructs the csrapprover controller to
+// automatically approve all CSRs made by nodes to renew their client
+// certificates.
+//
+// This binding should be altered in the future to hold a list of node
+// names instead of targeting `system:nodes` so we can revoke invidivual
+// node's ability to renew its certs.
+var CSRRenewalRoleBindingTemplate = []byte(`kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: system-bootstrap-node-renewal
+subjects:
+- kind: Group
+  name: system:nodes
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: system:certificates.k8s.io:certificatesigningrequests:selfnodeclient
+  apiGroup: rbac.authorization.k8s.io
 `)
 
 var KubeSystemSARoleBindingTemplate = []byte(`apiVersion: rbac.authorization.k8s.io/v1
@@ -60,14 +147,15 @@ spec:
         command:
         - /hyperkube
         - apiserver
-        - --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,ResourceQuota,DefaultTolerationSeconds
+        - --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,ResourceQuota,DefaultTolerationSeconds,NodeRestriction
         - --advertise-address=$(POD_IP)
         - --allow-privileged=true
         - --anonymous-auth=false
-        - --authorization-mode=RBAC
+        - --authorization-mode=Node,RBAC
         - --bind-address=0.0.0.0
         - --client-ca-file=/etc/kubernetes/secrets/ca.crt
         - --cloud-provider={{ .CloudProvider }}
+        - --enable-bootstrap-token-auth=true
 {{- if .EtcdUseTLS }}
         - --etcd-cafile=/etc/kubernetes/secrets/etcd-client-ca.crt
         - --etcd-certfile=/etc/kubernetes/secrets/etcd-client.crt
@@ -132,12 +220,13 @@ spec:
     command:
     - /hyperkube
     - apiserver
-    - --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,ResourceQuota,DefaultTolerationSeconds
+    - --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,ResourceQuota,DefaultTolerationSeconds,NodeRestriction
     - --advertise-address=$(POD_IP)
     - --allow-privileged=true
-    - --authorization-mode=RBAC
+    - --authorization-mode=Node,RBAC
     - --bind-address=0.0.0.0
     - --client-ca-file=/etc/kubernetes/secrets/ca.crt
+    - --enable-bootstrap-token-auth=true
 {{- if .EtcdUseTLS }}
     - --etcd-cafile=/etc/kubernetes/secrets/etcd-client-ca.crt
     - --etcd-certfile=/etc/kubernetes/secrets/etcd-client.crt
@@ -399,6 +488,8 @@ spec:
         - --cloud-provider={{ .CloudProvider }}
         - --cluster-cidr={{ .PodCIDR }}
         - --service-cluster-ip-range={{ .ServiceCIDR }}
+        - --cluster-signing-cert-file=/etc/kubernetes/secrets/ca.crt
+        - --cluster-signing-key-file=/etc/kubernetes/secrets/ca.key
         - --configure-cloud-routes=false
         - --leader-elect=true
         - --root-ca-file=/etc/kubernetes/secrets/ca.crt
@@ -473,23 +564,25 @@ spec:
     - --cluster-cidr={{ .PodCIDR }}
     - --service-cluster-ip-range={{ .ServiceCIDR }}
     - --cloud-provider={{ .CloudProvider }}
+    - --cluster-signing-cert-file=/etc/kubernetes/secrets/ca.crt
+    - --cluster-signing-key-file=/etc/kubernetes/secrets/ca.key
     - --configure-cloud-routes=false
-    - --kubeconfig=/etc/kubernetes/kubeconfig
+    - --kubeconfig=/etc/kubernetes/secrets/kubeconfig
     - --leader-elect=true
-    - --root-ca-file=/etc/kubernetes/{{ .BootstrapSecretsSubdir }}/ca.crt
-    - --service-account-private-key-file=/etc/kubernetes/{{ .BootstrapSecretsSubdir }}/service-account.key
+    - --root-ca-file=/etc/kubernetes/secrets/ca.crt
+    - --service-account-private-key-file=/etc/kubernetes/secrets/service-account.key
     volumeMounts:
-    - name: kubernetes
-      mountPath: /etc/kubernetes
+    - name: secrets
+      mountPath: /etc/kubernetes/secrets
       readOnly: true
     - name: ssl-host
       mountPath: /etc/ssl/certs
       readOnly: true
   hostNetwork: true
   volumes:
-  - name: kubernetes
+  - name: secrets
     hostPath:
-      path: /etc/kubernetes
+      path: /etc/kubernetes/{{ .BootstrapSecretsSubdir }}
   - name: ssl-host
     hostPath:
       path: /usr/share/ca-certificates
@@ -580,17 +673,17 @@ spec:
     command:
     - ./hyperkube
     - scheduler
-    - --kubeconfig=/etc/kubernetes/kubeconfig
+    - --kubeconfig=/etc/kubernetes/secrets/kubeconfig
     - --leader-elect=true
     volumeMounts:
-    - name: kubernetes
-      mountPath: /etc/kubernetes
+    - name: secrets
+      mountPath: /etc/kubernetes/secrets
       readOnly: true
   hostNetwork: true
   volumes:
-  - name: kubernetes
+  - name: secrets
     hostPath:
-      path: /etc/kubernetes
+      path: /etc/kubernetes/{{ .BootstrapSecretsSubdir }}
 `)
 
 var SchedulerDisruptionTemplate = []byte(`apiVersion: policy/v1beta1
