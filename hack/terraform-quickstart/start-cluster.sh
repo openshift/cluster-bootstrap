@@ -24,10 +24,10 @@ cd ../quickstart
 
 for IP in $WORKER_IPS
 do
-  ./init-node.sh $IP cluster/auth/kubeconfig
+  ./init-node.sh $IP cluster/auth/kubeconfig-kubelet
 done
 
 for IP in $MASTER_IPS
 do
-  TAG_MASTER=true ./init-node.sh $IP cluster/auth/kubeconfig
+  TAG_MASTER=true ./init-node.sh $IP cluster/auth/kubeconfig-kubelet
 done

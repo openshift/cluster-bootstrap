@@ -20,7 +20,7 @@ end
 
 CONTROLLER_USER_DATA_PATH = File.expand_path("./cluster/user-data-controller")
 WORKER_USER_DATA_PATH = File.expand_path("./cluster/user-data-worker")
-KUBECONFIG_PATH = File.expand_path("cluster/auth/kubeconfig")
+KUBECONFIG_PATH = File.expand_path("cluster/auth/kubeconfig-kubelet")
 CA_CERT_PATH = File.expand_path("cluster/tls/ca.crt")
 ETCD_CLI_CERT_GLOB = File.expand_path("cluster/tls/etcd-*")
 ETCD_CERT_GLOB = File.expand_path("cluster/tls/etcd/*")
