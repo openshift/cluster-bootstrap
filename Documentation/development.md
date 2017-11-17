@@ -1,5 +1,10 @@
 # Bootkube Development
 
+## Requirements
+
+* Go 1.8+
+* Configured [GOPATH](http://golang.org/doc/code.html#GOPATH)
+
 ## Building
 
 First, clone the repo into the proper location in your $GOPATH:
@@ -9,7 +14,7 @@ go get -u github.com/kubernetes-incubator/bootkube
 cd $GOPATH/src/github.com/kubernetes-incubator/bootkube
 ```
 
-Then, to build:
+Then, to build (only Go verson 1.8 is supported now):
 
 ```
 make clean all
