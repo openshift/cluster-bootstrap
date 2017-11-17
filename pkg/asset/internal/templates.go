@@ -158,7 +158,6 @@ spec:
         k8s-app: kube-apiserver
       annotations:
         checkpointer.alpha.coreos.com/checkpoint: "true"
-        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       containers:
       - name: kube-apiserver
@@ -212,8 +211,6 @@ spec:
       nodeSelector:
         node-role.kubernetes.io/master: ""
       tolerations:
-      - key: CriticalAddonsOnly
-        operator: Exists
       - key: node-role.kubernetes.io/master
         operator: Exists
         effect: NoSchedule
@@ -493,8 +490,6 @@ spec:
       labels:
         tier: control-plane
         k8s-app: kube-controller-manager
-      annotations:
-        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       affinity:
         podAntiAffinity:
@@ -544,8 +539,6 @@ spec:
         runAsNonRoot: true
         runAsUser: 65534
       tolerations:
-      - key: CriticalAddonsOnly
-        operator: Exists
       - key: node-role.kubernetes.io/master
         operator: Exists
         effect: NoSchedule
@@ -628,8 +621,6 @@ spec:
       labels:
         tier: control-plane
         k8s-app: kube-scheduler
-      annotations:
-        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       affinity:
         podAntiAffinity:
@@ -666,8 +657,6 @@ spec:
         runAsNonRoot: true
         runAsUser: 65534
       tolerations:
-      - key: CriticalAddonsOnly
-        operator: Exists
       - key: node-role.kubernetes.io/master
         operator: Exists
         effect: NoSchedule
@@ -729,8 +718,6 @@ spec:
       labels:
         tier: node
         k8s-app: kube-proxy
-      annotations:
-        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       containers:
       - name: kube-proxy
@@ -762,8 +749,6 @@ spec:
       hostNetwork: true
       serviceAccountName: kube-proxy
       tolerations:
-      - key: CriticalAddonsOnly
-        operator: Exists
       - key: node-role.kubernetes.io/master
         operator: Exists
         effect: NoSchedule
@@ -861,14 +846,10 @@ spec:
     metadata:
       labels:
         k8s-app: kube-dns
-      annotations:
-        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       nodeSelector:
         node-role.kubernetes.io/master: ""
       tolerations:
-      - key: "CriticalAddonsOnly"
-        operator: "Exists"
       - key: node-role.kubernetes.io/master
         operator: Exists
         effect: NoSchedule
@@ -1358,8 +1339,6 @@ spec:
     metadata:
       labels:
         k8s-app: calico-node
-      annotations:
-        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       hostNetwork: true
       serviceAccountName: calico-node
@@ -1367,9 +1346,6 @@ spec:
         # Allow the pod to run on master nodes
         - key: node-role.kubernetes.io/master
           effect: NoSchedule
-        # Mark the pod as a critical add-on for rescheduling
-        - key: "CriticalAddonsOnly"
-          operator: "Exists"
       containers:
         - name: calico-node
           image: {{ .Images.Calico }}
@@ -1483,16 +1459,12 @@ spec:
     metadata:
       labels:
         k8s-app: calico-node
-      annotations:
-        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       hostNetwork: true
       serviceAccountName: calico-node
       tolerations:
         - key: node-role.kubernetes.io/master
           effect: NoSchedule
-        - key: "CriticalAddonsOnly"
-          operator: "Exists"
       containers:
         - name: calico-node
           image: {{ .Images.Calico }}
