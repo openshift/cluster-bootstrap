@@ -35,7 +35,6 @@ const (
 	AssetPathKubeletCert                 = "tls/kubelet.crt"
 	AssetPathKubeConfig                  = "auth/kubeconfig"
 	AssetPathManifests                   = "manifests"
-	AssetPathKubelet                     = "manifests/kubelet.yaml"
 	AssetPathKubeConfigInCluster         = "manifests/kubeconfig-in-cluster.yaml"
 	AssetPathProxy                       = "manifests/kube-proxy.yaml"
 	AssetPathProxySA                     = "manifests/kube-proxy-sa.yaml"
@@ -105,7 +104,6 @@ type Config struct {
 	DNSServiceIP           net.IP
 	EtcdServiceIP          net.IP
 	EtcdServiceName        string
-	SelfHostKubelet        bool
 	SelfHostedEtcd         bool
 	CloudProvider          string
 	NetworkProvider        string

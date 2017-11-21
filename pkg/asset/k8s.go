@@ -61,9 +61,6 @@ func newDynamicAssets(conf Config) Assets {
 		MustCreateAssetFromTemplate(AssetPathBootstrapControllerManager, internal.BootstrapControllerManagerTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathBootstrapScheduler, internal.BootstrapSchedulerTemplate, conf),
 	}
-	if conf.SelfHostKubelet {
-		assets = append(assets, MustCreateAssetFromTemplate(AssetPathKubelet, internal.KubeletTemplate, conf))
-	}
 	if conf.SelfHostedEtcd {
 		conf.EtcdServiceName = EtcdServiceName
 		assets = append(assets,
