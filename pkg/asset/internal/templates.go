@@ -58,8 +58,6 @@ spec:
       - name: kube-apiserver
         image: {{ .Images.Hyperkube }}
         command:
-        - /usr/bin/flock
-        - /var/lock/api-server.lock
         - /hyperkube
         - apiserver
         - --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,ResourceQuota,DefaultTolerationSeconds
@@ -135,8 +133,6 @@ spec:
   - name: kube-apiserver
     image: {{ .Images.Hyperkube }}
     command:
-    - /usr/bin/flock
-    - /var/lock/api-server.lock
     - /hyperkube
     - apiserver
     - --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,ResourceQuota,DefaultTolerationSeconds
