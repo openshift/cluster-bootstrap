@@ -39,7 +39,8 @@ coreos:
           --network-plugin=cni \
           --node-labels=node-role.kubernetes.io/master \
           --pod-manifest-path=/etc/kubernetes/manifests \
-          --register-with-taints=node-role.kubernetes.io/master=:NoSchedule
+          --register-with-taints=node-role.kubernetes.io/master=:NoSchedule \
+          # do not delete this comment: the line above is deleted for workers.
         ExecStop=-/usr/bin/rkt stop --uuid-file=/var/cache/kubelet-pod.uuid
         Restart=always
         RestartSec=5
