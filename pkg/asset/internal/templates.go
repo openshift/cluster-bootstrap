@@ -97,9 +97,6 @@ spec:
         - mountPath: /etc/kubernetes/secrets
           name: secrets
           readOnly: true
-        - mountPath: /var/lock
-          name: var-lock
-          readOnly: false
       hostNetwork: true
       nodeSelector:
         node-role.kubernetes.io/master: ""
@@ -114,9 +111,9 @@ spec:
       - name: secrets
         secret:
           secretName: kube-apiserver
-      - name: var-lock
-        hostPath:
-          path: /var/lock
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
   updateStrategy:
     rollingUpdate:
       maxUnavailable: 1
@@ -171,9 +168,6 @@ spec:
     - mountPath: /etc/kubernetes/secrets
       name: secrets
       readOnly: true
-    - mountPath: /var/lock
-      name: var-lock
-      readOnly: false
   hostNetwork: true
   volumes:
   - name: secrets
@@ -182,9 +176,6 @@ spec:
   - name: ssl-certs-host
     hostPath:
       path: /usr/share/ca-certificates
-  - name: var-lock
-    hostPath:
-      path: /var/lock
 `)
 
 var KencTemplate = []byte(`apiVersion: apps/v1beta2
@@ -1332,7 +1323,7 @@ spec:
               name: var-run-calico
               readOnly: false
         - name: install-cni
-          image: {{ .Images.CalicoCNI }} 
+          image: {{ .Images.CalicoCNI }}
           command: ["/install-cni.sh"]
           env:
             - name: CNI_CONF_NAME

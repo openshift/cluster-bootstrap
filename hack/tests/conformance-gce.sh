@@ -35,7 +35,7 @@ GCE_PROJECT=${GCE_PROJECT:-coreos-gce-testing}
 
 function cleanup {
     gcloud compute instances delete --quiet --zone us-central1-a ${GCE_PREFIX}-m1 || true
-    gcloud compute firewall-rules delete --quiet ${GCE_PREFIX}-api-443 || true
+    gcloud compute firewall-rules delete --quiet ${GCE_PREFIX}-api-6443 || true
     for i in $(seq 1 ${WORKER_COUNT}); do
         gcloud compute instances delete --quiet --zone us-central1-a ${GCE_PREFIX}-w${i} || true
     done
@@ -60,7 +60,7 @@ function add_master {
         --image-project coreos-cloud --image-family ${COREOS_CHANNEL} --zone us-central1-a --machine-type n1-standard-4 --boot-disk-size=30GB
 
     gcloud compute instances add-tags --zone us-central1-a ${GCE_PREFIX}-m1 --tags ${GCE_PREFIX}-apiserver
-    gcloud compute firewall-rules create ${GCE_PREFIX}-api-443 --target-tags=${GCE_PREFIX}-apiserver --allow tcp:443
+    gcloud compute firewall-rules create ${GCE_PREFIX}-api-6443 --target-tags=${GCE_PREFIX}-apiserver --allow tcp:6443
 
     gcloud compute instances add-metadata ${GCE_PREFIX}-m1 --zone us-central1-a --metadata-from-file ssh-keys=/root/.ssh/gce-format.pub
 

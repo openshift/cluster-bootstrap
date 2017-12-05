@@ -16,11 +16,11 @@ Launch nodes:
 gcloud compute instances create ${CLUSTER_PREFIX}-core1 --image-project coreos-cloud --image-family coreos-stable --zone us-central1-a --machine-type n1-standard-1
 ```
 
-Tag the first node as an apiserver node, and allow traffic to 443 on that node.
+Tag the first node as an apiserver node, and allow traffic to 6443 on that node.
 
 ```
 gcloud compute instances add-tags ${CLUSTER_PREFIX}-core1 --tags ${CLUSTER_PREFIX}-apiserver --zone us-central1-a
-gcloud compute firewall-rules create ${CLUSTER_PREFIX}-443 --target-tags=${CLUSTER_PREFIX}-apiserver --allow tcp:443
+gcloud compute firewall-rules create ${CLUSTER_PREFIX}-6443 --target-tags=${CLUSTER_PREFIX}-apiserver --allow tcp:6443
 ```
 
 ### Bootstrap Master
