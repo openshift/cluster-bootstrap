@@ -47,7 +47,7 @@ import:
   - ssh/agent
   - curve25519
 - package: github.com/coreos/ktestutil
-  version: e715fca7103c954b24fa636de412ac043efe6c49
+  version: b8e4e68fe1c1c47b132cf007deb8dd620431948a
 - package: github.com/pkg/sftp
   version: 98203f5a8333288eb3163b7c667d4260fe1333e9
 - package: k8s.io/metrics
@@ -58,4 +58,6 @@ import:
   - pkg/client/clientset_generated/clientset
   - pkg/client/clientset_generated/clientset/scheme
   - pkg/client/clientset_generated/clientset/typed/metrics/v1alpha1
+- package: github.com/pborman/uuid
+  version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
 
