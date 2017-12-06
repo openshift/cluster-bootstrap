@@ -52,6 +52,8 @@ func newStaticAssets(imageVersions ImageVersions) Assets {
 func newDynamicAssets(conf Config) Assets {
 	assets := Assets{
 		MustCreateAssetFromTemplate(AssetPathControllerManager, internal.ControllerManagerTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathControllerManagerSA, internal.ControllerManagerServiceAccount, conf),
+		MustCreateAssetFromTemplate(AssetPathControllerManagerRB, internal.ControllerManagerClusterRoleBinding, conf),
 		MustCreateAssetFromTemplate(AssetPathAPIServer, internal.APIServerTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathProxy, internal.ProxyTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathProxySA, internal.ProxyServiceAccount, conf),

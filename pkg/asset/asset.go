@@ -54,6 +54,8 @@ const (
 	AssetPathAPIServerSecret             = "manifests/kube-apiserver-secret.yaml"
 	AssetPathAPIServer                   = "manifests/kube-apiserver.yaml"
 	AssetPathControllerManager           = "manifests/kube-controller-manager.yaml"
+	AssetPathControllerManagerSA         = "manifests/kube-controller-manager-service-account.yaml"
+	AssetPathControllerManagerRB         = "manifests/kube-controller-manager-role-binding.yaml"
 	AssetPathControllerManagerSecret     = "manifests/kube-controller-manager-secret.yaml"
 	AssetPathControllerManagerDisruption = "manifests/kube-controller-manager-disruption.yaml"
 	AssetPathScheduler                   = "manifests/kube-scheduler.yaml"

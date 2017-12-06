@@ -403,6 +403,7 @@ spec:
         command:
         - ./hyperkube
         - controller-manager
+        - --use-service-account-credentials
         - --allocate-node-cidrs=true
         - --cloud-provider={{ .CloudProvider }}
         - --cluster-cidr={{ .PodCIDR }}
@@ -429,6 +430,7 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
+      serviceAccountName: kube-controller-manager
       tolerations:
       - key: node-role.kubernetes.io/master
         operator: Exists
@@ -441,6 +443,28 @@ spec:
         hostPath:
           path: /usr/share/ca-certificates
       dnsPolicy: Default # Don't use cluster DNS.
+`)
+
+
+var ControllerManagerServiceAccount = []byte(`apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: kube-system
+  name: kube-controller-manager
+`)
+
+var ControllerManagerClusterRoleBinding = []byte(`apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: controller-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:kube-controller-manager
+subjects:
+- kind: ServiceAccount
+  name: kube-controller-manager
+  namespace: kube-system
 `)
 
 var BootstrapControllerManagerTemplate = []byte(`apiVersion: v1
