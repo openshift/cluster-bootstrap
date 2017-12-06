@@ -1253,6 +1253,8 @@ spec:
               value: "ACCEPT"
             - name: FELIX_IPV6SUPPORT
               value: "false"
+            - name: FELIX_IPINIPMTU
+              value: "1440"
             - name: WAIT_FOR_DATASTORE
               value: "true"
             - name: CALICO_IPV4POOL_CIDR
