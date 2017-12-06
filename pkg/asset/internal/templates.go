@@ -407,6 +407,7 @@ spec:
         - --allocate-node-cidrs=true
         - --cloud-provider={{ .CloudProvider }}
         - --cluster-cidr={{ .PodCIDR }}
+        - --service-cluster-ip-range={{ .ServiceCIDR }}
         - --configure-cloud-routes=false
         - --leader-elect=true
         - --root-ca-file=/etc/kubernetes/secrets/ca.crt
@@ -457,6 +458,7 @@ spec:
     - controller-manager
     - --allocate-node-cidrs=true
     - --cluster-cidr={{ .PodCIDR }}
+    - --service-cluster-ip-range={{ .ServiceCIDR }}
     - --cloud-provider={{ .CloudProvider }}
     - --configure-cloud-routes=false
     - --kubeconfig=/etc/kubernetes/kubeconfig
