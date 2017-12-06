@@ -699,7 +699,7 @@ stringData:
     - name: local
       cluster:
         server: {{ .Server }}
-        certificate-authority-data: {{ .CACert }}
+        certificate-authority: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
     users:
     - name: service-account
       user:
