@@ -8,8 +8,8 @@ GOPATH_BIN:=$(shell echo ${GOPATH} | awk 'BEGIN { FS = ":" }; { print $1 }')/bin
 LDFLAGS=-X github.com/kubernetes-incubator/bootkube/pkg/version.Version=$(shell $(CURDIR)/build/git-version.sh)
 
 all: \
+	_output/bin/$(LOCAL_OS)/bootkube \
 	_output/bin/linux/bootkube \
-	_output/bin/darwin/bootkube \
 	_output/bin/linux/checkpoint
 
 cross: \
