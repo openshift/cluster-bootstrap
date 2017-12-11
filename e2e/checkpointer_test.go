@@ -8,31 +8,264 @@ import (
 	"testing"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
+	rbac "k8s.io/client-go/pkg/apis/rbac/v1beta1"
+
+	"github.com/kubernetes-incubator/bootkube/pkg/asset"
 )
 
-var nginxDS = []byte(`apiVersion: extensions/v1beta1
-kind: DaemonSet
-metadata:
-  name: nginx-daemonset
-spec:
-  template:
-    metadata:
-      labels:
-        app: nginx-checkpoint-test
-      annotations:
-        checkpointer.alpha.coreos.com/checkpoint: "true"
-    spec:
-      hostNetwork: true
-      containers:
-        - name: nginx
-          image: nginx`)
+const (
+	retryAttempts = 60
+	retryInterval = 5 * time.Second
+)
+
+func TestCheckpointer(t *testing.T) {
+	t.Run("UnscheduleCheckpointer", testCheckpointerUnscheduleCheckpointer)
+	t.Run("UnscheduleParent", testCheckpointerUnscheduleParent)
+}
+
+// 1. Schedule a pod checkpointer on worker node.
+// 2. Schedule a test pod on worker node.
+// 3. Reboot the worker without starting the kubelet.
+// 4. Delete the checkpointer on API server.
+// 5. Reboot the masters without starting the kubelet.
+// 6. Start the worker kubelet, verify the checkpointer and the pod are still running as static pods.
+// 7. Start the master kubelets, verify the checkpointer is removed but the pod is still running.
+func testCheckpointerUnscheduleCheckpointer(t *testing.T) {
+	// Get the cluster
+	c := waitCluster(t)
+
+	testNS := makeNamespace(t.Name())
+	if _, err := createNamespace(client, testNS); err != nil {
+		t.Fatalf("Failed to create namespace: %v", err)
+	}
+	defer deleteNamespace(client, testNS)
+
+	// Deploy the pod checkpointer and test nginx.
+	if err := setupTestCheckpointerRole(testNS); err != nil {
+		t.Fatalf("Failed to create test-checkpointer role: %v", err)
+	}
+	if err := createDaemonSet(testNS, []byte(fmt.Sprintf(checkpointerDS, asset.DefaultImages.PodCheckpointer)), c); err != nil {
+		t.Fatalf("Failed to create pod-checkpointer daemonset: %v", err)
+	}
+	if err := createDaemonSet(testNS, nginxDS, c); err != nil {
+		t.Fatalf("Failed to create nginx daemonset: %v", err)
+	}
+
+	// Verify the checkpoints are created.
+	if err := verifyCheckpoint(c, testNS, "test-checkpointer", true, true); err != nil {
+		t.Fatalf("Failed to verify checkpoint: %v", err)
+	}
+	if err := verifyCheckpoint(c, testNS, "test-nginx", true, false); err != nil {
+		t.Fatalf("Failed to verify checkpoint: %v", err)
+	}
+
+	// Disable the kubelet and reboot the worker.
+	if stdout, stderr, err := c.Workers[0].SSH("sudo systemctl disable kubelet"); err != nil {
+		t.Fatalf("Failed to disable kubelet on worker %q: %v\nstdout: %s\nstderr: %s", c.Workers[0].Name, err, stdout, stderr)
+	}
+	if err := c.Workers[0].Reboot(); err != nil {
+		t.Fatalf("Failed to reboot worker: %v", err)
+	}
+
+	// Delete the pod checkpointer.
+	deletePropagationForeground := metav1.DeletePropagationForeground
+	if err := client.ExtensionsV1beta1().DaemonSets(testNS).Delete("test-checkpointer", &metav1.DeleteOptions{PropagationPolicy: &deletePropagationForeground}); err != nil {
+		t.Fatalf("Failed to delete checkpointer: %v", err)
+	}
+
+	// Disable the kubelet and reboot the masters.
+	var rebootGroup sync.WaitGroup
+	for i := range c.Masters {
+		rebootGroup.Add(1)
+		go func(i int) {
+			defer rebootGroup.Done()
+			if stdout, stderr, err := c.Masters[i].SSH("sudo systemctl disable kubelet"); err != nil {
+				t.Fatalf("Failed to disable kubelet on master %q: %v\nstdout: %s\nstderr: %s", c.Masters[i].Name, err, stdout, stderr)
+			}
+			if err := c.Masters[i].Reboot(); err != nil {
+				t.Fatalf("Failed to reboot master: %v", err)
+			}
+		}(i)
+	}
+	rebootGroup.Wait()
+
+	// Start the worker kubelet.
+	if stdout, stderr, err := c.Workers[0].SSH("sudo systemctl enable kubelet && sudo systemctl start kubelet"); err != nil {
+		t.Fatalf("Failed to start kubelet on worker %q: %v\nstdout: %s\nstderr: %s", c.Workers[0].Name, err, stdout, stderr)
+	}
+
+	// Verify that the checkpoints are still running.
+	if err := verifyPod(c, "test-checkpointer", true); err != nil {
+		t.Fatalf("Failed to verifyPod: %s", err)
+	}
+	if err := verifyPod(c, "test-nginx", true); err != nil {
+		t.Fatalf("Failed to verifyPod: %s", err)
+	}
+
+	// Start the master kubelet.
+	var enableGroup sync.WaitGroup
+	for i := range c.Masters {
+		enableGroup.Add(1)
+		go func(i int) {
+			defer enableGroup.Done()
+			if stdout, stderr, err := c.Masters[i].SSH("sudo systemctl enable kubelet && sudo systemctl start kubelet"); err != nil {
+				t.Fatalf("Failed to start kubelet on master %q: %v\nstdout: %s\nstderr: %s", c.Masters[i].Name, err, stdout, stderr)
+			}
+		}(i)
+	}
+	enableGroup.Wait()
+
+	// Verify that the test-checkpointer is cleaned up but the daemonset is still running.
+	if err := verifyPod(c, "test-checkpointer", false); err != nil {
+		t.Fatalf("Failed to verifyPod: %s", err)
+	}
+	if err := verifyPod(c, "test-nginx", true); err != nil {
+		t.Fatalf("Failed to verifyPod: %s", err)
+	}
+	if err := verifyCheckpoint(c, testNS, "test-checkpointer", false, false); err != nil {
+		t.Fatalf("Failed to verifyCheckpoint: %s", err)
+	}
+	if err := verifyCheckpoint(c, testNS, "test-nginx", false, false); err != nil {
+		t.Fatalf("Failed to verifyCheckpoint: %s", err)
+	}
+}
+
+// 1. Schedule a pod checkpointer on worker node.
+// 2. Schedule a test pod on worker node.
+// 3. Reboot the worker without starting the kubelet.
+// 4. Delete the test pod on API server.
+// 5. Reboot the masters without starting the kubelet.
+// 6. Start the worker kubelet, verify the checkpointer and the pod are still running as static pods.
+// 7. Start the master kubelets, verify the test pod is removed, but not the checkpointer.
+func testCheckpointerUnscheduleParent(t *testing.T) {
+	// Get the cluster
+	c := waitCluster(t)
+
+	testNS := makeNamespace(t.Name())
+	if _, err := createNamespace(client, testNS); err != nil {
+		t.Fatalf("Failed to create namespace: %v", err)
+	}
+	defer deleteNamespace(client, testNS)
+
+	// Deploy the pod checkpointer and test nginx.
+	if err := setupTestCheckpointerRole(testNS); err != nil {
+		t.Fatalf("Failed to create test-checkpointer role: %v", err)
+	}
+	if err := createDaemonSet(testNS, []byte(fmt.Sprintf(checkpointerDS, asset.DefaultImages.PodCheckpointer)), c); err != nil {
+		t.Fatalf("Failed to create pod-checkpointer daemonset: %v", err)
+	}
+	if err := createDaemonSet(testNS, nginxDS, c); err != nil {
+		t.Fatalf("Failed to create nginx daemonset: %v", err)
+	}
+
+	// Verify the checkpoints are created.
+	if err := verifyCheckpoint(c, testNS, "test-checkpointer", true, true); err != nil {
+		t.Fatalf("verifyCheckpoint: %s", err)
+	}
+	if err := verifyCheckpoint(c, testNS, "test-nginx", true, false); err != nil {
+		t.Fatalf("verifyCheckpoint: %s", err)
+	}
+
+	// Disable the kubelet and reboot the worker.
+	if stdout, stderr, err := c.Workers[0].SSH("sudo systemctl disable kubelet"); err != nil {
+		t.Fatalf("Failed to disable kubelet on worker %q: %v\nstdout: %s\nstderr: %s", c.Workers[0].Name, err, stdout, stderr)
+	}
+	if err := c.Workers[0].Reboot(); err != nil {
+		t.Fatalf("Failed to reboot worker: %v", err)
+	}
+
+	// Delete test pod on the workers.
+	patch := `{"spec":{"template":{"spec":{"nodeSelector":{"node-role.kubernetes.io/master":""}}}}}`
+	if _, err := client.ExtensionsV1beta1().DaemonSets(testNS).Patch("test-nginx", types.MergePatchType, []byte(patch)); err != nil {
+		t.Fatalf("unable to patch daemonset: %v", err)
+	}
+
+	// Disable the kubelet and reboot the masters.
+	var rebootGroup sync.WaitGroup
+	for i := range c.Masters {
+		rebootGroup.Add(1)
+		go func(i int) {
+			defer rebootGroup.Done()
+			if stdout, stderr, err := c.Masters[i].SSH("sudo systemctl disable kubelet"); err != nil {
+				t.Fatalf("Failed to disable kubelet on master %q: %v\nstdout: %s\nstderr: %s", c.Masters[i].Name, err, stdout, stderr)
+			}
+			if err := c.Masters[i].Reboot(); err != nil {
+				t.Fatalf("Failed to reboot master: %v", err)
+			}
+		}(i)
+	}
+	rebootGroup.Wait()
+
+	// Start the worker kubelet.
+	if stdout, stderr, err := c.Workers[0].SSH("sudo systemctl enable kubelet && sudo systemctl start kubelet"); err != nil {
+		t.Fatalf("unable to start kubelet on worker %q: %v\nstdout: %s\nstderr: %s", c.Workers[0].Name, err, stdout, stderr)
+	}
+
+	// Verify that the checkpoints are running.
+	if err := verifyPod(c, "pod-checkpointer", true); err != nil {
+		t.Fatalf("verifyPod: %s", err)
+	}
+	if err := verifyPod(c, "test-nginx", true); err != nil {
+		t.Fatalf("verifyPod: %s", err)
+	}
+
+	// Start the master kubelets.
+	var enableGroup sync.WaitGroup
+	for i := range c.Masters {
+		enableGroup.Add(1)
+		go func(i int) {
+			defer enableGroup.Done()
+			if stdout, stderr, err := c.Masters[i].SSH("sudo systemctl enable kubelet && sudo systemctl start kubelet"); err != nil {
+				t.Fatalf("unable to start kubelet on master %q: %v\nstdout: %s\nstderr: %s", c.Masters[i].Name, err, stdout, stderr)
+			}
+		}(i)
+	}
+	enableGroup.Wait()
+
+	// Verify that checkpoint is cleaned up and not running, but the pod checkpointer should still be running.
+	if err := verifyPod(c, "test-checkpointer", true); err != nil {
+		t.Fatalf("verifyPod: %s", err)
+	}
+	if err := verifyPod(c, "test-nginx", false); err != nil {
+		t.Fatalf("verifyPod: %s", err)
+	}
+	if err := verifyCheckpoint(c, testNS, "test-checkpointer", true, true); err != nil {
+		t.Fatalf("verifyCheckpoint: %s", err)
+	}
+	if err := verifyCheckpoint(c, testNS, "test-nginx", false, false); err != nil {
+		t.Fatalf("verifyCheckpoint: %s", err)
+	}
+}
+
+func makeNamespace(testName string) string {
+	return strings.ToLower(fmt.Sprintf("%s-%s", namespace, strings.Split(testName, "/")[1]))
+}
+
+func createDaemonSet(namespace string, manifest []byte, c *Cluster) error {
+	obj, _, err := api.Codecs.UniversalDecoder().Decode(manifest, nil, &v1beta1.DaemonSet{})
+	if err != nil {
+		return fmt.Errorf("unable to decode manifest: %v", err)
+	}
+	ds, ok := obj.(*v1beta1.DaemonSet)
+	if !ok {
+		return fmt.Errorf("expected manifest to decode into *api.Daemonset, got %T", ds)
+	}
+	if _, err := client.ExtensionsV1beta1().DaemonSets(namespace).Create(ds); err != nil {
+		return fmt.Errorf("failed to create the checkpoint parent: %v", err)
+	}
+	if err := verifyPod(c, ds.ObjectMeta.Name, true); err != nil {
+		return fmt.Errorf("failed to verifyPod: %s", err)
+	}
+	return nil
+}
 
 func verifyCheckpoint(c *Cluster, namespace, daemonsetName string, shouldExist, shouldBeActive bool) error {
-	checkpointed := func() error {
+	return retry(retryAttempts, retryInterval, func() error {
 		dirs := []string{
 			"/etc/kubernetes/inactive-manifests/",
 			"/etc/kubernetes/checkpoint-secrets/" + namespace,
@@ -71,12 +304,11 @@ func verifyCheckpoint(c *Cluster, namespace, daemonsetName string, shouldExist, 
 		}
 
 		return nil
-	}
-	return retry(60, 10*time.Second, checkpointed)
+	})
 }
 
 func verifyPod(c *Cluster, daemonsetName string, shouldRun bool) error {
-	checkpointsRunning := func() error {
+	return retry(retryAttempts, retryInterval, func() error {
 		stdout, stderr, err := c.Workers[0].SSH("docker ps")
 		if err != nil {
 			return fmt.Errorf("unable to docker ps, error: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
@@ -89,8 +321,7 @@ func verifyPod(c *Cluster, daemonsetName string, shouldRun bool) error {
 			return fmt.Errorf("should not find running checkpoints %q, error: %v, output: %q", daemonsetName, err, stdout)
 		}
 		return nil
-	}
-	return retry(60, 10*time.Second, checkpointsRunning)
+	})
 }
 
 func isNodeReady(n *Node) bool {
@@ -107,7 +338,7 @@ func waitCluster(t *testing.T) *Cluster {
 	var c *Cluster
 	var err error
 
-	f := func() error {
+	if err := retry(retryAttempts, retryInterval, func() error {
 		c, err = GetCluster()
 		if err != nil {
 			t.Fatalf("Failed to get cluster")
@@ -129,293 +360,149 @@ func waitCluster(t *testing.T) *Cluster {
 			}
 		}
 		return nil
-	}
-
-	if err := retry(60, 10*time.Second, f); err != nil {
+	}); err != nil {
 		t.Fatalf("Failed to wait cluster: %v", err)
 	}
 	return c
 }
 
-// waitForCheckpointDeactivation waits for checkpointed pods to be replaced by the
-// apiserver-managed ones.
-// TODO(diegs): do something more scientific, like talking to docker.
-func waitForCheckpointDeactivation(t *testing.T) {
-	t.Log("Waiting 120 seconds for checkpoints to deactivate.")
-	time.Sleep(120 * time.Second)
-	successes := 0
-	if err := retry(60, 3*time.Second, func() error {
-		_, err := client.Discovery().ServerVersion()
-		if err != nil {
-			successes = 0
-			return fmt.Errorf("request failed, starting over: %v", err)
-		}
-		successes++
-		if successes < 5 {
-			return fmt.Errorf("request success %d of %d", successes, 5)
-		}
-		return nil
+func setupTestCheckpointerRole(namespace string) error {
+	// Copy special kubeconfig-in-cluster secret from kube-system namespace.
+	kc, err := client.CoreV1().Secrets(metav1.NamespaceSystem).Get("kubeconfig-in-cluster", metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	kc.ObjectMeta = metav1.ObjectMeta{
+		Name:      kc.ObjectMeta.Name,
+		Namespace: namespace,
+	}
+	if _, err := client.CoreV1().Secrets(namespace).Create(kc); err != nil {
+		return err
+	}
+
+	if _, err := client.CoreV1().ServiceAccounts(namespace).Create(&v1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-checkpointer",
+			Namespace: namespace,
+		},
 	}); err != nil {
-		t.Fatalf("non-checkpoint apiserver did not come back: %v", err)
+		return err
 	}
+	if _, err := client.RbacV1beta1().Roles(namespace).Create(&rbac.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-checkpointer",
+			Namespace: namespace,
+		},
+		Rules: []rbac.PolicyRule{{
+			APIGroups: []string{""}, // "" indicates the core API group
+			Resources: []string{"pods"},
+			Verbs:     []string{"get", "watch", "list"},
+		}, {
+			APIGroups: []string{""}, // "" indicates the core API group
+			Resources: []string{"secrets", "configmaps"},
+			Verbs:     []string{"get"},
+		}},
+	}); err != nil {
+		return err
+	}
+	if _, err := client.RbacV1beta1().RoleBindings(namespace).Create(&rbac.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-checkpointer",
+			Namespace: namespace,
+		},
+		Subjects: []rbac.Subject{{
+			Kind:      "ServiceAccount",
+			Name:      "test-checkpointer",
+			Namespace: namespace,
+		}},
+		RoleRef: rbac.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     "test-checkpointer",
+		},
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
-// 1. Schedule a pod checkpointer on worker node.
-// 2. Schedule a test pod on worker node.
-// 3. Reboot the worker without starting the kubelet.
-// 4. Delete the checkpointer on API server.
-// 5. Reboot the masters without starting the kubelet.
-// 6. Start the worker kubelet, verify the checkpointer and the pod are still running as static pods.
-// 7. Start the master kubelets, verify the checkpointer is removed but the pod is still running.
-func TestCheckpointerUnscheduleCheckpointer(t *testing.T) {
-	// Get the cluster
-	c := waitCluster(t)
+const checkpointerDS = `apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: test-checkpointer
+  labels:
+    app: test-checkpointer
+spec:
+  selector:
+    matchLabels:
+      app: test-checkpointer
+  template:
+    metadata:
+      labels:
+        app: test-checkpointer
+      annotations:
+        checkpointer.alpha.coreos.com/checkpoint: "true"
+    spec:
+      containers:
+      - name: test-checkpointer
+        image: %s
+        command:
+        - /checkpoint
+        - --lock-file=/var/run/lock/test-checkpointer.lock
+        - --kubeconfig=/etc/checkpointer/kubeconfig
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        imagePullPolicy: Always
+        volumeMounts:
+        - mountPath: /etc/checkpointer
+          name: kubeconfig
+        - mountPath: /etc/kubernetes
+          name: etc-kubernetes
+        - mountPath: /var/run
+          name: var-run
+      serviceAccountName: test-checkpointer
+      hostNetwork: true
+      restartPolicy: Always
+      volumes:
+      - name: kubeconfig
+        secret:
+          secretName: kubeconfig-in-cluster
+      - name: etc-kubernetes
+        hostPath:
+          path: /etc/kubernetes
+      - name: var-run
+        hostPath:
+          path: /var/run
+`
 
-	testNS := strings.ToLower(fmt.Sprintf("%s-%s", namespace, t.Name()))
-	if _, err := createNamespace(client, testNS); err != nil {
-		t.Fatalf("Failed to create namespace: %v", err)
-	}
-	defer deleteNamespace(client, testNS)
-
-	// Run the pod checkpointer on worker nodes as well.
-	patch := `[{"op": "replace", "path": "/spec/template/spec/nodeSelector", "value": {}}]`
-	_, err := client.ExtensionsV1beta1().DaemonSets("kube-system").Patch("pod-checkpointer", types.JSONPatchType, []byte(patch))
-	if err != nil {
-		t.Fatalf("Failed to patch checkpointer: %v", err)
-	}
-	if err := verifyPod(c, "pod-checkpointer", true); err != nil {
-		t.Fatalf("Failed to verifyPod: %s", err)
-	}
-
-	// Create test pod.
-	obj, _, err := api.Codecs.UniversalDecoder().Decode(nginxDS, nil, &v1beta1.DaemonSet{})
-	if err != nil {
-		t.Fatalf("Unable to decode manifest: %v", err)
-	}
-	ds, ok := obj.(*v1beta1.DaemonSet)
-	if !ok {
-		t.Fatalf("Expected manifest to decode into *api.Daemonset, got %T", ds)
-	}
-	_, err = client.ExtensionsV1beta1().DaemonSets(testNS).Create(ds)
-	if err != nil {
-		t.Fatalf("Failed to create the checkpoint parent: %v", err)
-	}
-	if err := verifyPod(c, "nginx-daemonset", true); err != nil {
-		t.Fatalf("Failed to verifyPod: %s", err)
-	}
-
-	// Verify the checkpoints are created.
-	if err := verifyCheckpoint(c, "kube-system", "pod-checkpointer", true, true); err != nil {
-		t.Fatalf("Failed to verify checkpoint: %v", err)
-	}
-	if err := verifyCheckpoint(c, testNS, "nginx-daemonset", true, false); err != nil {
-		t.Fatalf("Failed to verify checkpoint: %v", err)
-	}
-
-	// Disable the kubelet and reboot the worker.
-	stdout, stderr, err := c.Workers[0].SSH("sudo systemctl disable kubelet")
-	if err != nil {
-		t.Fatalf("Failed to disable kubelet on worker %q: %v\nstdout: %s\nstderr: %s", c.Workers[0].Name, err, stdout, stderr)
-	}
-	if err := c.Workers[0].Reboot(); err != nil {
-		t.Fatalf("Failed to reboot worker: %v", err)
-	}
-
-	// Delete the pod checkpointer on the worker node by updating the daemonset.
-	patch = `{"spec":{"template":{"spec":{"nodeSelector":{"node-role.kubernetes.io/master":""}}}}}`
-	_, err = client.ExtensionsV1beta1().DaemonSets("kube-system").Patch("pod-checkpointer", types.MergePatchType, []byte(patch))
-	if err != nil {
-		t.Fatalf("Failed to patch checkpointer: %v", err)
-	}
-
-	// Disable the kubelet and reboot the masters.
-	var rebootGroup sync.WaitGroup
-	for i := range c.Masters {
-		rebootGroup.Add(1)
-		go func(i int) {
-			defer rebootGroup.Done()
-			stdout, stderr, err = c.Masters[i].SSH("sudo systemctl disable kubelet")
-			if err != nil {
-				t.Fatalf("Failed to disable kubelet on master %q: %v\nstdout: %s\nstderr: %s", c.Masters[i].Name, err, stdout, stderr)
-			}
-			if err := c.Masters[i].Reboot(); err != nil {
-				t.Fatalf("Failed to reboot master: %v", err)
-			}
-		}(i)
-	}
-	rebootGroup.Wait()
-
-	// Start the worker kubelet.
-	stdout, stderr, err = c.Workers[0].SSH("sudo systemctl enable kubelet && sudo systemctl start kubelet")
-	if err != nil {
-		t.Fatalf("Failed to start kubelet on worker %q: %v\nstdout: %s\nstderr: %s", c.Workers[0].Name, err, stdout, stderr)
-	}
-
-	// Verify that the checkpoints are still running.
-	if err := verifyPod(c, "pod-checkpointer", true); err != nil {
-		t.Fatalf("Failed to verifyPod: %s", err)
-	}
-	if err := verifyPod(c, "nginx-daemonset", true); err != nil {
-		t.Fatalf("Failed to verifyPod: %s", err)
-	}
-
-	// Start the master kubelet.
-	var enableGroup sync.WaitGroup
-	for i := range c.Masters {
-		enableGroup.Add(1)
-		go func(i int) {
-			defer enableGroup.Done()
-			stdout, stderr, err = c.Masters[i].SSH("sudo systemctl enable kubelet && sudo systemctl start kubelet")
-			if err != nil {
-				t.Fatalf("Failed to start kubelet on master %q: %v\nstdout: %s\nstderr: %s", c.Masters[i].Name, err, stdout, stderr)
-			}
-		}(i)
-	}
-	enableGroup.Wait()
-
-	// Verify that the pod-checkpointer is cleaned up but the daemonset is still running.
-	if err := verifyPod(c, "pod-checkpointer", false); err != nil {
-		t.Fatalf("Failed to verifyPod: %s", err)
-	}
-	if err := verifyPod(c, "nginx-daemonset", true); err != nil {
-		t.Fatalf("Failed to verifyPod: %s", err)
-	}
-	if err := verifyCheckpoint(c, "kube-system", "pod-checkpointer", false, false); err != nil {
-		t.Fatalf("Failed to verifyCheckpoint: %s", err)
-	}
-	if err := verifyCheckpoint(c, testNS, "nginx-daemonset", false, false); err != nil {
-		t.Fatalf("Failed to verifyCheckpoint: %s", err)
-	}
-
-	waitForCheckpointDeactivation(t)
-}
-
-// 1. Schedule a pod checkpointer on worker node.
-// 2. Schedule a test pod on worker node.
-// 3. Reboot the worker without starting the kubelet.
-// 4. Delete the test pod on API server.
-// 5. Reboot the masters without starting the kubelet.
-// 6. Start the worker kubelet, verify the checkpointer and the pod are still running as static pods.
-// 7. Start the master kubelets, verify the test pod is removed, but not the checkpointer.
-func TestCheckpointerUnscheduleParent(t *testing.T) {
-	// Get the cluster
-	c := waitCluster(t)
-
-	testNS := strings.ToLower(fmt.Sprintf("%s-%s", namespace, t.Name()))
-	if _, err := createNamespace(client, testNS); err != nil {
-		t.Fatalf("Failed to create namespace: %v", err)
-	}
-	defer deleteNamespace(client, testNS)
-
-	// Run the pod checkpointer on worker nodes as well.
-	patch := `[{"op": "replace", "path": "/spec/template/spec/nodeSelector", "value": {}}]`
-	_, err := client.ExtensionsV1beta1().DaemonSets("kube-system").Patch("pod-checkpointer", types.JSONPatchType, []byte(patch))
-	if err != nil {
-		t.Fatalf("Failed to patch checkpointer: %v", err)
-	}
-	if err := verifyPod(c, "pod-checkpointer", true); err != nil {
-		t.Fatalf("verifyPod: %s", err)
-	}
-
-	// Create test pod.
-	obj, _, err := api.Codecs.UniversalDecoder().Decode(nginxDS, nil, &v1beta1.DaemonSet{})
-	if err != nil {
-		t.Fatalf("Unable to decode manifest: %v", err)
-	}
-	ds, ok := obj.(*v1beta1.DaemonSet)
-	if !ok {
-		t.Fatalf("Expected manifest to decode into *api.Daemonset, got %T", ds)
-	}
-	_, err = client.ExtensionsV1beta1().DaemonSets(testNS).Create(ds)
-	if err != nil {
-		t.Fatalf("Failed to create the checkpoint parent: %v", err)
-	}
-	if err := verifyPod(c, "nginx-daemonset", true); err != nil {
-		t.Fatalf("verifyPod: %s", err)
-	}
-
-	// Verify the checkpoints are created.
-	if err := verifyCheckpoint(c, "kube-system", "pod-checkpointer", true, true); err != nil {
-		t.Fatalf("verifyCheckpoint: %s", err)
-	}
-	if err := verifyCheckpoint(c, testNS, "nginx-daemonset", true, false); err != nil {
-		t.Fatalf("verifyCheckpoint: %s", err)
-	}
-
-	// Disable the kubelet and reboot the worker.
-	stdout, stderr, err := c.Workers[0].SSH("sudo systemctl disable kubelet")
-	if err != nil {
-		t.Fatalf("Failed to disable kubelet on worker %q: %v\nstdout: %s\nstderr: %s", c.Workers[0].Name, err, stdout, stderr)
-	}
-	if err := c.Workers[0].Reboot(); err != nil {
-		t.Fatalf("Failed to reboot worker: %v", err)
-	}
-
-	// Delete test pod on the workers.
-	patch = `{"spec":{"template":{"spec":{"nodeSelector":{"node-role.kubernetes.io/master":""}}}}}`
-	_, err = client.ExtensionsV1beta1().DaemonSets(testNS).Patch("nginx-daemonset", types.MergePatchType, []byte(patch))
-	if err != nil {
-		t.Fatalf("unable to patch daemonset: %v", err)
-	}
-
-	// Disable the kubelet and reboot the masters.
-	var rebootGroup sync.WaitGroup
-	for i := range c.Masters {
-		rebootGroup.Add(1)
-		go func(i int) {
-			defer rebootGroup.Done()
-			stdout, stderr, err = c.Masters[i].SSH("sudo systemctl disable kubelet")
-			if err != nil {
-				t.Fatalf("Failed to disable kubelet on master %q: %v\nstdout: %s\nstderr: %s", c.Masters[i].Name, err, stdout, stderr)
-			}
-			if err := c.Masters[i].Reboot(); err != nil {
-				t.Fatalf("Failed to reboot master: %v", err)
-			}
-		}(i)
-	}
-	rebootGroup.Wait()
-
-	// Start the worker kubelet.
-	stdout, stderr, err = c.Workers[0].SSH("sudo systemctl enable kubelet && sudo systemctl start kubelet")
-	if err != nil {
-		t.Fatalf("unable to start kubelet on worker %q: %v\nstdout: %s\nstderr: %s", c.Workers[0].Name, err, stdout, stderr)
-	}
-
-	// Verify that the checkpoints are running.
-	if err := verifyPod(c, "pod-checkpointer", true); err != nil {
-		t.Fatalf("verifyPod: %s", err)
-	}
-	if err := verifyPod(c, "nginx-daemonset", true); err != nil {
-		t.Fatalf("verifyPod: %s", err)
-	}
-
-	// Start the master kubelets.
-	var enableGroup sync.WaitGroup
-	for i := range c.Masters {
-		enableGroup.Add(1)
-		go func(i int) {
-			defer enableGroup.Done()
-			stdout, stderr, err = c.Masters[i].SSH("sudo systemctl enable kubelet && sudo systemctl start kubelet")
-			if err != nil {
-				t.Fatalf("unable to start kubelet on master %q: %v\nstdout: %s\nstderr: %s", c.Masters[i].Name, err, stdout, stderr)
-			}
-		}(i)
-	}
-	enableGroup.Wait()
-
-	// Verify that checkpoint is cleaned up and not running, but the pod checkpointer should still be running.
-	if err := verifyPod(c, "pod-checkpointer", true); err != nil {
-		t.Fatalf("verifyPod: %s", err)
-	}
-	if err := verifyPod(c, "nginx-daemonset", false); err != nil {
-		t.Fatalf("verifyPod: %s", err)
-	}
-	if err := verifyCheckpoint(c, "kube-system", "pod-checkpointer", true, true); err != nil {
-		t.Fatalf("verifyCheckpoint: %s", err)
-	}
-	if err := verifyCheckpoint(c, testNS, "nginx-daemonset", false, false); err != nil {
-		t.Fatalf("verifyCheckpoint: %s", err)
-	}
-
-	waitForCheckpointDeactivation(t)
-}
+var nginxDS = []byte(`apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: test-nginx
+spec:
+  selector:
+    matchLabels:
+      app: nginx-checkpoint-test
+  template:
+    metadata:
+      labels:
+        app: nginx-checkpoint-test
+      annotations:
+        checkpointer.alpha.coreos.com/checkpoint: "true"
+    spec:
+      hostNetwork: true
+      containers:
+        - name: nginx
+          image: nginx
+`)
