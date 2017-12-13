@@ -1,5 +1,5 @@
-hash: 646974c81f38fdb9299622dfea3233f62b2485ba5eb8054a816769f9e1c246e9
-updated: 2017-12-06T13:53:37.400943197-06:00
+hash: 8101910d30b14ec13e4e48613c0937623d4fad6ae6f4ae9eb6a968bfdb6d12ed
+updated: 2017-12-13T15:51:15.75522624-06:00
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -77,7 +77,7 @@ imports:
   - journal
   - util
 - name: github.com/coreos/ktestutil
-  version: b8e4e68fe1c1c47b132cf007deb8dd620431948a
+  version: 47edf51e9cdb1955e93e56e6c84ed944fdda4789
   subpackages:
   - log-collector
   - log-collector/pkg/fluentd
