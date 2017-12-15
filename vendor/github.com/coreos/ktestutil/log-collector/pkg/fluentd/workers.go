@@ -91,6 +91,7 @@ data:
       path /var/log/containers/*.log
       pos_file /var/log/fluentd-containers.log.pos
       time_format %Y-%m-%dT%H:%M:%S.%NZ
+      keep_time_key true
       tag reform.*
       format json
       read_from_head true
@@ -110,6 +111,13 @@ data:
       enable_ruby true
       tag "raw.kubernetes.${tag_suffix[4].split('-')[0..-2].join('-')}.#{Socket.gethostname}"
     </match>
+
+    <filter>
+      @type record_transformer
+      <record>
+        hostname ${hostname}
+      </record>
+    </filter>
 
     <match raw.kubernetes.**>
       @type copy
