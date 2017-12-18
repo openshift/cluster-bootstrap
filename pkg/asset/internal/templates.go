@@ -311,8 +311,8 @@ spec:
         effect: NoSchedule
       volumes:
       - name: kubeconfig
-        secret:
-          secretName: kubeconfig-in-cluster
+        configMap:
+          name: kubeconfig-in-cluster
       - name: etc-kubernetes
         hostPath:
           path: /etc/kubernetes
@@ -652,8 +652,8 @@ spec:
         hostPath:
           path: /usr/share/ca-certificates
       - name: kubeconfig
-        secret:
-          secretName: kubeconfig-in-cluster
+        configMap:
+          name: kubeconfig-in-cluster
   updateStrategy:
     rollingUpdate:
       maxUnavailable: 1
@@ -690,11 +690,11 @@ subjects:
 // (chicken and egg), and the checkpointer, which needs to run as a static pod
 // even if the API server isn't available.
 var KubeConfigInClusterTemplate = []byte(`apiVersion: v1
-kind: Secret
+kind: ConfigMap
 metadata:
   name: kubeconfig-in-cluster
   namespace: kube-system
-stringData:
+data:
   kubeconfig: |
     apiVersion: v1
     clusters:

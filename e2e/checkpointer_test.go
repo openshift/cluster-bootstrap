@@ -367,8 +367,8 @@ func waitCluster(t *testing.T) *Cluster {
 }
 
 func setupTestCheckpointerRole(namespace string) error {
-	// Copy special kubeconfig-in-cluster secret from kube-system namespace.
-	kc, err := client.CoreV1().Secrets(metav1.NamespaceSystem).Get("kubeconfig-in-cluster", metav1.GetOptions{})
+	// Copy special kubeconfig-in-cluster configmap from kube-system namespace.
+	kc, err := client.CoreV1().ConfigMaps(metav1.NamespaceSystem).Get("kubeconfig-in-cluster", metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -376,7 +376,7 @@ func setupTestCheckpointerRole(namespace string) error {
 		Name:      kc.ObjectMeta.Name,
 		Namespace: namespace,
 	}
-	if _, err := client.CoreV1().Secrets(namespace).Create(kc); err != nil {
+	if _, err := client.CoreV1().ConfigMaps(namespace).Create(kc); err != nil {
 		return err
 	}
 
@@ -476,8 +476,8 @@ spec:
       restartPolicy: Always
       volumes:
       - name: kubeconfig
-        secret:
-          secretName: kubeconfig-in-cluster
+        configMap:
+          name: kubeconfig-in-cluster
       - name: etc-kubernetes
         hostPath:
           path: /etc/kubernetes
