@@ -20,7 +20,7 @@ fi
 CALICO_NETWORK_POLICY=${CALICO_NETWORK_POLICY:-false}
 if [ ${CALICO_NETWORK_POLICY} = "true" ]; then
     echo "WARNING: THIS IS EXPERIMENTAL SUPPORT FOR NETWORK POLICY"
-    cnp_render_flags="--experimental-calico-network-policy"
+    cnp_render_flags="--network-provider=experimental-calico"
 else
     cnp_render_flags=""
 fi
