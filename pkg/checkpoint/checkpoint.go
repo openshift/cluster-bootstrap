@@ -27,6 +27,9 @@ const (
 
 	defaultPollingFrequency  = 5 * time.Second
 	defaultCheckpointTimeout = 1 * time.Minute
+
+	rootUID = 0
+	rootGID = 0
 )
 
 var (
