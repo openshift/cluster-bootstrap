@@ -25,14 +25,13 @@ const (
 	shouldCheckpoint = "true"
 	podSourceFile    = "file"
 
-	defaultPollingFrequency      = 5 * time.Second
-	defaultCheckpointTimeout     = 1 * time.Minute
-	defaultCheckpointGracePeriod = 1 * time.Minute
+	defaultPollingFrequency  = 5 * time.Second
+	defaultCheckpointTimeout = 1 * time.Minute
 )
 
 var (
 	lastCheckpoint        time.Time
-	checkpointGracePeriod = defaultCheckpointGracePeriod
+	checkpointGracePeriod time.Duration
 )
 
 // Options defines the parameters that are required to start the checkpointer.
@@ -45,6 +44,9 @@ type Options struct {
 	RemoteRuntimeEndpoint string
 	// RuntimeRequestTimeout is the timeout that is used for requests to the RemoteRuntimeEndpoint.
 	RuntimeRequestTimeout time.Duration
+	// CheckpointGracePeriod is the timeout that is used for cleaning up checkpoints when the parent
+	// pod is deleted.
+	CheckpointGracePeriod time.Duration
 }
 
 // CheckpointerPod holds information about this checkpointer pod.
@@ -81,6 +83,8 @@ func Run(opts Options) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to CRI server: %v", err)
 	}
+
+	checkpointGracePeriod = opts.CheckpointGracePeriod
 
 	cp := &checkpointer{
 		apiserver:       apiserver,
