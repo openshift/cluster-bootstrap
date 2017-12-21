@@ -6,7 +6,7 @@ var DefaultImages = ImageVersions{
 	EtcdOperator:    "quay.io/coreos/etcd-operator:v0.5.0",
 	Flannel:         "quay.io/coreos/flannel:v0.9.1-amd64",
 	FlannelCNI:      "quay.io/coreos/flannel-cni:v0.3.0",
-	Calico:          "quay.io/calico/node:v2.6.3",
+	Calico:          "quay.io/calico/node:v2.6.4",
 	CalicoCNI:       "quay.io/calico/cni:v1.11.1",
 	Hyperkube:       "gcr.io/google_containers/hyperkube:v1.8.5",
 	Kenc:            "quay.io/coreos/kenc:0.0.2",
