@@ -11,6 +11,8 @@ var (
 )
 
 func init() {
+	checkpointGracePeriod = time.Second
+
 	bools := []bool{true, false}
 	for _, apiAvailable := range bools {
 		for _, apiParent := range bools {
