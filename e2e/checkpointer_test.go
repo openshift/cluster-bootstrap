@@ -448,6 +448,7 @@ spec:
         image: %s
         command:
         - /checkpoint
+        - --checkpoint-grace-period=5s
         - --lock-file=/var/run/lock/test-checkpointer.lock
         - --kubeconfig=/etc/checkpointer/kubeconfig
         env:
