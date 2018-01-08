@@ -445,7 +445,6 @@ spec:
       dnsPolicy: Default # Don't use cluster DNS.
 `)
 
-
 var ControllerManagerServiceAccount = []byte(`apiVersion: v1
 kind: ServiceAccount
 metadata:
