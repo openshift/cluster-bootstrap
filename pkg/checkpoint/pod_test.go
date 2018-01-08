@@ -414,3 +414,102 @@ func TestPodIDToConfigMapPath(t *testing.T) {
 		t.Errorf("Expected %s Got %s", expected, got)
 	}
 }
+
+func TestPodUserAndGroup(t *testing.T) {
+	user1 := int64(1)
+	user2 := int64(2)
+	group1 := int64(10)
+	for _, tc := range []struct {
+		name    string
+		pod     *v1.Pod
+		wantUID int
+		wantGID int
+		wantErr bool
+	}{{
+		name:    "empty pod",
+		pod:     &v1.Pod{},
+		wantUID: rootUID,
+	}, {
+		name: "normal pod",
+		pod: &v1.Pod{
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{{
+					Name: "container",
+				}},
+			},
+		},
+		wantUID: rootUID,
+	}, {
+		name: "pod with PodSecurityContext",
+		pod: &v1.Pod{
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{{
+					Name: "container",
+				}},
+				SecurityContext: &v1.PodSecurityContext{RunAsUser: &user1, FSGroup: &group1},
+			},
+		},
+		wantUID: int(user1),
+		wantGID: int(group1),
+	}, {
+		name: "pod with Container.SecurityContext",
+		pod: &v1.Pod{
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{{
+					Name:            "container",
+					SecurityContext: &v1.SecurityContext{RunAsUser: &user1},
+				}},
+			},
+		},
+		wantUID: int(user1),
+	}, {
+		name: "pod with matching SecurityContexts",
+		pod: &v1.Pod{
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{{
+					Name:            "container1",
+					SecurityContext: &v1.SecurityContext{RunAsUser: &user1},
+				}, {
+					Name:            "container2",
+					SecurityContext: &v1.SecurityContext{RunAsUser: &user1},
+				}},
+				SecurityContext: &v1.PodSecurityContext{RunAsUser: &user1, FSGroup: &group1},
+			},
+		},
+		wantUID: int(user1),
+		wantGID: int(group1),
+	}, {
+		name: "pod with conflicting PodSecurityContext and SecurityContext",
+		pod: &v1.Pod{
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{{
+					Name:            "container",
+					SecurityContext: &v1.SecurityContext{RunAsUser: &user1},
+				}},
+				SecurityContext: &v1.PodSecurityContext{RunAsUser: &user2},
+			},
+		},
+		wantErr: true,
+	}, {
+		name: "pod with conflicting SecurityContexts",
+		pod: &v1.Pod{
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{{
+					Name:            "container1",
+					SecurityContext: &v1.SecurityContext{RunAsUser: &user1},
+				}, {
+					Name:            "container2",
+					SecurityContext: &v1.SecurityContext{RunAsUser: &user2},
+				}},
+			},
+		},
+		wantErr: true,
+	}} {
+		uid, gid, err := podUserAndGroup(tc.pod)
+		if (err != nil) != tc.wantErr {
+			t.Errorf("%s podUser() = err: %v, want: %v", tc.name, err != nil, tc.wantErr)
+		} else if !tc.wantErr && (uid != tc.wantUID || gid != tc.wantGID) {
+			t.Errorf("%s podUser() = %v, %v, want: %v, %v", tc.name, uid, gid, tc.wantUID, tc.wantGID)
+		}
+	}
+}

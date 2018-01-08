@@ -1,6 +1,7 @@
 package checkpoint
 
 import (
+	"errors"
 	"path/filepath"
 	"strings"
 
@@ -165,4 +166,48 @@ func podFullNameToInactiveCheckpointPath(id string) string {
 
 func podFullNameToActiveCheckpointPath(id string) string {
 	return filepath.Join(activeCheckpointPath, strings.Replace(id, "/", "-", -1)+".json")
+}
+
+// ErrorConflictingSecurityContexts is returned when a pod has a PodSecurityContext and/or
+// SecurityContext(s) that have conflicting RunAsUser values.
+var ErrorConflictingSecurityContexts = errors.New("pod and/or container(s) have conflicting SecurityContext.RunAsUser values")
+
+// podUserAndGroup returns the ids of the user and group for the pod by scanning the
+// PodSecurityContext and the SecurityContexts of its Containers. Returns
+// ErrorConflictingSecurityContexts if the pod and/or its containers have different users/groups
+// set.
+func podUserAndGroup(pod *v1.Pod) (int, int, error) {
+	var uid, gid *int64
+
+	// Check PodSecurityContext.
+	if psc := pod.Spec.SecurityContext; psc != nil {
+		uid = psc.RunAsUser
+		gid = psc.FSGroup
+	}
+
+	// Check Container SecurityContexts. If there is a conflict return error.
+	// TODO(diegs): maybe resolve conflicts by returning per-container uids.
+	for _, c := range pod.Spec.Containers {
+		if sc := c.SecurityContext; sc != nil {
+			if sc.RunAsUser != nil {
+				// Fail if a different user was previously seen.
+				if uid != nil && *uid != *sc.RunAsUser {
+					return -1, -1, ErrorConflictingSecurityContexts
+				}
+				uid = sc.RunAsUser
+			}
+		}
+	}
+
+	// Return root uid/gid by default.
+	if uid == nil {
+		tmpUID := int64(rootUID)
+		uid = &tmpUID
+	}
+	if gid == nil {
+		tmpGID := int64(rootGID)
+		gid = &tmpGID
+	}
+
+	return int(*uid), int(*gid), nil
 }

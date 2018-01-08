@@ -78,10 +78,10 @@ func writeManifestIfDifferent(path, name string, data []byte) (bool, error) {
 		return false, nil
 	}
 	glog.Infof("Writing manifest for %q to %q", name, path)
-	return true, writeAndAtomicRename(path, data, 0644)
+	return true, writeAndAtomicRename(path, data, rootUID, rootGID, 0644)
 }
 
-func writeAndAtomicRename(path string, data []byte, perm os.FileMode) error {
+func writeAndAtomicRename(path string, data []byte, uid, gid int, perm os.FileMode) error {
 	// Ensure that the temporary file is on the same filesystem so that os.Rename() does not error.
 	tmpfile, err := ioutil.TempFile(filepath.Dir(path), ".")
 	if err != nil {
@@ -96,5 +96,8 @@ func writeAndAtomicRename(path string, data []byte, perm os.FileMode) error {
 	if err := tmpfile.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmpfile.Name(), path)
+	if err := os.Rename(tmpfile.Name(), path); err != nil {
+		return err
+	}
+	return os.Chown(path, uid, gid)
 }
