@@ -8,7 +8,7 @@ The information below describes a minimum set of port allocations used by Kubern
 
 | Protocol | Port Range | Source                                    | Purpose                |
 -----------|------------|-------------------------------------------|------------------------|
-| TCP      | 443        | Worker Nodes, API Requests, and End-Users | Kubernetes API server. |
+| TCP      | 6443       | Worker Nodes, API Requests, and End-Users | Kubernetes API server. |
 | UDP      | 8472       | Master & Worker Nodes                     | flannel overlay network - *vxlan backend* |
 
 ### etcd node(s) ingress

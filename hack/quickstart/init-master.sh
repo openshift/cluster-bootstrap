@@ -69,7 +69,7 @@ function init_master_node() {
 
     # Render cluster assets
     /home/${REMOTE_USER}/bootkube render --asset-dir=/home/${REMOTE_USER}/assets ${etcd_render_flags} ${network_provider_flags} \
-      --api-servers=https://${COREOS_PUBLIC_IPV4}:443,https://${COREOS_PRIVATE_IPV4}:443
+      --api-servers=https://${COREOS_PUBLIC_IPV4}:6443,https://${COREOS_PRIVATE_IPV4}:6443
 
     # Move the local kubeconfig into expected location
     chown -R ${REMOTE_USER}:${REMOTE_USER} /home/${REMOTE_USER}/assets

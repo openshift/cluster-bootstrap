@@ -41,7 +41,7 @@ var (
 							Containers: []v1.Container{{
 								Name:    "kube-apiserver",
 								Image:   "quay.io/coreos/hyperkube:v1.6.4_coreos.0",
-								Command: []string{"/usr/bin/flock", "/hyperkube", "apiserver", "--secure-port=443"},
+								Command: []string{"/hyperkube", "apiserver", "--secure-port=6443"},
 								VolumeMounts: []v1.VolumeMount{{
 									Name:      "ssl-certs-host",
 									MountPath: "/etc/ssl/certs",
@@ -114,7 +114,7 @@ func TestExtractBootstrapPods(t *testing.T) {
 			Containers: []v1.Container{{
 				Name:    "kube-apiserver",
 				Image:   "quay.io/coreos/hyperkube:v1.6.4_coreos.0",
-				Command: []string{"/usr/bin/flock", "/hyperkube", "apiserver", "--secure-port=443"},
+				Command: []string{"/hyperkube", "apiserver", "--secure-port=6443"},
 				VolumeMounts: []v1.VolumeMount{{
 					Name:      "ssl-certs-host",
 					MountPath: "/etc/ssl/certs",
@@ -171,7 +171,7 @@ func TestFixUpBootstrapPods(t *testing.T) {
 			Containers: []v1.Container{{
 				Name:    "kube-apiserver",
 				Image:   "quay.io/coreos/hyperkube:v1.6.4_coreos.0",
-				Command: []string{"/usr/bin/flock", "/hyperkube", "apiserver", "--secure-port=443"},
+				Command: []string{"/hyperkube", "apiserver", "--secure-port=6443"},
 				VolumeMounts: []v1.VolumeMount{{
 					Name:      "ssl-certs-host",
 					MountPath: "/etc/ssl/certs",
@@ -228,7 +228,7 @@ func TestFixUpBootstrapPods(t *testing.T) {
 			Containers: []v1.Container{{
 				Name:    "kube-apiserver",
 				Image:   "quay.io/coreos/hyperkube:v1.6.4_coreos.0",
-				Command: []string{"/usr/bin/flock", "/hyperkube", "apiserver", "--secure-port=443"},
+				Command: []string{"/hyperkube", "apiserver", "--secure-port=6443"},
 				VolumeMounts: []v1.VolumeMount{{
 					Name:      "ssl-certs-host",
 					MountPath: "/etc/ssl/certs",
