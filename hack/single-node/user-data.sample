@@ -12,10 +12,12 @@ coreos:
         Environment=KUBELET_IMAGE_TAG=v1.9.1
         Environment="RKT_RUN_ARGS=--uuid-file-save=/var/cache/kubelet-pod.uuid \
           --volume var-lib-cni,kind=host,source=/var/lib/cni \
+          --volume var-lib-kubelet,kind=host,source=/var/lib/kubelet \
           --volume opt-cni-bin,kind=host,source=/opt/cni/bin \
           --volume var-log,kind=host,source=/var/log \
           --mount volume=var-log,target=/var/log \
           --mount volume=var-lib-cni,target=/var/lib/cni \
+          --mount volume=var-lib-kubelet,target=/var/lib/kubelet \
           --mount volume=opt-cni-bin,target=/opt/cni/bin \
           --insecure-options=image"
         ExecStartPre=/bin/mkdir -p /opt/cni/bin
@@ -24,10 +26,12 @@ coreos:
         ExecStartPre=/bin/mkdir -p /etc/kubernetes/checkpoint-secrets
         ExecStartPre=/bin/mkdir -p /etc/kubernetes/inactive-manifests
         ExecStartPre=/bin/mkdir -p /var/lib/cni
+        ExecStartPre=/bin/mkdir -p /var/lib/kubelet/pki
         ExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/cache/kubelet-pod.uuid
         ExecStart=/usr/lib/coreos/kubelet-wrapper \
           --allow-privileged \
           --anonymous-auth=false \
+          --cert-dir=/var/lib/kubelet/pki \
           --client-ca-file=/etc/kubernetes/ca.crt \
           --cluster_dns=10.3.0.10 \
           --cluster_domain=cluster.local \
@@ -38,7 +42,8 @@ coreos:
           --lock-file=/var/run/lock/kubelet.lock \
           --network-plugin=cni \
           --node-labels=node-role.kubernetes.io/master \
-          --pod-manifest-path=/etc/kubernetes/manifests
+          --pod-manifest-path=/etc/kubernetes/manifests \
+          --rotate-certificates
         ExecStop=-/usr/bin/rkt stop --uuid-file=/var/cache/kubelet-pod.uuid
         Restart=always
         RestartSec=5

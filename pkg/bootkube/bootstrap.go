@@ -35,6 +35,11 @@ func (b *bootstrapControlPlane) Start() error {
 	if _, err := copyDirectory(secretsDir, asset.BootstrapSecretsDir, true /* overwrite */); err != nil {
 		return err
 	}
+	// Copy the admin kubeconfig. TODO(diegs): this is kind of a hack, maybe do something better.
+	if err := copyFile(filepath.Join(b.assetDir, asset.AssetPathAdminKubeConfig), filepath.Join(asset.BootstrapSecretsDir, "kubeconfig"), true /* overwrite */); err != nil {
+		return err
+	}
+
 	// Copy the static manifests to the kubelet's pod manifest path.
 	manifestsDir := filepath.Join(b.assetDir, asset.AssetPathBootstrapManifests)
 	ownedManifests, err := copyDirectory(manifestsDir, b.podManifestPath, false /* overwrite */)

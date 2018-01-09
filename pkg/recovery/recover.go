@@ -349,7 +349,7 @@ func renderKubeConfig(kubeConfigPath string) (asset.Asset, error) {
 		return asset.Asset{}, err
 	}
 	return asset.Asset{
-		Name: asset.AssetPathKubeConfig, // used by `bootkube start`.
+		Name: asset.AssetPathAdminKubeConfig, // used by `bootkube start`.
 		Data: kubeConfig,
 	}, nil
 }

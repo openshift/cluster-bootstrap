@@ -32,6 +32,12 @@ func setUp(t *testing.T) (assetDir, podManifestPath string) {
 	}
 
 	// Create assets.
+	if err := os.Mkdir(filepath.Join(assetDir, filepath.Dir(asset.AssetPathAdminKubeConfig)), os.FileMode(0755)); err != nil {
+		t.Fatal(err)
+	}
+	if err := ioutil.WriteFile(filepath.Join(assetDir, asset.AssetPathAdminKubeConfig), []byte("kubeconfig data"), os.FileMode(0644)); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Mkdir(filepath.Join(assetDir, asset.AssetPathSecrets), os.FileMode(0755)); err != nil {
 		t.Fatal(err)
 	}

@@ -74,7 +74,7 @@ function init_master_node() {
     # Move the local kubeconfig into expected location
     chown -R ${REMOTE_USER}:${REMOTE_USER} /home/${REMOTE_USER}/assets
     mkdir -p /etc/kubernetes
-    cp /home/${REMOTE_USER}/assets/auth/kubeconfig /etc/kubernetes/
+    cp /home/${REMOTE_USER}/assets/auth/kubeconfig-kubelet /etc/kubernetes/kubeconfig
     cp /home/${REMOTE_USER}/assets/tls/ca.crt /etc/kubernetes/ca.crt
 
     # Start etcd.
@@ -137,7 +137,7 @@ if [ "${REMOTE_HOST}" != "local" ]; then
     echo "kubectl --kubeconfig=${CLUSTER_DIR}/auth/kubeconfig get nodes"
     echo
     echo "Additional nodes can be added to the cluster using:"
-    echo "./init-node.sh <node-ip> ${CLUSTER_DIR}/auth/kubeconfig"
+    echo "./init-node.sh <node-ip> ${CLUSTER_DIR}/auth/kubeconfig-kubelet"
     echo
 
 # Execute this script locally on the machine, assumes a kubelet.service file has already been placed on host.
