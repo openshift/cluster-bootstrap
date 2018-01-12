@@ -2,11 +2,9 @@
 
 ## v1.0.0 targets
 
-- [X] Self-hosted etcd + TLS (https://github.com/kubernetes-incubator/bootkube/releases/tag/v0.4.5)
-- [ ] Self-hosted etcd is stable and enabled by default
 - [ ] Recovery from etcd-backup part of e2e testing (https://github.com/kubernetes-incubator/bootkube/issues/596)
 - [ ] Publicly published upstream conformance tests
-- [ ] How-it-works documentation for bootkube + self-hosted etcd
+- [ ] How-it-works documentation for bootkube
 - [ ] Documentation for running HA clusters (https://github.com/kubernetes-incubator/bootkube/issues/311)
 - [ ] Versioned configuration objects replace flags (https://github.com/kubernetes-incubator/bootkube/issues/565)
 

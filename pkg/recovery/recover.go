@@ -15,7 +15,6 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
-	"strings"
 
 	"github.com/ghodss/yaml"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -119,8 +118,7 @@ func (cp *controlPlane) renderBootstrap() (asset.Assets, error) {
 	if err != nil {
 		return nil, err
 	}
-	isSelfHostedEtcd := cp.bootEtcd != nil
-	requiredConfigMaps, requiredSecrets := fixUpBootstrapPods(pods, isSelfHostedEtcd)
+	requiredConfigMaps, requiredSecrets := fixUpBootstrapPods(pods)
 	as, err := outputBootstrapPods(pods)
 	if err != nil {
 		return nil, err
@@ -131,11 +129,6 @@ func (cp *controlPlane) renderBootstrap() (asset.Assets, error) {
 	}
 	as = append(as, configMaps...)
 
-	if isSelfHostedEtcd {
-		requiredSecrets[asset.SecretEtcdPeer] = filepath.Dir(asset.AssetPathEtcdPeerCA)
-		requiredSecrets[asset.SecretEtcdServer] = filepath.Dir(asset.AssetPathEtcdServerCA)
-		requiredSecrets[asset.SecretEtcdClient] = filepath.Dir(asset.AssetPathEtcdClientCA)
-	}
 	secrets, err := outputBootstrapSecrets(cp.secrets, requiredSecrets)
 	if err != nil {
 		return nil, err
@@ -202,8 +195,7 @@ func setBootstrapPodMetadata(pod *v1.Pod, parent metav1.ObjectMeta) error {
 // filesystem-mount-based secrets, and removes any security contexts that might prevent the pods
 // from accessing those secrets. It returns mappings from configMap and secret names to output
 // paths that must also be rendered in order for the bootstrap pods to be functional.
-// If selfHostedEtcd is true, it also fixes up the etcd servers flag for the API server.
-func fixUpBootstrapPods(pods []v1.Pod, selfHostedEtcd bool) (requiredConfigMaps, requiredSecrets map[string]string) {
+func fixUpBootstrapPods(pods []v1.Pod) (requiredConfigMaps, requiredSecrets map[string]string) {
 	requiredConfigMaps, requiredSecrets = make(map[string]string), make(map[string]string)
 	for i := range pods {
 		pod := &pods[i]
@@ -248,14 +240,6 @@ func fixUpBootstrapPods(pods []v1.Pod, selfHostedEtcd bool) (requiredConfigMaps,
 					Name:      "kubeconfig",
 					ReadOnly:  true,
 				})
-			}
-
-			if selfHostedEtcd && cn.Name == apiServerContainerName {
-				for i, cm := range cn.Command {
-					if strings.Contains(cm, "--etcd-servers") {
-						cn.Command[i] = cm + ",http://127.0.0.1:12379"
-					}
-				}
 			}
 		}
 

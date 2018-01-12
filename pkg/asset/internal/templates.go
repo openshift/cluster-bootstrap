@@ -233,7 +233,7 @@ spec:
     - --etcd-keyfile=/etc/kubernetes/secrets/etcd-client.key
 {{- end }}
     - --etcd-quorum-read=true
-    - --etcd-servers={{ range $i, $e := .EtcdServers }}{{ if $i }},{{end}}{{ $e }}{{end}}{{ if .SelfHostedEtcd }},https://127.0.0.1:12379{{end}}
+    - --etcd-servers={{ range $i, $e := .EtcdServers }}{{ if $i }},{{end}}{{ $e }}{{end}}
     - --insecure-port=0
     - --kubelet-client-certificate=/etc/kubernetes/secrets/apiserver.crt
     - --kubelet-client-key=/etc/kubernetes/secrets/apiserver.key

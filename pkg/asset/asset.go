@@ -111,7 +111,6 @@ type Config struct {
 	DNSServiceIP           net.IP
 	EtcdServiceIP          net.IP
 	EtcdServiceName        string
-	SelfHostedEtcd         bool
 	CloudProvider          string
 	NetworkProvider        string
 	BootstrapSecretsSubdir string
@@ -164,25 +163,11 @@ func NewDefaultAssets(conf Config) (Assets, error) {
 
 	// etcd TLS assets.
 	if conf.EtcdUseTLS {
-		if conf.SelfHostedEtcd {
-			tlsAssets, err := newSelfHostedEtcdTLSAssets(conf.EtcdServiceIP.String(), conf.BootEtcdServiceIP.String(), conf.CACert, conf.CAPrivKey)
-			if err != nil {
-				return nil, err
-			}
-			as = append(as, tlsAssets...)
-
-			secretAssets, err := newSelfHostedEtcdSecretAssets(as)
-			if err != nil {
-				return nil, err
-			}
-			as = append(as, secretAssets...)
-		} else {
-			etcdTLSAssets, err := newEtcdTLSAssets(conf.EtcdCACert, conf.EtcdClientCert, conf.EtcdClientKey, conf.CACert, conf.CAPrivKey, conf.EtcdServers)
-			if err != nil {
-				return Assets{}, err
-			}
-			as = append(as, etcdTLSAssets...)
+		etcdTLSAssets, err := newEtcdTLSAssets(conf.EtcdCACert, conf.EtcdClientCert, conf.EtcdClientKey, conf.CACert, conf.CAPrivKey, conf.EtcdServers)
+		if err != nil {
+			return Assets{}, err
 		}
+		as = append(as, etcdTLSAssets...)
 	}
 
 	kubeConfigAssets, err := newKubeConfigAssets(as, conf)

@@ -286,7 +286,7 @@ func TestFixUpBootstrapPods(t *testing.T) {
 	}}
 	wantConfigMaps := map[string]string{"kube-apiserver": "tls/config-maps/kube-apiserver"}
 	wantSecrets := map[string]string{"kube-apiserver": "tls/secrets/kube-apiserver"}
-	gotConfigMaps, gotSecrets := fixUpBootstrapPods(pods, false)
+	gotConfigMaps, gotSecrets := fixUpBootstrapPods(pods)
 	if !reflect.DeepEqual(gotSecrets, wantSecrets) || !reflect.DeepEqual(gotConfigMaps, wantConfigMaps) {
 		t.Errorf("fixUpBootstrapPods(%v) = %v, %v, want: %v, %v", pods, gotConfigMaps, gotSecrets, wantConfigMaps, wantSecrets)
 	} else if !reflect.DeepEqual(pods, wantPods) {

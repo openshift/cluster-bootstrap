@@ -125,62 +125,6 @@ const (
 	RecoveryEtcdClientAddr = "http://localhost:52379"
 )
 
-type etcdSelfhostedBackend struct {
-	*etcdBackend
-
-	backupPath string
-}
-
-// NewSelfHostedEtcdBackend constructs a new etcdBackend for the given client and pathPrefix, and backup file.
-func NewSelfHostedEtcdBackend(client *clientv3.Client, pathPrefix, backupPath string) Backend {
-	eb := &etcdBackend{
-		client:     client,
-		decoder:    api.Codecs.UniversalDecoder(),
-		pathPrefix: pathPrefix,
-	}
-
-	return &etcdSelfhostedBackend{
-		etcdBackend: eb,
-		backupPath:  backupPath,
-	}
-}
-
-// read implements Backend.read().
-func (s *etcdSelfhostedBackend) read(ctx context.Context) (*controlPlane, error) {
-	cp, err := s.etcdBackend.read(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	d, err := s.getBytes(ctx, etcdCRDKey)
-	if err != nil {
-		return nil, err
-	}
-
-	var kubeetcd spec.EtcdCluster
-	err = decode(s.decoder, d, &kubeetcd)
-	if err != nil {
-		return nil, err
-	}
-
-	ecrd, err := createEtcdCRDAsset(kubeetcd)
-	if err != nil {
-		return nil, err
-	}
-	cp.crd = ecrd
-
-	serviceIP, err := getServiceIPFromClusterSpec(kubeetcd.Spec)
-	if err != nil {
-		return nil, err
-	}
-	eas := createBootEtcdAsset(s.pathPrefix, s.backupPath, serviceIP)
-	esas := createBootEtcdServiceAsset(serviceIP)
-	cp.bootEtcd = &eas
-	cp.bootEtcdService = &esas
-
-	return cp, nil
-}
-
 // StartRecoveryEtcdForBackup starts a recovery etcd container using given backup.
 // The started etcd server listens on RecoveryEtcdClientAddr.
 func StartRecoveryEtcdForBackup(p, backupPath string) error {
