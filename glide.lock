@@ -1,5 +1,5 @@
 hash: 8101910d30b14ec13e4e48613c0937623d4fad6ae6f4ae9eb6a968bfdb6d12ed
-updated: 2017-12-13T15:51:15.75522624-06:00
+updated: 2018-01-12T11:45:15.555787-06:00
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -70,12 +70,6 @@ imports:
   version: 257d52fbcb28f473cfa0df33c646de988c0cff2d
   subpackages:
   - pkg/spec
-- name: github.com/coreos/go-systemd
-  version: 48702e0da86bd25e76cfef347e2adeb434a0d0a6
-  subpackages:
-  - daemon
-  - journal
-  - util
 - name: github.com/coreos/ktestutil
   version: 47edf51e9cdb1955e93e56e6c84ed944fdda4789
   subpackages:
@@ -85,10 +79,6 @@ imports:
   - log-collector/pkg/s3
   - testworkload
   - utils
-- name: github.com/coreos/pkg
-  version: 3ac0863d7acf3bc44daf49afef8919af12f704ef
-  subpackages:
-  - capnslog
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
@@ -323,7 +313,7 @@ imports:
   subpackages:
   - core/v1
 - name: k8s.io/apiextensions-apiserver
-  version: fcd622fe88a4a6efcb5aea9e94ee87324ac1b036
+  version: 0965a40c0530e110459750a7fcb9cfa4910fb944
   subpackages:
   - pkg/apis/apiextensions
   - pkg/apis/apiextensions/v1beta1

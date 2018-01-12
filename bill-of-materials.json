@@ -63,24 +63,6 @@
 		]
 	},
 	{
-		"project": "github.com/coreos/go-systemd/journal",
-		"licenses": [
-			{
-				"type": "Apache License 2.0",
-				"confidence": 0.9966703662597114
-			}
-		]
-	},
-	{
-		"project": "github.com/coreos/pkg/capnslog",
-		"licenses": [
-			{
-				"type": "Apache License 2.0",
-				"confidence": 1
-			}
-		]
-	},
-	{
 		"project": "github.com/davecgh/go-spew/spew",
 		"licenses": [
 			{
