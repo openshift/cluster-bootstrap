@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kubernetes-incubator/bootkube/pkg/asset"
-	"github.com/kubernetes-incubator/bootkube/pkg/bootkube"
 	"github.com/kubernetes-incubator/bootkube/pkg/tlsutil"
 )
 
@@ -50,7 +49,6 @@ var (
 		serviceCIDR         string
 		cloudProvider       string
 		networkProvider     string
-		selfHostedEtcd      bool
 	}
 
 	imageVersions = asset.DefaultImages
@@ -71,7 +69,6 @@ func init() {
 	cmdRender.Flags().StringVar(&renderOpts.serviceCIDR, "service-cidr", "10.3.0.0/24", "The CIDR range of cluster services.")
 	cmdRender.Flags().StringVar(&renderOpts.cloudProvider, "cloud-provider", "", "The provider for cloud services.  Empty string for no provider")
 	cmdRender.Flags().StringVar(&renderOpts.networkProvider, "network-provider", "flannel", "CNI network provider (flannel or experimental-canal).")
-	cmdRender.Flags().BoolVar(&renderOpts.selfHostedEtcd, "experimental-self-hosted-etcd", false, "(Experimental) Create self-hosted etcd assets.")
 }
 
 func runCmdRender(cmd *cobra.Command, args []string) error {
@@ -97,10 +94,6 @@ func validateRenderOpts(cmd *cobra.Command, args []string) error {
 	}
 	if (renderOpts.etcdCAPath != "" || renderOpts.etcdCertificatePath != "" || renderOpts.etcdPrivateKeyPath != "") && (renderOpts.etcdCAPath == "" || renderOpts.etcdCertificatePath == "" || renderOpts.etcdPrivateKeyPath == "") {
 		return errors.New("You must specify either all or none of --etcd-ca-path, --etcd-certificate-path, and --etcd-private-key-path")
-	}
-	if renderOpts.etcdCertificatePath != "" && renderOpts.selfHostedEtcd {
-		return errors.New("Cannot specify --etcd-certificate-path with --experimental-self-hosted-etcd." +
-			" Self-hosted etcd + TLS will auto-generate certs based on root CA cert.")
 	}
 	if renderOpts.assetDir == "" {
 		return errors.New("Missing required flag: --asset-dir")
@@ -174,21 +167,9 @@ func flagsToAssetConfig() (c *asset.Config, err error) {
 		return nil, err
 	}
 
-	var etcdServers []*url.URL
-	if renderOpts.selfHostedEtcd {
-		etcdServerUrl, err := url.Parse(fmt.Sprintf("https://%s:2379", etcdServiceIP))
-		if err != nil {
-			return nil, err
-		}
-		etcdServers = append(etcdServers, etcdServerUrl)
-		if renderOpts.etcdServers != defaultEtcdServers {
-			bootkube.UserOutput("--experimental-self-hosted-etcd and --service-cidr set. Overriding --etcd-servers setting (%s) with (%s) \n", etcdServers, defaultEtcdServers)
-		}
-	} else {
-		etcdServers, err = parseURLs(renderOpts.etcdServers)
-		if err != nil {
-			return nil, err
-		}
+	etcdServers, err := parseURLs(renderOpts.etcdServers)
+	if err != nil {
+		return nil, err
 	}
 
 	etcdUseTLS := false
@@ -214,10 +195,6 @@ func flagsToAssetConfig() (c *asset.Config, err error) {
 		}
 	}
 
-	if etcdUseTLS && etcdCACert == nil && !renderOpts.selfHostedEtcd {
-		bootkube.UserOutput("NOTE: --etcd-servers=%s but --etcd-ca-path, --etcd-certificate-path, and --etcd-private-key-path were not set. Bootkube will create etcd certificates under '%s/tls'. You must configure etcd to use these certificates before invoking 'bootkube start'.\n", renderOpts.etcdServers, renderOpts.assetDir)
-	}
-
 	// TODO: Find better option than asking users to make manual changes
 	if serviceNet.IP.String() != defaultServiceBaseIP {
 		fmt.Printf("You have selected a non-default service CIDR %s - be sure your kubelet service file uses --cluster-dns=%s\n", serviceNet.String(), dnsServiceIP.String())
@@ -241,7 +218,6 @@ func flagsToAssetConfig() (c *asset.Config, err error) {
 		EtcdServiceIP:     etcdServiceIP,
 		CloudProvider:     renderOpts.cloudProvider,
 		NetworkProvider:   renderOpts.networkProvider,
-		SelfHostedEtcd:    renderOpts.selfHostedEtcd,
 		Images:            imageVersions,
 	}, nil
 }

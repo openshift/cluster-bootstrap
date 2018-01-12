@@ -67,16 +67,6 @@ func newDynamicAssets(conf Config) Assets {
 		MustCreateAssetFromTemplate(AssetPathBootstrapControllerManager, internal.BootstrapControllerManagerTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathBootstrapScheduler, internal.BootstrapSchedulerTemplate, conf),
 	}
-	if conf.SelfHostedEtcd {
-		conf.EtcdServiceName = EtcdServiceName
-		assets = append(assets,
-			MustCreateAssetFromTemplate(AssetPathEtcdOperator, internal.EtcdOperatorTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathEtcdSvc, internal.EtcdSvcTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathKenc, internal.KencTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathBootstrapEtcd, internal.BootstrapEtcdTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathBootstrapEtcdService, internal.BootstrapEtcdSvcTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathMigrateEtcdCluster, internal.EtcdCRDTemplate, conf))
-	}
 	switch conf.NetworkProvider {
 	case NetworkFlannel:
 		assets = append(assets,
@@ -182,42 +172,6 @@ func newKubeConfigAssets(assets Assets, conf Config) ([]Asset, error) {
 		as = append(as, a)
 	}
 	return as, nil
-}
-
-func newSelfHostedEtcdSecretAssets(assets Assets) (Assets, error) {
-	var res Assets
-
-	secretYAML, err := secretFromAssets(SecretEtcdPeer, secretNamespace, []string{
-		AssetPathEtcdPeerCA,
-		AssetPathEtcdPeerCert,
-		AssetPathEtcdPeerKey,
-	}, assets)
-	if err != nil {
-		return nil, err
-	}
-	res = append(res, Asset{Name: AssetPathEtcdPeerSecret, Data: secretYAML})
-
-	secretYAML, err = secretFromAssets(SecretEtcdServer, secretNamespace, []string{
-		AssetPathEtcdServerCA,
-		AssetPathEtcdServerCert,
-		AssetPathEtcdServerKey,
-	}, assets)
-	if err != nil {
-		return nil, err
-	}
-	res = append(res, Asset{Name: AssetPathEtcdServerSecret, Data: secretYAML})
-
-	secretYAML, err = secretFromAssets(SecretEtcdClient, secretNamespace, []string{
-		AssetPathEtcdClientCA,
-		AssetPathEtcdClientCert,
-		AssetPathEtcdClientKey,
-	}, assets)
-	if err != nil {
-		return nil, err
-	}
-	res = append(res, Asset{Name: AssetPathEtcdClientSecret, Data: secretYAML})
-
-	return res, nil
 }
 
 func newAPIServerSecretAsset(assets Assets, etcdUseTLS bool) (Asset, error) {
