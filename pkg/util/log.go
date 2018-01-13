@@ -22,7 +22,7 @@ func (writer GlogWriter) Write(data []byte) (n int, err error) {
 
 func InitLogs() {
 	log.SetOutput(GlogWriter{})
-	log.SetFlags(0)
+	log.SetFlags(log.LUTC | log.Ldate | log.Ltime)
 	flushFreq := 5 * time.Second
 	go wait.Until(glog.Flush, flushFreq, wait.NeverStop)
 }
