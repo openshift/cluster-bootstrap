@@ -6,6 +6,7 @@ LOCAL_OS:=$(shell uname | tr A-Z a-z)
 GOFILES:=$(shell find . -name '*.go' | grep -v -E '(./vendor)')
 GOPATH_BIN:=$(shell echo ${GOPATH} | awk 'BEGIN { FS = ":" }; { print $1 }')/bin
 LDFLAGS=-X github.com/kubernetes-incubator/bootkube/pkg/version.Version=$(shell $(CURDIR)/build/git-version.sh)
+GOFLAGS?=-v -i
 
 all: \
 	_output/bin/$(LOCAL_OS)/bootkube \
