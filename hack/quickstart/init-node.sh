@@ -59,9 +59,7 @@ if [ "${REMOTE_HOST}" != "local" ]; then
     ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "rm /home/${REMOTE_USER}/{init-node.sh,kubeconfig}"
 
     echo
-    echo "Node bootstrap complete. It may take a few minutes for the node to become ready. Access your kubernetes cluster using:"
-    echo "kubectl --kubeconfig=${KUBECONFIG} get nodes"
-    echo
+    echo "Node (${REMOTE_HOST}) bootstrap complete. It may take a few minutes for the node to become ready."
 
 # Execute this script locally on the machine, assumes a kubelet.service file has already been placed on host.
 elif [ "$1" == "local" ]; then
