@@ -31,3 +31,6 @@ for IP in $MASTER_IPS
 do
   TAG_MASTER=true ./init-node.sh $IP cluster/auth/kubeconfig-kubelet
 done
+
+echo "Cluster bootstrap is complete. Access your kubernetes cluster using:"
+echo "kubectl --kubeconfig=cluster/auth/kubeconfig get nodes"
