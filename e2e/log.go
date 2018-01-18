@@ -7,7 +7,7 @@ import (
 
 	"fmt"
 
-	collector "github.com/coreos/ktestutil/log-collector"
+	collector "github.com/kubernetes-incubator/bootkube/e2e/internal/e2eutil/log-collector"
 )
 
 var cr *collector.Collector

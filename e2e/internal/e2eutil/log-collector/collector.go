@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/coreos/ktestutil/log-collector/pkg/fluentd"
-	"github.com/coreos/ktestutil/log-collector/pkg/local"
-	"github.com/coreos/ktestutil/log-collector/pkg/s3"
+	"github.com/kubernetes-incubator/bootkube/e2e/internal/e2eutil/log-collector/pkg/fluentd"
+	"github.com/kubernetes-incubator/bootkube/e2e/internal/e2eutil/log-collector/pkg/local"
+	"github.com/kubernetes-incubator/bootkube/e2e/internal/e2eutil/log-collector/pkg/s3"
 
 	"k8s.io/client-go/kubernetes"
 )

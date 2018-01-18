@@ -1,5 +1,5 @@
-hash: 8101910d30b14ec13e4e48613c0937623d4fad6ae6f4ae9eb6a968bfdb6d12ed
-updated: 2018-01-12T11:45:15.555787-06:00
+hash: a874f27a34664d14826b58c1fce0161b5fb2d8247269028efbbb716166f5f2c9
+updated: 2018-01-17T18:01:03.112179327-06:00
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -25,21 +25,13 @@ imports:
   - aws/request
   - aws/session
   - aws/signer/v4
+  - internal/shareddefaults
   - private/protocol
-  - private/protocol/ec2query
-  - private/protocol/json/jsonutil
-  - private/protocol/jsonrpc
   - private/protocol/query
   - private/protocol/query/queryutil
   - private/protocol/rest
   - private/protocol/restxml
   - private/protocol/xml/xmlutil
-  - private/waiter
-  - service/autoscaling
-  - service/ec2
-  - service/ecr
-  - service/elb
-  - service/route53
   - service/s3
   - service/s3/s3iface
   - service/s3/s3manager
@@ -70,15 +62,6 @@ imports:
   version: 257d52fbcb28f473cfa0df33c646de988c0cff2d
   subpackages:
   - pkg/spec
-- name: github.com/coreos/ktestutil
-  version: 47edf51e9cdb1955e93e56e6c84ed944fdda4789
-  subpackages:
-  - log-collector
-  - log-collector/pkg/fluentd
-  - log-collector/pkg/local
-  - log-collector/pkg/s3
-  - testworkload
-  - utils
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
@@ -129,7 +112,7 @@ imports:
 - name: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
 - name: github.com/go-ini/ini
-  version: 2e44421e256d82ebbf3d4d4fcabe8930b905eff3
+  version: 300e940a926eb277d3901b20bdfcc54928ad3642
 - name: github.com/go-openapi/analysis
   version: b44dc874b601d9e4e2f6e19140e794ba24bead3b
 - name: github.com/go-openapi/jsonpointer
@@ -281,6 +264,10 @@ imports:
   - unicode/bidi
   - unicode/norm
   - width
+- name: golang.org/x/time
+  version: a4bde12657593d5e90d0533a3e4fd95e635124cb
+  subpackages:
+  - rate
 - name: google.golang.org/appengine
   version: 12d5545dc1cfa6047a286d5e853841b6471f4c19
   subpackages:
