@@ -127,9 +127,14 @@ func testCheckpointerUnscheduleCheckpointer(t *testing.T) {
 	if err := verifyPod(c, "test-nginx", true); err != nil {
 		t.Fatalf("Failed to verifyPod: %s", err)
 	}
-	if err := verifyCheckpoint(c, testNS, "test-checkpointer", false, false); err != nil {
-		t.Fatalf("Failed to verifyCheckpoint: %s", err)
-	}
+
+	// Currently disabled due to e2e testing flakes. See:
+	// * https://github.com/kubernetes-incubator/bootkube/issues/816
+	// * https://github.com/kubernetes-incubator/bootkube/pull/836
+	// if err := verifyCheckpoint(c, testNS, "test-checkpointer", false, false); err != nil {
+	//   t.Fatalf("Failed to verifyCheckpoint: %s", err)
+	// }
+
 	if err := verifyCheckpoint(c, testNS, "test-nginx", false, false); err != nil {
 		t.Fatalf("Failed to verifyCheckpoint: %s", err)
 	}
