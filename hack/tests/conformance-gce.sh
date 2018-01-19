@@ -94,7 +94,7 @@ if [ "${IN_CONTAINER}" == true ]; then
     init
     add_master
     add_workers
-    KUBECONFIG=/etc/kubernetes/kubeconfig WORKER_COUNT=${WORKER_COUNT} /build/bootkube/hack/tests/conformance-test.sh ${MASTER_IP} 22 /root/.ssh/id_rsa
+    KUBECONFIG=/etc/kubernetes/kubeconfig-admin WORKER_COUNT=${WORKER_COUNT} /build/bootkube/hack/tests/conformance-test.sh ${MASTER_IP} 22 /root/.ssh/id_rsa
 else
     BUILD_ROOT=${BUILD_ROOT:-}
     if [ -z "$BUILD_ROOT" ]; then

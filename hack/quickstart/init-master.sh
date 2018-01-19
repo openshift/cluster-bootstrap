@@ -75,6 +75,7 @@ function init_master_node() {
     chown -R ${REMOTE_USER}:${REMOTE_USER} /home/${REMOTE_USER}/assets
     mkdir -p /etc/kubernetes
     cp /home/${REMOTE_USER}/assets/auth/kubeconfig-kubelet /etc/kubernetes/kubeconfig
+    cp /home/${REMOTE_USER}/assets/auth/kubeconfig /etc/kubernetes/kubeconfig-admin
     cp /home/${REMOTE_USER}/assets/tls/ca.crt /etc/kubernetes/ca.crt
 
     # Start etcd.
