@@ -9,7 +9,6 @@ var DefaultImages = ImageVersions{
 	Calico:          "quay.io/calico/node:v2.6.4",
 	CalicoCNI:       "quay.io/calico/cni:v1.11.2",
 	Hyperkube:       "gcr.io/google_containers/hyperkube:v1.9.2",
-	Kenc:            "quay.io/coreos/kenc:0.0.2",
 	KubeDNS:         "gcr.io/google_containers/k8s-dns-kube-dns-amd64:1.14.5",
 	KubeDNSMasq:     "gcr.io/google_containers/k8s-dns-dnsmasq-nanny-amd64:1.14.5",
 	KubeDNSSidecar:  "gcr.io/google_containers/k8s-dns-sidecar-amd64:1.14.5",
