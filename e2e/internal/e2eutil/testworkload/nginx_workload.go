@@ -118,28 +118,6 @@ func NewNginx(kc kubernetes.Interface, namespace string, options ...NginxOpts) (
 	return n, nil
 }
 
-// WithNginxSelector adds custom labels for Deployment's Selector field.
-// Affects only Deployment pods.
-func WithNginxSelector(labels map[string]string) NginxOpts {
-	return func(n *Nginx) error {
-		for k, v := range labels {
-			n.podSelector.MatchLabels[k] = v
-		}
-		return nil
-	}
-}
-
-// WithNginxNodeSelector adds custom labels for Pod's NodeSelector field
-// Affects only Deployment's pods.
-func WithNginxNodeSelector(labels map[string]string) NginxOpts {
-	return func(n *Nginx) error {
-		for k, v := range labels {
-			n.nodeSelector.MatchLabels[k] = v
-		}
-		return nil
-	}
-}
-
 // WithNginxPingJobLabels adds custom labels for PinJob's pods.
 // Affects only PingJob's pods.
 func WithNginxPingJobLabels(labels map[string]string) NginxOpts {
