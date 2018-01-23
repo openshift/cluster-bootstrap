@@ -83,7 +83,9 @@ ConfigMaps are stored using a path of:
 
 The pod checkpoint will also checkpoint itself to the disk to handle the absence of the API server.
 After a node reboot, the on-disk pod-checkpointer will take over the responsibility.
-Once it reaches the API server and finds out that it's no longer being scheduled, it will clean up itself.
+
+If the pod checkpointer reaches the API server and finds out that it's no longer being scheduled,
+it will remove all on-disk checkpoints before cleaning itself up.
 
 ### RBAC Requirements
 
