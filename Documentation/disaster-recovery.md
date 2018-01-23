@@ -84,8 +84,6 @@ to allow the self-hosted control plane to recover itself.
 For complete recovery examples see the
 [hack/multi-node/bootkube-test-recovery](https://github.com/kubernetes-incubator/bootkube/blob/master/hack/multi-node/bootkube-test-recovery)
 and
-[hack/multi-node/bootkube-test-recovery-self-hosted-etcd](https://github.com/kubernetes-incubator/bootkube/blob/master/hack/multi-node/bootkube-test-recovery-self-hosted-etcd)
-scripts. The `bootkube-test-recovery` script is demoed below.
 
 [![asciicast](https://asciinema.org/a/dsp43ziuuzwcztni94y8l25s5.png)](https://asciinema.org/a/dsp43ziuuzwcztni94y8l25s5)
 
@@ -100,7 +98,7 @@ bootkube recover --recovery-dir=recovered --kubeconfig=/etc/kubernetes/kubeconfi
 ```
 ### If an external etcd cluster is still running
 
-If using an external (non-self-hosted) etcd cluster, the control plane can be
+If using an external etcd cluster, the control plane can be
 extracted directly from etcd:
 
 ```
@@ -111,15 +109,3 @@ bootkube recover --recovery-dir=recovered --etcd-servers=http://127.0.0.1:2379 -
 
 First, recover the external etcd cluster from the backup. Then use the method
 described in the previous section to recover the control plane manifests.
-
-### If an etcd backup is available (self-hosted etcd)
-
-If using self-hosted etcd, recovery is supported via reading from an etcd
-backup file:
-
-```
-bootkube recover --recovery-dir=recovered --etcd-backup-file=backup --kubeconfig=/etc/kubernetes/kubeconfig
-```
-
-In addition to rebooting the control plane, this will also destroy and recreate
-the self-hosted etcd cluster using the backup.
