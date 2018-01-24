@@ -8,7 +8,6 @@ import (
 
 	"github.com/kubernetes-incubator/bootkube/e2e/internal/e2eutil/log-collector/pkg/fluentd"
 	"github.com/kubernetes-incubator/bootkube/e2e/internal/e2eutil/log-collector/pkg/local"
-	"github.com/kubernetes-incubator/bootkube/e2e/internal/e2eutil/log-collector/pkg/s3"
 
 	"k8s.io/client-go/kubernetes"
 )
@@ -68,23 +67,6 @@ func (cr *Collector) SetOutputToLocal(dstDir string) error {
 	}
 
 	cr.Output = l
-	return nil
-}
-
-// SetOutputToS3 sets the Collector output to S3 bucket, given proper credentials.
-func (cr *Collector) SetOutputToS3(keyId, keySecret, region, bucketName, bucketPrefix string) error {
-	s3, err := s3.New(&s3.Config{
-		AccessKeyId:     keyId,
-		AccessKeySecret: keySecret,
-		BucketName:      bucketName,
-		BucketPrefix:    bucketPrefix,
-		Region:          region,
-	})
-	if err != nil {
-		return err
-	}
-
-	cr.Output = s3
 	return nil
 }
 
