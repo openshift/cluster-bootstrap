@@ -898,8 +898,8 @@ spec:
         args:
         - --v=2
         - --logtostderr
-        - --probe=kubedns,127.0.0.1:10053,kubernetes.default.svc.cluster.local,5,A
-        - --probe=dnsmasq,127.0.0.1:53,kubernetes.default.svc.cluster.local,5,A
+        - --probe=kubedns,127.0.0.1:10053,kubernetes.default.svc.cluster.local,5,SRV
+        - --probe=dnsmasq,127.0.0.1:53,kubernetes.default.svc.cluster.local,5,SRV
         ports:
         - containerPort: 10054
           name: metrics
