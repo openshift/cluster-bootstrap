@@ -8,3 +8,8 @@ hack/*/ssh_config
 hack/*/.terraform*
 hack/*/terraform.tfstate*
 hack/*/terraform.tfvars
+
+# e2e tests touch these
+hack/terraform-quickstart/terraform
+hack/terraform*tar.gz
+e2e/logs
