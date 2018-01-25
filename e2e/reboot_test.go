@@ -97,12 +97,12 @@ func controlPlaneReady(c kubernetes.Interface, attempts int, backoff time.Durati
 		// list of pods that are checkpoint pods, not the real pods.
 		var (
 			waitablePods []string
-			regularPods    []string
+			regularPods  []string
 		)
-		
+
 		// only wait on Pods that have lack a parent, or have a non-runnning parent
 		for _, pod := range pods.Items {
-			if checkpointedPodName, ok := pod.Annotations[checkpointAnnotation]; ok {				
+			if checkpointedPodName, ok := pod.Annotations[checkpointAnnotation]; ok {
 				foundParent := false
 				for _, possibleParentPod := range pods.Items {
 					if possibleParentPod.Name == checkpointedPodName {
