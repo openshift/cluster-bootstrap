@@ -47,10 +47,41 @@ In the event of partial or total self-hosted control plane loss, `bootkube
 recover` may be able to assist in re-bootstrapping the self-hosted control
 plane.
 
-The `bootkube recover` subcommand does not recover a cluster directly. Instead,
-it extracts the control plane configuration from an available source and
-renders manifests in a format that `bootkube start` can use invoked to reboot
-the cluster.
+The `bootkube recover` subcommand does not recover a cluster directly. The
+recovery is a two step process: `bootkube recover` then `bootkube start`. The
+recovery command extracts the control plane configuration from an available
+source and renders manifests to the local filesystem. These resulting manifests
+can be passed to `bootkube start`.
+
+There are two available sources to choose from in `recover`: etcd or API server.
+
+### What does bootkube recover do?
+
+`bootkube recover`attempts to read the configuration from an existing backend etcd or
+API server. On success, `bootkube recover` writes manifests for a modified
+bootstrap control plane to a directory. The second phase of the recover can be
+initiated by an administrator by running `bootkube start` on these manifests.
+
+`bootkube recover` modifies bootstrap pod specs in the following ways:
+
+* Ensure the pod runs as root
+* Ensure the container runs as root
+* Change Secret volume mounts to point to file mounts
+* Change ConfigMaps volume mounts to point to file mounts
+* Ensures the commandline of the containers contains --kubeconfig=/kubeconfig/kubeconfig
+* Add a mount for the kubeconfig
+
+Assets include:
+
+* Bootstrap Daemonsets
+* Bootstrap Deployments
+* Required ConfigMaps
+* Required Secrets
+
+By running `bootkube start` to recover the cluster, `bootkube start` will
+automatically tear down the recovery control plane.
+
+### bootkube recover usage
 
 For best results always use the latest Bootkube release when using `recover`,
 regardless of which release was used to create the cluster. To see available
