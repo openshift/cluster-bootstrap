@@ -16,6 +16,27 @@ function usage() {
     exit 1
 }
 
+function retry_cmd() {
+    set +e
+    max_retries=$1; shift
+    backoff=1
+    retry=0
+    false
+    while [ $? -ne 0 ]; do
+        if [ "$retry" -ge $max_retries ]; then
+            break
+        else
+            retry=$((retry+1))
+        fi
+        "$@" || (sleep $((backoff *= 2)); false)
+    done
+    set -e
+}
+
+function wait_for_ssh() {
+    retry_cmd 100 ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "uname -a"
+}
+
 function configure_etcd() {
     [ -f "/etc/systemd/system/etcd-member.service.d/10-etcd-member.conf" ] || {
         mkdir -p /etc/etcd/tls
@@ -96,6 +117,10 @@ function init_master_node() {
 # This script can execute on a remote host by copying itself + bootkube binary + kubelet service unit to remote host.
 # After assets are available on the remote host, the script will execute itself in "local" mode.
 if [ "${REMOTE_HOST}" != "local" ]; then
+
+    # wait for ssh to be ready
+    wait_for_ssh
+
     # Set up the kubelet.service on remote host
     scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} kubelet.master ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/kubelet.master
     ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "sudo mv /home/${REMOTE_USER}/kubelet.master /etc/systemd/system/kubelet.service"
