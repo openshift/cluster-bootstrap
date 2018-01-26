@@ -28,7 +28,7 @@ release: \
 	_output/release/bootkube.tar.gz \
 
 check:
-	@find . -name vendor -prune -o -name '*.go' -exec gofmt -s -d {} +
+	@gofmt -l -s $(GOFILES) | read; if [ $$? == 0 ]; then gofmt -s -d $(GOFILES); exit 1; fi
 	@go vet $(shell go list ./... | grep -v '/vendor/')
 	@go test -v $(shell go list ./... | grep -v '/vendor/\|/e2e')
 
