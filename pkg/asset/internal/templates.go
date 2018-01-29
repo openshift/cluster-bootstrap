@@ -684,9 +684,10 @@ spec:
       hostNetwork: true
       serviceAccountName: kube-proxy
       tolerations:
-      - key: node-role.kubernetes.io/master
+      - effect: NoSchedule
         operator: Exists
-        effect: NoSchedule
+      - effect: NoExecute
+        operator: Exists
       volumes:
       - name: lib-modules
         hostPath:
@@ -1143,9 +1144,10 @@ spec:
           mountPath: /host/opt/cni/bin/
       hostNetwork: true
       tolerations:
-      - key: node-role.kubernetes.io/master
+      - effect: NoSchedule
         operator: Exists
-        effect: NoSchedule
+      - effect: NoExecute
+        operator: Exists
       volumes:
         - name: run
           hostPath:
@@ -1224,9 +1226,10 @@ spec:
       hostNetwork: true
       serviceAccountName: calico-node
       tolerations:
-        # Allow the pod to run on master nodes
-        - key: node-role.kubernetes.io/master
-          effect: NoSchedule
+        - effect: NoSchedule
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
       containers:
         - name: calico-node
           image: {{ .Images.Calico }}
@@ -1348,8 +1351,10 @@ spec:
       hostNetwork: true
       serviceAccountName: calico-node
       tolerations:
-        - key: node-role.kubernetes.io/master
-          effect: NoSchedule
+        - effect: NoSchedule
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
       containers:
         - name: calico-node
           image: {{ .Images.Calico }}
