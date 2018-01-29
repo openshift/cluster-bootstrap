@@ -1045,7 +1045,54 @@ spec:
   dnsPolicy: ClusterFirstWithHostNet
 `)
 
-var KubeFlannelCfgTemplate = []byte(`apiVersion: v1
+var FlannelClusterRole = []byte(`apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: flannel
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - nodes/status
+    verbs:
+      - patch
+`)
+
+var FlannelClusterRoleBinding = []byte(`apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: flannel
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: flannel
+subjects:
+- kind: ServiceAccount
+  name: flannel
+  namespace: kube-system
+`)
+
+var FlannelServiceAccount = []byte(`apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: flannel
+  namespace: kube-system
+`)
+
+var FlannelCfgTemplate = []byte(`apiVersion: v1
 kind: ConfigMap
 metadata:
   name: kube-flannel-cfg
@@ -1083,7 +1130,7 @@ data:
     }
 `)
 
-var KubeFlannelTemplate = []byte(`apiVersion: apps/v1beta2
+var FlannelTemplate = []byte(`apiVersion: apps/v1beta2
 kind: DaemonSet
 metadata:
   name: kube-flannel
@@ -1102,6 +1149,7 @@ spec:
         tier: node
         k8s-app: flannel
     spec:
+      serviceAccountName: flannel
       containers:
       - name: kube-flannel
         image: {{ .Images.Flannel }}
