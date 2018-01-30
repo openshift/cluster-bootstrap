@@ -2,6 +2,7 @@ export GO15VENDOREXPERIMENT:=1
 export CGO_ENABLED:=0
 export GOARCH:=amd64
 
+SHELL:=$(shell which bash)
 LOCAL_OS:=$(shell uname | tr A-Z a-z)
 GOFILES:=$(shell find . -name '*.go' | grep -v -E '(./vendor)')
 GOPATH_BIN:=$(shell echo ${GOPATH} | awk 'BEGIN { FS = ":" }; { print $1 }')/bin
