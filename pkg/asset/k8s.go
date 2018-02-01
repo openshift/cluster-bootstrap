@@ -70,8 +70,11 @@ func newDynamicAssets(conf Config) Assets {
 	switch conf.NetworkProvider {
 	case NetworkFlannel:
 		assets = append(assets,
-			MustCreateAssetFromTemplate(AssetPathKubeFlannelCfg, internal.KubeFlannelCfgTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathKubeFlannel, internal.KubeFlannelTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathFlannel, internal.FlannelTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathFlannelCfg, internal.FlannelCfgTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathFlannelClusterRole, internal.FlannelClusterRole, conf),
+			MustCreateAssetFromTemplate(AssetPathFlannelClusterRoleBinding, internal.FlannelClusterRoleBinding, conf),
+			MustCreateAssetFromTemplate(AssetPathFlannelSA, internal.FlannelServiceAccount, conf),
 		)
 	case NetworkCalico:
 		assets = append(assets,
