@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# dependencies
+#   jq
+#   docker
+#   journalctl
+
+set -euo pipefail
+
+LOGS_DIR=${LOGS_DIR:-logs}
+
+rm -rf ${LOGS_DIR} && mkdir -p ${LOGS_DIR}
+
+echo Capturing Docker Logs
+for CID in $( docker ps -a -q ); do
+  if [ "$( docker inspect $CID | jq '.[0].Path' )" == "\"/pause\"" ]; then
+    # Ignore pause pods
+    continue
+  fi
+
+  NAME=$( docker inspect $CID | jq '.[0].Name' -r | sed 's/^\/k8s_//g' )
+  FILENAME=${LOGS_DIR}/${HOSTNAME}-container-$NAME.log
+  echo "Generating Log for ${NAME} at ${FILENAME}"
+  docker logs -t $CID > $FILENAME 2>&1 || true
+done
+
+echo Capturing Systemd Logs
+for UNIT in kubelet docker; do
+    journalctl -o short-iso --no-hostname -u $UNIT \
+        > "${LOGS_DIR}/${HOSTNAME}-service-$UNIT.log"
+done
+
+echo DONE

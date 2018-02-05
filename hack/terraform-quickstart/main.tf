@@ -2,6 +2,7 @@ provider "aws" {
   access_key = "${var.access_key_id}"
   secret_key = "${var.access_key}"
   region     = "${var.region}"
+  version    = "1.8"
 }
 
 resource "aws_instance" "bootstrap_node" {
@@ -22,6 +23,27 @@ resource "aws_instance" "bootstrap_node" {
   root_block_device {
     volume_type = "gp2"
     volume_size = "30"
+  }
+
+  provisioner "file" {
+    source = "environment_${var.environment}.txt"
+    destination = "/tmp/environment"
+
+    connection {
+      user = "core"
+    }
+  }
+
+  provisioner "remote-exec" {
+    # coreos manages /etc/environment, so append to the file
+    inline = [
+      "sudo bash -c 'cat /tmp/environment >> /etc/environment'",
+      "sudo rm -f /tmp/environment"
+    ]
+
+    connection {
+      user = "core"
+    }
   }
 }
 
@@ -45,6 +67,27 @@ resource "aws_instance" "worker_node" {
     volume_type = "gp2"
     volume_size = "30"
   }
+
+  provisioner "file" {
+    source = "environment_${var.environment}.txt"
+    destination = "/tmp/environment"
+
+    connection {
+      user = "core"
+    }
+  }
+
+  provisioner "remote-exec" {
+    # coreos manages /etc/environment, so append to the file
+    inline = [
+      "sudo bash -c 'cat /tmp/environment >> /etc/environment'",
+      "sudo rm -f /tmp/environment"
+    ]
+
+    connection {
+      user = "core"
+    }
+  }
 }
 
 resource "aws_instance" "master_node" {
@@ -66,6 +109,27 @@ resource "aws_instance" "master_node" {
   root_block_device {
     volume_type = "gp2"
     volume_size = "30"
+  }
+
+  provisioner "file" {
+    source = "environment_${var.environment}.txt"
+    destination = "/tmp/environment"
+
+    connection {
+      user = "core"
+    }
+  }
+
+  provisioner "remote-exec" {
+    # coreos manages /etc/environment, so append to the file
+    inline = [
+      "sudo bash -c 'cat /tmp/environment >> /etc/environment'",
+      "sudo rm -f /tmp/environment"
+    ]
+
+    connection {
+      user = "core"
+    }
   }
 }
 

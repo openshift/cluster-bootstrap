@@ -16,6 +16,7 @@ KUBECONFIG_PATH = File.expand_path("cluster/auth/kubeconfig-kubelet")
 CA_CERT_PATH = File.expand_path("cluster/tls/ca.crt")
 ETCD_CLI_CERT_GLOB = File.expand_path("cluster/tls/etcd-*")
 ETCD_CERT_GLOB = File.expand_path("cluster/tls/etcd/*")
+GATHER_LOGS_PATH=File.expand_path("../scripts/gatherlogs")
 
 Vagrant.configure("2") do |config|
   # always use Vagrant's insecure key
@@ -76,4 +77,6 @@ Vagrant.configure("2") do |config|
   end
   config.vm.provision :shell, :inline => "chown -R etcd:etcd /etc/etcd", :privileged => true
   config.vm.provision :shell, :inline => "chmod -R u=rX,g=,o= /etc/etcd", :privileged => true
+
+  config.vm.provision :file, :source => GATHER_LOGS_PATH, :destination => "/tmp/gatherlogs"
 end

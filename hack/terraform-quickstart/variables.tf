@@ -45,3 +45,9 @@ variable "region" {
   type        = "string"
   default     = "us-east-1"
 }
+
+variable "environment" {
+  description = "environment flavor to push to instances"
+  type        = "string"
+  default     = "default"
+}

@@ -35,7 +35,6 @@ func TestMain(m *testing.M) {
 	var kubeconfig = flag.String("kubeconfig", "../hack/quickstart/cluster/auth/kubeconfig", "absolute path to the kubeconfig file")
 	var keypath = flag.String("keypath", "", "path to private key for ssh client")
 	flag.IntVar(&expectedMasters, "expectedmasters", 1, "hint needed for certain tests to fail, skip, or block on missing resources")
-	var logOuputDir = flag.String("log-output-dir", "./logs", "logs from the tests will be populated in this directory")
 
 	flag.Parse()
 
@@ -65,26 +64,8 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	// start log-collector
-	// don't panic if it fails
-	if err := startLogging(*keypath, *logOuputDir); err != nil {
-		fmt.Println(err)
-	}
-
 	// run tests
 	exitCode := m.Run()
-
-	// cleanup log-collector assests
-	// don't panic if it fails
-	if err := cleanUpLogging(); err != nil {
-		fmt.Println(err)
-	}
-
-	// Collect all logs
-	// don't panic if it fails
-	if err := collectLogs(); err != nil {
-		fmt.Println(err)
-	}
 
 	if err := deleteNamespace(client, namespace); err != nil {
 		fmt.Println(err)
