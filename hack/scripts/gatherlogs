@@ -20,8 +20,9 @@ for CID in $( docker ps -a -q ); do
 
   NAME=$( docker inspect $CID | jq '.[0].Name' -r | sed 's/^\/k8s_//g' )
   FILENAME=${LOGS_DIR}/${HOSTNAME}-container-$NAME.log
+  mkdir -p $(dirname $FILENAME)
   echo "Generating Log for ${NAME} at ${FILENAME}"
-  docker logs -t $CID > $FILENAME 2>&1 || true
+  docker logs -t $CID &> $FILENAME || true
 done
 
 echo Capturing Systemd Logs
