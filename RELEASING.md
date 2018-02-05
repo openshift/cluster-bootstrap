@@ -40,10 +40,12 @@ For some past discussions related to these topics, see:
 
 ### Updating Kubernetes vendor code
 
-Vendoring currently relies on the [glide](https://github.com/Masterminds/glide) and [glide-vc](https://github.com/sgotti/glide-vc) tools.
+Vendoring currently relies on the [dep](https://github.com/golang/dep) tool. 
 
-- Update pinned versions in `glide.yaml`
+- Update pinned versions in `Gopkg.toml`
 - Run `make vendor`
+
+Note that we require all dependencies be recorded `Gopkg.toml`, even transitive dependencies.
 
 ### Updating hyperkube image / Kubernetes version
 
