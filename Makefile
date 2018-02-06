@@ -31,6 +31,7 @@ release: \
 check:
 	@gofmt -l -s $(GOFILES) | read; if [ $$? == 0 ]; then gofmt -s -d $(GOFILES); exit 1; fi
 	@go vet $(shell go list ./... | grep -v '/vendor/')
+	@./scripts/verify-gopkg.sh
 	@go test -v $(shell go list ./... | grep -v '/vendor/\|/e2e')
 
 install: _output/bin/$(LOCAL_OS)/bootkube
@@ -68,10 +69,9 @@ conformance-%: clean all
 	@cd hack/$*-node && ./conformance-test.sh
 
 vendor:
-	@glide update --strip-vendor
-	@glide-vc
-	@CGO_ENABLED=1 go get github.com/coreos/license-bill-of-materials
-	@license-bill-of-materials ./cmd/bootkube ./cmd/checkpoint > bill-of-materials.json
+	@dep ensure
+	@CGO_ENABLED=1 go build -o _output/bin/license-bill-of-materials ./vendor/github.com/coreos/license-bill-of-materials
+	@./_output/bin/license-bill-of-materials ./cmd/bootkube ./cmd/checkpoint > bill-of-materials.json
 
 clean:
 	rm -rf _output
