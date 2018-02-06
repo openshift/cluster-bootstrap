@@ -12,5 +12,5 @@ export SSH_OPTS=${SSH_OPTS:-}" -o UserKnownHostsFile=/dev/null -o StrictHostKeyC
 IPS="$WORKER_IPS $MASTER_IPS $BOOTSTRAP_IP"
 for IP in $IPS; do
   echo Generating Log for $IP
-  ssh -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${IP} 'bash -s' < ../scripts/gatherlogs
+  ssh -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${IP} 'bash -s' < ../scripts/gatherlogs || true
 done

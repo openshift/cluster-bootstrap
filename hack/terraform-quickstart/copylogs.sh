@@ -9,8 +9,23 @@ export SSH_OPTS=${SSH_OPTS:-}" -o UserKnownHostsFile=/dev/null -o StrictHostKeyC
 
 cd ../quickstart
 
-IPS="$WORKER_IPS $MASTER_IPS $BOOTSTRAP_IP"
-for IP in $IPS; do
-  echo Copying Log for $IP
-  ./copylogs.sh $IP
+count=0
+for IP in $WORKER_IPS; do
+  echo Copying Log for worker $IP
+  ./copylogs.sh $IP worker-$count
+  count=$((count+1))
+done
+
+count=0
+for IP in $MASTER_IPS; do
+  echo Copying Log for master $IP
+  ./copylogs.sh $IP master-$count
+  count=$((count+1))
+done
+
+count=0
+for IP in $BOOTSTRAP_IP; do
+  echo Copying Log for master $IP
+  ./copylogs.sh $IP bootstrap-$count
+  count=$((count+1))
 done
