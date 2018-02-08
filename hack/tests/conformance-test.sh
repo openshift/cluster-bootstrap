@@ -44,5 +44,5 @@ CONFORMANCE="\
  KUBECONFIG=/kubeconfig KUBERNETES_CONFORMANCE_TEST=Y go run hack/e2e.go \
  -- -v --test --check-version-skew=false --provider=skeleton --test_args='--ginkgo.focus=\[Conformance\]'"
 
-CMD="sudo rkt run --insecure-options=image ${RKT_OPTS} docker://golang:1.9.2 --exec /bin/bash -- -c \"${INIT} && ${BUILD} && ${CONFORMANCE}\""
+CMD="sudo rkt run --insecure-options=image ${RKT_OPTS} docker://golang:1.9.4 --exec /bin/bash -- -c \"${INIT} && ${BUILD} && ${CONFORMANCE}\""
 ssh -q  -o UserKnownHostsFile=/dev/null -o stricthostkeychecking=no -i ${ssh_key} -p ${ssh_port} core@${ssh_host} "${CMD}"
