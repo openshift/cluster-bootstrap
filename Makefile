@@ -1,6 +1,7 @@
 export GO15VENDOREXPERIMENT:=1
 export CGO_ENABLED:=0
 export GOARCH:=amd64
+export PATH:=$(PATH):$(PWD)
 
 SHELL:=$(shell which bash)
 LOCAL_OS:=$(shell uname | tr A-Z a-z)
@@ -30,6 +31,7 @@ release: \
 
 check:
 	@gofmt -l -s $(GOFILES) | read; if [ $$? == 0 ]; then gofmt -s -d $(GOFILES); exit 1; fi
+	@terraform fmt -check ; if [ ! $$? -eq 0 ]; then exit 1; fi
 	@go vet $(shell go list ./... | grep -v '/vendor/')
 	@./scripts/verify-gopkg.sh
 	@go test -v $(shell go list ./... | grep -v '/vendor/\|/e2e')

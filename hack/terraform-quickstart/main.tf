@@ -26,7 +26,7 @@ resource "aws_instance" "bootstrap_node" {
   }
 
   provisioner "file" {
-    source = "environment_${var.environment}.txt"
+    source      = "environment_${var.environment}.txt"
     destination = "/tmp/environment"
 
     connection {
@@ -38,7 +38,7 @@ resource "aws_instance" "bootstrap_node" {
     # coreos manages /etc/environment, so append to the file
     inline = [
       "sudo bash -c 'cat /tmp/environment >> /etc/environment'",
-      "sudo rm -f /tmp/environment"
+      "sudo rm -f /tmp/environment",
     ]
 
     connection {
@@ -69,7 +69,7 @@ resource "aws_instance" "worker_node" {
   }
 
   provisioner "file" {
-    source = "environment_${var.environment}.txt"
+    source      = "environment_${var.environment}.txt"
     destination = "/tmp/environment"
 
     connection {
@@ -81,7 +81,7 @@ resource "aws_instance" "worker_node" {
     # coreos manages /etc/environment, so append to the file
     inline = [
       "sudo bash -c 'cat /tmp/environment >> /etc/environment'",
-      "sudo rm -f /tmp/environment"
+      "sudo rm -f /tmp/environment",
     ]
 
     connection {
@@ -112,7 +112,7 @@ resource "aws_instance" "master_node" {
   }
 
   provisioner "file" {
-    source = "environment_${var.environment}.txt"
+    source      = "environment_${var.environment}.txt"
     destination = "/tmp/environment"
 
     connection {
@@ -124,7 +124,7 @@ resource "aws_instance" "master_node" {
     # coreos manages /etc/environment, so append to the file
     inline = [
       "sudo bash -c 'cat /tmp/environment >> /etc/environment'",
-      "sudo rm -f /tmp/environment"
+      "sudo rm -f /tmp/environment",
     ]
 
     connection {
