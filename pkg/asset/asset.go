@@ -3,6 +3,7 @@ package asset
 import (
 	"crypto/rsa"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -210,8 +211,15 @@ func (as Assets) Get(name string) (Asset, error) {
 }
 
 func (as Assets) WriteFiles(path string) error {
-	if err := os.Mkdir(path, 0755); err != nil {
+	if err := os.MkdirAll(path, 0755); err != nil {
 		return err
+	}
+	files, err := ioutil.ReadDir(path)
+	if err != nil {
+		return err
+	}
+	if len(files) > 0 {
+		return errors.New("asset directory must be empty")
 	}
 	for _, asset := range as {
 		if err := asset.WriteFile(path); err != nil {
