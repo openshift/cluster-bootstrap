@@ -48,15 +48,7 @@ func TestDeleteAPI(t *testing.T) {
 	}
 
 	// wait until api server is back up
-	waitAPI := func() error {
-		// only checking for presence of api returning, specific function not important
-		_, err := client.Discovery().ServerVersion()
-		if err != nil {
-			return fmt.Errorf("waiting for apiserver to return: %v", err)
-		}
-		return nil
-	}
-	if err := retry(30, 10*time.Second, waitAPI); err != nil {
-		t.Fatal(err)
+	if err := controlPlaneReady(client, 120, 5*time.Second); err != nil {
+		t.Fatalf("waiting for control plane: %v", err)
 	}
 }
