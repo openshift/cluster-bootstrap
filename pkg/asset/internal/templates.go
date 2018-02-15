@@ -50,7 +50,7 @@ stringData:
 
 // CSRNodeBootstrapTemplate lets bootstrapping tokens and nodes request CSRs.
 var CSRNodeBootstrapTemplate = []byte(`kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: system-bootstrap-node-bootstrapper
 subjects:
@@ -72,7 +72,7 @@ roleRef:
 //
 // This binding should be removed to disable CSR auto-approval.
 var CSRApproverRoleBindingTemplate = []byte(`kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: system-bootstrap-approve-node-client-csr
 subjects:
@@ -93,7 +93,7 @@ roleRef:
 // names instead of targeting `system:nodes` so we can revoke invidivual
 // node's ability to renew its certs.
 var CSRRenewalRoleBindingTemplate = []byte(`kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: system-bootstrap-node-renewal
 subjects:
@@ -932,7 +932,7 @@ spec:
     protocol: TCP
 `)
 
-var FlannelClusterRole = []byte(`apiVersion: rbac.authorization.k8s.io/v1beta1
+var FlannelClusterRole = []byte(`apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: flannel
@@ -958,7 +958,7 @@ rules:
       - patch
 `)
 
-var FlannelClusterRoleBinding = []byte(`apiVersion: rbac.authorization.k8s.io/v1beta1
+var FlannelClusterRoleBinding = []byte(`apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: flannel
