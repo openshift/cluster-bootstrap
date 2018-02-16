@@ -29,14 +29,14 @@ const (
 	crdRolloutTimeout  = 2 * time.Minute
 )
 
-func CreateAssets(manifestDir string, timeout time.Duration) error {
+func CreateAssets(config clientcmd.ClientConfig, manifestDir string, timeout time.Duration) error {
 	if _, err := os.Stat(manifestDir); os.IsNotExist(err) {
 		UserOutput(fmt.Sprintf("WARNING: %v does not exist, not creating any self-hosted assets.\n", manifestDir))
 		return nil
 	}
 
 	upFn := func() (bool, error) {
-		if err := apiTest(); err != nil {
+		if err := apiTest(config); err != nil {
 			glog.Warningf("Unable to determine api-server readiness: %v", err)
 			return false, nil
 		}
@@ -44,7 +44,7 @@ func CreateAssets(manifestDir string, timeout time.Duration) error {
 	}
 
 	createFn := func() (bool, error) {
-		err := createAssets(manifestDir)
+		err := createAssets(config, manifestDir)
 		if err != nil {
 			err = fmt.Errorf("Error creating assets: %v", err)
 			glog.Error(err)
@@ -81,8 +81,8 @@ func CreateAssets(manifestDir string, timeout time.Duration) error {
 // we should consider refactoring this. The kubectl code tends to be very verbose and difficult to
 // reason about, especially as the behevior of certain functions (e.g. `Visit`) can be difficult to
 // predict with regards to error handling.
-func createAssets(manifestDir string) error {
-	f := cmdutil.NewFactory(kubeConfig)
+func createAssets(config clientcmd.ClientConfig, manifestDir string) error {
+	f := cmdutil.NewFactory(config)
 
 	shouldValidate := true
 	schema, err := f.Validator(shouldValidate, fmt.Sprintf("~/%s/%s", clientcmd.RecommendedHomeDir, clientcmd.RecommendedSchemaName))
@@ -205,8 +205,8 @@ func customResourceDefinitionKindURI(apiGroup, version, namespace, plural string
 		strings.ToLower(plural))
 }
 
-func apiTest() error {
-	config, err := kubeConfig.ClientConfig()
+func apiTest(c clientcmd.ClientConfig) error {
+	config, err := c.ClientConfig()
 	if err != nil {
 		return err
 	}

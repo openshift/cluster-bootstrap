@@ -16,14 +16,15 @@ import (
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 const (
 	doesNotExist = "DoesNotExist"
 )
 
-func WaitUntilPodsRunning(pods []string, timeout time.Duration) error {
-	sc, err := NewStatusController(pods)
+func WaitUntilPodsRunning(c clientcmd.ClientConfig, pods []string, timeout time.Duration) error {
+	sc, err := NewStatusController(c, pods)
 	if err != nil {
 		return err
 	}
@@ -44,8 +45,8 @@ type statusController struct {
 	lastPodPhases map[string]v1.PodPhase
 }
 
-func NewStatusController(pods []string) (*statusController, error) {
-	config, err := kubeConfig.ClientConfig()
+func NewStatusController(c clientcmd.ClientConfig, pods []string) (*statusController, error) {
+	config, err := c.ClientConfig()
 	if err != nil {
 		return nil, err
 	}
