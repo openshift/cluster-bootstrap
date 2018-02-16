@@ -12,8 +12,6 @@ import (
 
 const assetTimeout = 20 * time.Minute
 
-var kubeConfig clientcmd.ClientConfig
-
 var requiredPods = []string{
 	"pod-checkpointer",
 	"kube-apiserver",
@@ -41,7 +39,7 @@ func NewBootkube(config Config) (*bootkube, error) {
 func (b *bootkube) Run() error {
 	// TODO(diegs): create and share a single client rather than the kubeconfig once all uses of it
 	// are migrated to client-go.
-	kubeConfig = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		&clientcmd.ClientConfigLoadingRules{ExplicitPath: filepath.Join(b.assetDir, asset.AssetPathAdminKubeConfig)},
 		&clientcmd.ConfigOverrides{})
 
@@ -66,11 +64,11 @@ func (b *bootkube) Run() error {
 		return err
 	}
 
-	if err = CreateAssets(filepath.Join(b.assetDir, asset.AssetPathManifests), assetTimeout); err != nil {
+	if err = CreateAssets(kubeConfig, filepath.Join(b.assetDir, asset.AssetPathManifests), assetTimeout); err != nil {
 		return err
 	}
 
-	if err = WaitUntilPodsRunning(requiredPods, assetTimeout); err != nil {
+	if err = WaitUntilPodsRunning(kubeConfig, requiredPods, assetTimeout); err != nil {
 		return err
 	}
 
