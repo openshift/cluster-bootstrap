@@ -195,7 +195,10 @@ func fixUpBootstrapPods(pods []v1.Pod) (requiredConfigMaps, requiredSecrets map[
 			pod.Spec.SecurityContext.RunAsNonRoot = nil
 			pod.Spec.SecurityContext.RunAsUser = nil
 		}
-
+		// Fix hostNetwork: true because bootstrap assets can not rely on overlay networks.
+		if pod.Spec.HostNetwork == false {
+			pod.Spec.HostNetwork = true
+		}
 		// Change secret volumes to point to file mounts.
 		for i := range pod.Spec.Volumes {
 			vol := &pod.Spec.Volumes[i]
