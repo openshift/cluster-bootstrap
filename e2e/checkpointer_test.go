@@ -28,13 +28,7 @@ func TestCheckpointer(t *testing.T) {
 	t.Run("UnscheduleParent", testCheckpointerUnscheduleParent)
 }
 
-// 1. Schedule a pod checkpointer on worker node.
-// 2. Schedule a test pod on worker node.
-// 3. Reboot the worker without starting the kubelet.
-// 4. Delete the checkpointer on API server.
-// 5. Reboot the masters without starting the kubelet.
-// 6. Start the worker kubelet, verify the checkpointer and the pod are still running as static pods.
-// 7. Start the master kubelets, verify the checkpointer is removed but the pod is still running.
+// Deleting a checkpointer should cleanup any other checkpointed manifests on that node.
 func testCheckpointerUnscheduleCheckpointer(t *testing.T) {
 	// Get the cluster
 	c := waitCluster(t)
@@ -64,68 +58,18 @@ func testCheckpointerUnscheduleCheckpointer(t *testing.T) {
 		t.Fatalf("Failed to verify checkpoint: %v", err)
 	}
 
-	// Disable the kubelet and reboot the worker.
-	if stdout, stderr, err := c.Workers[0].SSH("sudo systemctl disable kubelet"); err != nil {
-		t.Fatalf("Failed to disable kubelet on worker %q: %v\nstdout: %s\nstderr: %s", c.Workers[0].Name, err, stdout, stderr)
-	}
-	if err := c.Workers[0].Reboot(); err != nil {
-		t.Fatalf("Failed to reboot worker: %v", err)
-	}
-
 	// Delete the pod checkpointer.
 	deletePropagationForeground := metav1.DeletePropagationForeground
 	if err := client.ExtensionsV1beta1().DaemonSets(testNS).Delete("test-checkpointer", &metav1.DeleteOptions{PropagationPolicy: &deletePropagationForeground}); err != nil {
 		t.Fatalf("Failed to delete checkpointer: %v", err)
 	}
 
-	// Disable the kubelet and reboot the masters.
-	var rebootGroup sync.WaitGroup
-	for i := range c.Masters {
-		rebootGroup.Add(1)
-		go func(i int) {
-			defer rebootGroup.Done()
-			if stdout, stderr, err := c.Masters[i].SSH("sudo systemctl disable kubelet"); err != nil {
-				t.Fatalf("Failed to disable kubelet on master %q: %v\nstdout: %s\nstderr: %s", c.Masters[i].Name, err, stdout, stderr)
-			}
-			if err := c.Masters[i].Reboot(); err != nil {
-				t.Fatalf("Failed to reboot master: %v", err)
-			}
-		}(i)
-	}
-	rebootGroup.Wait()
-
-	// Start the worker kubelet.
-	if stdout, stderr, err := c.Workers[0].SSH("sudo systemctl enable kubelet && sudo systemctl start kubelet"); err != nil {
-		t.Fatalf("Failed to start kubelet on worker %q: %v\nstdout: %s\nstderr: %s", c.Workers[0].Name, err, stdout, stderr)
-	}
-
-	// Verify that the checkpoints are still running.
-	if err := verifyPod(c, "test-checkpointer", true); err != nil {
-		t.Fatalf("Failed to verifyPod: %s", err)
-	}
-	if err := verifyPod(c, "test-nginx", true); err != nil {
-		t.Fatalf("Failed to verifyPod: %s", err)
-	}
-
-	// Start the master kubelet.
-	var enableGroup sync.WaitGroup
-	for i := range c.Masters {
-		enableGroup.Add(1)
-		go func(i int) {
-			defer enableGroup.Done()
-			if stdout, stderr, err := c.Masters[i].SSH("sudo systemctl enable kubelet && sudo systemctl start kubelet"); err != nil {
-				t.Fatalf("Failed to start kubelet on master %q: %v\nstdout: %s\nstderr: %s", c.Masters[i].Name, err, stdout, stderr)
-			}
-		}(i)
-	}
-	enableGroup.Wait()
-
-	// Verify that the test-checkpointer is cleaned up but the daemonset is still running.
+	// Verify that the test-checkpointer is cleaned up but the nginx daemonset is still running.
 	if err := verifyPod(c, "test-checkpointer", false); err != nil {
-		t.Fatalf("Failed to verifyPod: %s", err)
+		t.Errorf("Failed to verifyPod: %s", err)
 	}
 	if err := verifyPod(c, "test-nginx", true); err != nil {
-		t.Fatalf("Failed to verifyPod: %s", err)
+		t.Errorf("Failed to verifyPod: %s", err)
 	}
 
 	// Currently disabled due to e2e testing flakes. See:
@@ -135,8 +79,9 @@ func testCheckpointerUnscheduleCheckpointer(t *testing.T) {
 	//   t.Fatalf("Failed to verifyCheckpoint: %s", err)
 	// }
 
+	// Checkpointed manifest should be cleaned up.
 	if err := verifyCheckpoint(c, testNS, "test-nginx", false, false); err != nil {
-		t.Fatalf("Failed to verifyCheckpoint: %s", err)
+		t.Errorf("Failed to verifyCheckpoint: %s", err)
 	}
 }
 
