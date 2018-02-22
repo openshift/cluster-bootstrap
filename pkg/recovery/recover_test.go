@@ -203,6 +203,23 @@ func TestFixUpBootstrapPods(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
+			Name:      "bootstrap-kube-controller-manager",
+			Namespace: "kube-system",
+		},
+		Spec: v1.PodSpec{
+			SecurityContext: &v1.PodSecurityContext{RunAsNonRoot: boolPtr(true), RunAsUser: int64Ptr(65543)},
+			Containers: []v1.Container{{
+				Name:    "kube-controller-manager",
+				Image:   "quay.io/coreos/hyperkube:v1.6.4_coreos.0",
+				Command: []string{"/hyperkube", "controller-manager"},
+			}},
+		},
+	}, {
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      "bootstrap-kube-scheduler",
 			Namespace: "kube-system",
 		},
@@ -215,6 +232,8 @@ func TestFixUpBootstrapPods(t *testing.T) {
 			}},
 		},
 	}}
+
+	// assertions go here:
 	wantPods := []v1.Pod{{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Pod",
@@ -243,6 +262,7 @@ func TestFixUpBootstrapPods(t *testing.T) {
 					ReadOnly:  true,
 				}},
 			}},
+			HostNetwork: true,
 			Volumes: []v1.Volume{{
 				Name:         "ssl-certs-host",
 				VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/usr/share/ca-certificates"}},
@@ -253,6 +273,33 @@ func TestFixUpBootstrapPods(t *testing.T) {
 				Name:         "secrets",
 				VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/etc/kubernetes/bootstrap-secrets/secrets/kube-apiserver"}},
 			}, {
+				Name:         "kubeconfig",
+				VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/etc/kubernetes"}},
+			}},
+		},
+	}, {
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "bootstrap-kube-controller-manager",
+			Namespace: "kube-system",
+		},
+		Spec: v1.PodSpec{
+			SecurityContext: &v1.PodSecurityContext{},
+			Containers: []v1.Container{{
+				Name:    "kube-controller-manager",
+				Image:   "quay.io/coreos/hyperkube:v1.6.4_coreos.0",
+				Command: []string{"/hyperkube", "controller-manager", "--kubeconfig=/kubeconfig/kubeconfig"},
+				VolumeMounts: []v1.VolumeMount{{
+					Name:      "kubeconfig",
+					MountPath: "/kubeconfig",
+					ReadOnly:  true,
+				}},
+			}},
+			HostNetwork: true,
+			Volumes: []v1.Volume{{
 				Name:         "kubeconfig",
 				VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/etc/kubernetes"}},
 			}},
@@ -278,6 +325,7 @@ func TestFixUpBootstrapPods(t *testing.T) {
 					ReadOnly:  true,
 				}},
 			}},
+			HostNetwork: true,
 			Volumes: []v1.Volume{{
 				Name:         "kubeconfig",
 				VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/etc/kubernetes"}},
