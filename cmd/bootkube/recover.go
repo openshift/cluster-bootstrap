@@ -88,8 +88,8 @@ func validateRecoverOpts(cmd *cobra.Command, args []string) error {
 	if recoverOpts.recoveryDir == "" {
 		return errors.New("missing required flag: --recovery-dir")
 	}
-	if (recoverOpts.etcdCAPath != "" || recoverOpts.etcdCertificatePath != "" || recoverOpts.etcdPrivateKeyPath != "") && (recoverOpts.etcdCAPath == "" || recoverOpts.etcdCertificatePath == "" || recoverOpts.etcdPrivateKeyPath == "") {
-		return errors.New("you must specify either all or none of --etcd-ca-path, --etcd-certificate-path, and --etcd-private-key-path")
+	if (recoverOpts.etcdCertificatePath != "" || recoverOpts.etcdPrivateKeyPath != "") && (recoverOpts.etcdCertificatePath == "" || recoverOpts.etcdPrivateKeyPath == "") {
+		return errors.New("you must specify both --etcd-certificate-path, and --etcd-private-key-path")
 	}
 	if recoverOpts.etcdPrefix == "" {
 		return errors.New("missing required flag: --etcd-prefix")
@@ -105,12 +105,9 @@ func createEtcdClient() (*clientv3.Client, error) {
 		Endpoints:   strings.Split(recoverOpts.etcdServers, ","),
 		DialTimeout: 5 * time.Second,
 	}
+	var roots *x509.CertPool
 	if recoverOpts.etcdCAPath != "" {
-		clientCert, err := tls.LoadX509KeyPair(recoverOpts.etcdCertificatePath, recoverOpts.etcdPrivateKeyPath)
-		if err != nil {
-			return nil, err
-		}
-		roots := x509.NewCertPool()
+		roots = x509.NewCertPool()
 		etcdCA, err := ioutil.ReadFile(recoverOpts.etcdCAPath)
 		if err != nil {
 			return nil, err
@@ -118,9 +115,19 @@ func createEtcdClient() (*clientv3.Client, error) {
 		if ok := roots.AppendCertsFromPEM(etcdCA); !ok {
 			return nil, fmt.Errorf("error processing --etcd-ca-file %s", recoverOpts.etcdCAPath)
 		}
+	}
+	var certs []tls.Certificate
+	if recoverOpts.etcdCertificatePath != "" && recoverOpts.etcdPrivateKeyPath != "" {
+		clientCert, err := tls.LoadX509KeyPair(recoverOpts.etcdCertificatePath, recoverOpts.etcdPrivateKeyPath)
+		if err != nil {
+			return nil, err
+		}
+		certs = []tls.Certificate{clientCert}
+	}
+	if roots != nil || len(certs) > 0 {
 		cfg.TLS = &tls.Config{
-			Certificates: []tls.Certificate{clientCert},
 			RootCAs:      roots,
+			Certificates: certs,
 		}
 	}
 	return clientv3.New(cfg)
