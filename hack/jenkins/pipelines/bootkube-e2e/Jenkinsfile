@@ -1,0 +1,76 @@
+// Declarative Pipeline (used by `bootkube-e2e-*` jobs)
+
+pipeline {
+  agent {
+    kubernetes {
+      cloud 'kubernetes'
+      label "${JOB_NAME}-${BUILD_NUMBER}"
+      containerTemplate {
+        name 'default'
+        image 'colemickens/bootkube-e2e:1520055055'
+        ttyEnabled true
+        command 'cat'
+      }
+    }
+  }
+  options {
+    timeout(time: 1, unit: 'HOURS')
+    ansiColor('xterm')
+    timestamps()
+    skipDefaultCheckout(true)
+  }
+  environment {
+    CLUSTER_NAME="${JOB_NAME}-${BUILD_NUMBER}"
+    GOPATH = "${WORKSPACE}"
+    WORKDIR = "${WORKSPACE}/src/github.com/kubernetes-incubator/bootkube"
+    KUBECONFIG = "${WORKSPACE}/src/github.com/kubernetes-incubator/bootkube/hack/quickstart/cluster/auth/kubeconfig"
+    IDENT = "${WORKSPACE}/src/github.com/kubernetes-incubator/bootkube/hack/quickstart/cluster/auth/id_rsa"
+
+    AWS_CRED = credentials('aws')
+    ACCESS_KEY_ID = "${AWS_CRED_USR}"
+    ACCESS_KEY_SECRET = "${AWS_CRED_PSW}"
+  }
+  stages {
+    stage('checkout') {
+      steps {
+        // jnlp slave runs as "jenkins" user, use the escape hatch. (https://hub.docker.com/r/jenkins/slave/~/dockerfile/)
+        sh "chmod -R go+rw /home/jenkins"
+        dir("${WORKDIR}") {
+          checkout scm
+        }
+      }
+    }
+    stage('build') {
+      steps {
+        dir("${WORKDIR}") {
+          sh "make release"
+        }
+      }
+    }
+    stage('deploy') {
+      steps {
+        dir("${WORKDIR}") {
+          sh "./hack/jenkins/scripts/tqs-up.sh"
+        }
+      }
+    }
+    stage('e2e') {
+      steps {
+        dir("${WORKDIR}") {
+          sh "./hack/jenkins/scripts/e2e.sh"
+        }
+      }
+    }
+  }
+  post {
+    always {
+      script { // break the seal so that we can put cleanup in a stage
+        stage('cleanup') {
+          dir("${WORKDIR}") {
+            sh "./hack/jenkins/scripts/tqs-down.sh"
+          }
+        }
+      }
+    }
+  }
+}
