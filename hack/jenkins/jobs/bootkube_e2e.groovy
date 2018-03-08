@@ -1,11 +1,10 @@
 // META
-job_dir = 'bootkube'
+default_repo = "kubernetes-incubator/bootkube"
 
 // CONFIG
-fork_to_use = 'kubernetes-incubator'
+org_whitelist = ['coreos', 'coreos-inc']
 job_admins = ['colemickens', 'ericchiang', 'rithujohn191', 'rphillips']
 user_whitelist = job_admins
-org_whitelist = ['coreos', 'coreos-inc']
 
 // JOBS
 network_providers = ['flannel', 'calico']
@@ -17,6 +16,7 @@ network_providers.each { np ->
   pipelineJob(job_name) {
     parameters {
       stringParam('sha1', 'origin/master', 'git reference to build')
+      stringParam('repo', default_repo,    'git repo url to pull from')
     }
     definition {
       triggers {
@@ -46,8 +46,8 @@ network_providers.each { np ->
         scm {
           git {
             remote {
-              github("${fork_to_use}/bootkube")
-              refspec('+refs/pull/*:refs/remotes/origin/pr/*')
+              github('${repo}')
+              refspec('+refs/heads/*:refs/remotes/origin/*')
               credentials('github_userpass')
             }
             branch('${sha1}')
