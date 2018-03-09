@@ -46,7 +46,20 @@ make conformance-single
 make conformance-multi
 ```
 
+
 ## Running PR Tests
+
+The basic test suite should run automatically on PRs, but can also be triggered manually.
+
+Jobs prefixed with `tku-` are running on the new Jenkins instance.
+
+Commenting on the PR:
+
+-   `ok to test`: whitelists an external contributor's PR as safe to test.
+-   `coreosbot run [job_name]`: re-runs the named job. The job name is always the same as the build context reported to GitHub. So if there is a failed build for `tku-bootkube-e2e-calico`, you can re-trigger it by commenting, `coreosbot run tku-bootkube-e2e-calico`.
+
+
+## Running PR Tests (legacy Jenkins)
 
 The basic test suite should run automatically on PRs, but can also be triggered manually.
 

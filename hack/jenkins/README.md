@@ -56,5 +56,5 @@ This shows an example directory structure, added as part of the `bootkube-e2e-*`
 ### Currently Defined Jobs
 
 -   bootkube-e2e-\*
-    -   calico: tests a standard multi-master bootkube cluster with calico
-    -   flannel: tests a standard multi-master bootkube cluster with flannel
+    -   calico: tests a standard single-master bootkube cluster with calico
+    -   flannel: tests a standard single-master bootkube cluster with flannel
