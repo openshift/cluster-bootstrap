@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/api/core/v1"
 )
 
 // checkpoint holds the state of a single checkpointed pod. A checkpoint can move between states
@@ -222,11 +222,7 @@ func (c *checkpointer) createCheckpointsForValidParents() {
 	for _, pod := range parents {
 		id := podFullName(pod)
 
-		cp, err := copyPod(pod)
-		if err != nil {
-			glog.Errorf("Failed to create checkpoint pod copy for %s: %v", id, err)
-			continue
-		}
+		cp := pod.DeepCopy()
 
 		cp = sanitizeCheckpointPod(cp)
 
