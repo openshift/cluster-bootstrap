@@ -13,9 +13,10 @@ import (
 
 var (
 	cmdRoot = &cobra.Command{
-		Use:   "bootkube",
-		Short: "Bootkube!",
-		Long:  "",
+		Use:           "bootkube",
+		Short:         "Bootkube!",
+		SilenceErrors: true, // suppress cobra errors so we can handle them (also applies to subcommands)
+		Long:          "",
 	}
 
 	cmdVersion = &cobra.Command{
@@ -36,7 +37,7 @@ func main() {
 
 	cmdRoot.AddCommand(cmdVersion)
 	if err := cmdRoot.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
