@@ -12,8 +12,10 @@ export IDENT="${IDENT:-"${HOME}/.ssh/id_rsa"}"
 
 cd "${DIR}/../../terraform-quickstart"
 
+set +x
 export TF_VAR_access_key_id="${ACCESS_KEY_ID}"
 export TF_VAR_access_key="${ACCESS_KEY_SECRET}"
+set -x
 export TF_VAR_resource_owner="${CLUSTER_NAME}"
 export TF_VAR_ssh_public_key="$(cat "${IDENT}.pub")"
 export TF_VAR_additional_masters="${ADDITIONAL_MASTERS}"
