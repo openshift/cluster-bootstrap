@@ -21,6 +21,7 @@ pipeline {
   }
   environment {
     CLUSTER_NAME="${JOB_NAME}-${BUILD_NUMBER}"
+    ARTIFACT_DIR="${WORKSPACE}/artifacts"
     GOPATH = "${WORKSPACE}"
     WORKDIR = "${WORKSPACE}/src/github.com/kubernetes-incubator/bootkube"
     KUBECONFIG = "${WORKSPACE}/src/github.com/kubernetes-incubator/bootkube/hack/quickstart/cluster/auth/kubeconfig"
@@ -35,6 +36,7 @@ pipeline {
       steps {
         // jnlp slave runs as "jenkins" user, use the escape hatch. (https://hub.docker.com/r/jenkins/slave/~/dockerfile/)
         sh "chmod -R go+rw /home/jenkins"
+        sh "mkdir -p \"${ARTIFACT_DIR}\""
         dir("${WORKDIR}") {
           checkout scm
         }
@@ -64,10 +66,17 @@ pipeline {
   }
   post {
     always {
-      script { // break the seal so that we can put cleanup in a stage
+      script {
+        stage('collect-logs') {
+          sh "${WORKDIR}/hack/jenkins/scripts/gather-logs.sh || true"
+          sh """bash -c "cp -r ${WORKDIR}/hack/quickstart/logs-** ${ARTIFACT_DIR}/";"""
+        }
         stage('cleanup') {
-          dir("${WORKDIR}") {
-            sh "./hack/jenkins/scripts/tqs-down.sh"
+          sh "(${WORKDIR}/hack/jenkins/scripts/tqs-down.sh || true) |& tee -a ${ARTIFACT_DIR}/cleanup.log"
+        }
+        stage('archive-logs') {
+          dir("${ARTIFACT_DIR}") {
+            archiveArtifacts '**/*'
           }
         }
       }
