@@ -83,9 +83,13 @@ func newDynamicAssets(conf Config) Assets {
 			MustCreateAssetFromTemplate(AssetPathCalicoRoleBinding, internal.CalicoRoleBindingTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoSA, internal.CalicoServiceAccountTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathCalico, internal.CalicoNodeTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathCalicoBGPConfigsCRD, internal.CalicoBGPConfigsCRD, conf),
-			MustCreateAssetFromTemplate(AssetPathCalicoFelixConfigsCRD, internal.CalicoFelixConfigsCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoBGPConfigurationsCRD, internal.CalicoBGPConfigurationsCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoBGPPeersCRD, internal.CalicoBGPPeersCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoFelixConfigurationsCRD, internal.CalicoFelixConfigurationsCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoGlobalNetworkPoliciesCRD, internal.CalicoGlobalNetworkPoliciesCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoGlobalNetworkSetsCRD, internal.CalicoGlobalNetworkSetsCRD, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoNetworkPoliciesCRD, internal.CalicoNetworkPoliciesCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoClusterInformationsCRD, internal.CalicoClusterInformationsCRD, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoIPPoolsCRD, internal.CalicoIPPoolsCRD, conf))
 	case NetworkCanal:
 		assets = append(assets,
@@ -94,9 +98,14 @@ func newDynamicAssets(conf Config) Assets {
 			MustCreateAssetFromTemplate(AssetPathCalicoRoleBinding, internal.CalicoRoleBindingTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoSA, internal.CalicoServiceAccountTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoPolicyOnly, internal.CalicoPolicyOnlyTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathCalicoBGPConfigsCRD, internal.CalicoBGPConfigsCRD, conf),
-			MustCreateAssetFromTemplate(AssetPathCalicoFelixConfigsCRD, internal.CalicoFelixConfigsCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoBGPConfigurationsCRD, internal.CalicoBGPConfigurationsCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoBGPPeersCRD, internal.CalicoBGPPeersCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoFelixConfigurationsCRD, internal.CalicoFelixConfigurationsCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoGlobalNetworkPoliciesCRD, internal.CalicoGlobalNetworkPoliciesCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoGlobalNetworkSetsCRD, internal.CalicoGlobalNetworkSetsCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoGlobalNetworkPoliciesCRD, internal.CalicoGlobalNetworkPoliciesCRD, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoNetworkPoliciesCRD, internal.CalicoNetworkPoliciesCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoClusterInformationsCRD, internal.CalicoClusterInformationsCRD, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoIPPoolsCRD, internal.CalicoIPPoolsCRD, conf))
 	}
 	return assets

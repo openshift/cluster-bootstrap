@@ -1109,6 +1109,8 @@ metadata:
   name: calico-config
   namespace: kube-system
 data:
+  # Typha is still listed as a beta feature. Hence disabling it. 
+  typha_service_name: "none"
   # The CNI network configuration to install on each node.
   cni_network_config: |-
     {
@@ -1135,9 +1137,8 @@ data:
         },
         {
           "type": "portmap",
-          "capabilities": {
-            "portMappings": true
-          }
+          "snat": true,
+          "capabilities": {"portMappings": true}
         }
       ]
     }
@@ -1192,14 +1193,17 @@ spec:
               value: "Always"
             - name: FELIX_IPINIPENABLED
               value: "true"
+            - name: FELIX_TYPHAK8SSERVICENAME
+              valueFrom:
+                configMapKeyRef:
+                  name: calico-config
+                  key: typha_service_name
             - name: NODENAME
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
             - name: IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
+              value: "autodetect"
             - name: FELIX_HEALTHENABLED
               value: "true"
           securityContext:
@@ -1231,7 +1235,7 @@ spec:
           command: ["/install-cni.sh"]
           env:
             - name: CNI_CONF_NAME
-              value: 10-calico.conflist
+              value: "10-calico.conflist"
             - name: CNI_NETWORK_CONFIG
               valueFrom:
                 configMapKeyRef:
@@ -1352,7 +1356,7 @@ spec:
           command: ["/install-cni.sh"]
           env:
             - name: CNI_CONF_NAME
-              value: 10-calico.conflist
+              value: "10-calico.conflist"
             - name: CNI_NETWORK_CONFIG
               valueFrom:
                 configMapKeyRef:
@@ -1391,37 +1395,7 @@ spec:
     type: RollingUpdate
 `)
 
-var CalicoBGPConfigsCRD = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
-description: Calico Global BGP Configuration
-kind: CustomResourceDefinition
-metadata:
-  name: globalbgpconfigs.crd.projectcalico.org
-spec:
-  scope: Cluster
-  group: crd.projectcalico.org
-  version: v1
-  names:
-    kind: GlobalBGPConfig
-    plural: globalbgpconfigs
-    singular: globalbgpconfig
-`)
-
-var CalicoFelixConfigsCRD = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
-description: Calico Global Felix Configuration
-kind: CustomResourceDefinition
-metadata:
-   name: globalfelixconfigs.crd.projectcalico.org
-spec:
-  scope: Cluster
-  group: crd.projectcalico.org
-  version: v1
-  names:
-    kind: GlobalFelixConfig
-    plural: globalfelixconfigs
-    singular: globalfelixconfig
-`)
-
-var CalicoNetworkPoliciesCRD = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+var CalicoGlobalNetworkPoliciesCRD = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
 description: Calico Global Network Policies
 kind: CustomResourceDefinition
 metadata:
@@ -1451,6 +1425,96 @@ spec:
     singular: ippool
 `)
 
+var CalicoBGPConfigurationsCRD = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+description: Calico BGP Configuration
+kind: CustomResourceDefinition
+metadata:
+  name: bgpconfigurations.crd.projectcalico.org
+spec:
+  scope: Cluster
+  group: crd.projectcalico.org
+  version: v1
+  names:
+    kind: BGPConfiguration
+    plural: bgpconfigurations
+    singular: bgpconfiguration
+`)
+
+var CalicoBGPPeersCRD = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+description: Calico BGP Peers
+kind: CustomResourceDefinition
+metadata:
+  name: bgppeers.crd.projectcalico.org
+spec:
+  scope: Cluster
+  group: crd.projectcalico.org
+  version: v1
+  names:
+    kind: BGPPeer
+    plural: bgppeers
+    singular: bgppeer
+`)
+
+var CalicoFelixConfigurationsCRD = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+description: Calico Felix Configuration
+kind: CustomResourceDefinition
+metadata:
+   name: felixconfigurations.crd.projectcalico.org
+spec:
+  scope: Cluster
+  group: crd.projectcalico.org
+  version: v1
+  names:
+    kind: FelixConfiguration
+    plural: felixconfigurations
+    singular: felixconfiguration
+`)
+
+var CalicoGlobalNetworkSetsCRD = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+description: Calico Global Network Sets
+kind: CustomResourceDefinition
+metadata:
+  name: globalnetworksets.crd.projectcalico.org
+spec:
+  scope: Cluster
+  group: crd.projectcalico.org
+  version: v1
+  names:
+    kind: GlobalNetworkSet
+    plural: globalnetworksets
+    singular: globalnetworkset
+`)
+
+var CalicoNetworkPoliciesCRD = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+description: Calico Network Policies
+kind: CustomResourceDefinition
+metadata:
+  name: networkpolicies.crd.projectcalico.org
+spec:
+  scope: Namespaced
+  group: crd.projectcalico.org
+  version: v1
+  names:
+    kind: NetworkPolicy
+    plural: networkpolicies
+    singular: networkpolicy
+`)
+
+var CalicoClusterInformationsCRD = []byte(`apiVersion: apiextensions.k8s.io/v1beta1
+description: Calico Cluster Information
+kind: CustomResourceDefinition
+metadata:
+  name: clusterinformations.crd.projectcalico.org
+spec:
+  scope: Cluster
+  group: crd.projectcalico.org
+  version: v1
+  names:
+    kind: ClusterInformation
+    plural: clusterinformations
+    singular: clusterinformation
+`)
+
 var CalicoServiceAccountTemplate = []byte(`apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -1462,55 +1526,31 @@ var CalicoRoleTemplate = []byte(`apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: calico-node
-  namespace: kube-system
 rules:
   - apiGroups: [""]
-    resources:
-      - namespaces
-    verbs:
-      - get
-      - list
-      - watch
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: [""]
-    resources:
-      - pods/status
-    verbs:
-      - update
+    resources: ["pods/status"]
+    verbs: ["update"]
   - apiGroups: [""]
-    resources:
-      - pods
-    verbs:
-      - get
-      - list
-      - watch
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "patch"]
   - apiGroups: [""]
-    resources:
-      - nodes
-    verbs:
-      - get
-      - list
-      - update
-      - watch
+    resources: ["services"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "update", "watch"]
   - apiGroups: ["extensions"]
-    resources:
-      - networkpolicies
-    verbs:
-      - get
-      - list
-      - watch
+    resources: ["networkpolicies"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["crd.projectcalico.org"]
-    resources:
-      - globalfelixconfigs
-      - bgppeers
-      - globalbgpconfigs
-      - ippools
-      - globalnetworkpolicies
-    verbs:
-      - create
-      - get
-      - list
-      - update
-      - watch
+    resources: ["globalfelixconfigs", "felixconfigurations", "bgppeers", "globalbgpconfigs", "bgpconfigurations", "ippools", "globalnetworkpolicies", "globalnetworksets", "networkpolicies", "clusterinformationsi"]
+    verbs: ["create", "get", "list", "update", "watch"]
 `)
 
 var CalicoRoleBindingTemplate = []byte(`apiVersion: rbac.authorization.k8s.io/v1
