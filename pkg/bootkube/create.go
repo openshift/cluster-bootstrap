@@ -146,16 +146,18 @@ func newCreater(c *rest.Config) (*creater, error) {
 
 func (c *creater) createManifests(manifests []manifest) (ok bool) {
 	// Bootkube used to create manifests in named order ("01-foo" before "02-foo").
-	// Maintain this behavior for everything except CRDs, which have strict ordering
+	// Maintain this behavior for everything except CRDs and NSs, which have strict ordering
 	// that we should always respect.
 	sort.Slice(manifests, func(i, j int) bool {
 		return manifests[i].filepath < manifests[j].filepath
 	})
 
-	var crds, other []manifest
+	var namespaces, crds, other []manifest
 	for _, m := range manifests {
 		if m.kind == "CustomResourceDefinition" && strings.HasPrefix(m.apiVersion, "apiextensions.k8s.io/") {
 			crds = append(crds, m)
+		} else if m.kind == "Namespace" && m.apiVersion == "v1" {
+			namespaces = append(namespaces, m)
 		} else {
 			other = append(other, m)
 		}
@@ -168,6 +170,11 @@ func (c *creater) createManifests(manifests []manifest) (ok bool) {
 		} else {
 			UserOutput("Created %s\n", m)
 		}
+	}
+
+	// Create all namespaces first
+	for _, m := range namespaces {
+		create(m)
 	}
 
 	// Create the custom resource definition before creating the actual custom resources.
