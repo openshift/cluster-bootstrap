@@ -74,7 +74,7 @@ pipeline {
       script {
         stage('collect-logs') {
           sh "${WORKDIR}/hack/jenkins/scripts/gather-logs.sh || true"
-          sh """bash -c "cp -r ${WORKDIR}/hack/quickstart/logs-** ${ARTIFACT_DIR}/";"""
+          sh """bash -c "cp -r ${WORKDIR}/hack/quickstart/logs-** ${ARTIFACT_DIR}/ || true";"""
         }
         stage('cleanup') {
           sh "(${WORKDIR}/hack/jenkins/scripts/tqs-down.sh || true) |& tee -a ${ARTIFACT_DIR}/cleanup.log"
