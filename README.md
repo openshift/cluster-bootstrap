@@ -63,6 +63,11 @@ Example:
 bootkube start --asset-dir=my-cluster
 ```
 
+When `bootkube start` is creating Kuberentes resources from manifests, the following order is used:
+1. Any `Namespace` objects are created, in lexicographical order.
+1. Any `CustomResourceDefinition` objects are created, in lexicographical order.
+1. Any remaining resouces are created, in lexicographical order.
+
 ### Recover a downed cluster
 
 In the case of a partial or total control plane outage (i.e. due to lost master nodes) an experimental `recover` command can extract and write manifests from a backup location. These manifests can then be used by the `start` command to reboot the cluster. Currently recovery from a running apiserver, an external running etcd cluster, or an etcd backup taken from the self hosted etcd cluster are the methods.
