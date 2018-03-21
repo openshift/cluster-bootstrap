@@ -83,9 +83,12 @@ automatically tear down the recovery control plane.
 
 ### bootkube recover usage
 
-For best results always use the latest Bootkube release when using `recover`,
-regardless of which release was used to create the cluster. To see available
-options, run:
+For best results always use the most recently tagged Bootkube release when using `recover`,
+regardless of which release was used to create the cluster. To see the available releases,
+checkout [the tagged binary releases on GitHub](https://github.com/kubernetes-incubator/bootkube/releases)
+or [the tagged Docker images on Quay.io](https://quay.io/repository/coreos/bootkube).
+
+To see available options, run:
 
 ```
 bootkube recover --help
