@@ -8,14 +8,17 @@ import (
 	"google.golang.org/grpc"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/v1alpha1/runtime"
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/kubelet/util"
+
+	"github.com/kubernetes-incubator/bootkube/pkg/checkpoint/cri/v1alpha1"
+	"github.com/kubernetes-incubator/bootkube/pkg/checkpoint/cri/v1alpha2"
 )
 
 type remoteRuntimeService struct {
-	timeout       time.Duration
-	runtimeClient runtimeapi.RuntimeServiceClient
+	timeout        time.Duration
+	v1alpha1Client v1alpha1.RuntimeServiceClient
+	v1alpha2Client v1alpha2.RuntimeServiceClient
 }
 
 func newRemoteRuntimeService(endpoint string, connectionTimeout time.Duration) (*remoteRuntimeService, error) {
@@ -32,8 +35,9 @@ func newRemoteRuntimeService(endpoint string, connectionTimeout time.Duration) (
 	}
 
 	return &remoteRuntimeService{
-		timeout:       connectionTimeout,
-		runtimeClient: runtimeapi.NewRuntimeServiceClient(conn),
+		timeout:        connectionTimeout,
+		v1alpha1Client: v1alpha1.NewRuntimeServiceClient(conn),
+		v1alpha2Client: v1alpha2.NewRuntimeServiceClient(conn),
 	}, nil
 }
 
@@ -50,17 +54,12 @@ func (r *remoteRuntimeService) localRunningPods() map[string]*v1.Pod {
 
 	// Add pods from all sandboxes
 	for _, s := range sandboxes {
-		if s.Metadata == nil {
-			glog.V(4).Infof("Sandbox does not have metadata: %+v", s)
-			continue
-		}
-
-		podName := s.Metadata.Namespace + "/" + s.Metadata.Name
+		podName := s.Namespace + "/" + s.Name
 		if _, ok := pods[podName]; !ok {
 			p := &v1.Pod{}
-			p.UID = types.UID(s.Metadata.Uid)
-			p.Name = s.Metadata.Name
-			p.Namespace = s.Metadata.Namespace
+			p.UID = types.UID(s.Uid)
+			p.Name = s.Name
+			p.Namespace = s.Namespace
 
 			pods[podName] = p
 		}
@@ -74,10 +73,6 @@ func (r *remoteRuntimeService) localRunningPods() map[string]*v1.Pod {
 
 	// Add all pods that containers are apart of
 	for _, c := range containers {
-		if c.Metadata == nil {
-			glog.V(4).Infof("Container does not have metadata: %+v", c)
-			continue
-		}
 
 		podName := c.Labels[kubelettypes.KubernetesPodNamespaceLabel] + "/" + c.Labels[kubelettypes.KubernetesPodNameLabel]
 		if _, ok := pods[podName]; !ok {
@@ -93,53 +88,123 @@ func (r *remoteRuntimeService) localRunningPods() map[string]*v1.Pod {
 	return pods
 }
 
-func (r *remoteRuntimeService) getRunningKubeletContainers() ([]*runtimeapi.Container, error) {
-	filter := &runtimeapi.ContainerFilter{}
-
-	// Filter out non-running containers
-	filter.State = &runtimeapi.ContainerStateValue{
-		State: runtimeapi.ContainerState_CONTAINER_RUNNING,
-	}
-
-	return r.listContainers(filter)
+type criContainer struct {
+	Labels map[string]string
 }
 
-func (r *remoteRuntimeService) getRunningKubeletSandboxes() ([]*runtimeapi.PodSandbox, error) {
-	filter := &runtimeapi.PodSandboxFilter{}
-
-	// Filter out non-running sandboxes
-	filter.State = &runtimeapi.PodSandboxStateValue{
-		State: runtimeapi.PodSandboxState_SANDBOX_READY,
-	}
-	return r.listPodSandbox(filter)
+type criSandbox struct {
+	Uid       string
+	Name      string
+	Namespace string
+	Labels    map[string]string
 }
 
-func (r *remoteRuntimeService) listPodSandbox(filter *runtimeapi.PodSandboxFilter) ([]*runtimeapi.PodSandbox, error) {
+func (r *remoteRuntimeService) getRunningKubeletContainers() ([]criContainer, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
 	defer cancel()
 
-	resp, err := r.runtimeClient.ListPodSandbox(ctx, &runtimeapi.ListPodSandboxRequest{
-		Filter: filter,
-	})
-	if err != nil {
-		glog.Errorf("ListPodSandbox with filter %q from runtime sevice failed: %v", filter, err)
-		return nil, err
+	var containers []criContainer
+	if _, err := r.v1alpha1Client.Version(ctx, &v1alpha1.VersionRequest{}); err == nil {
+		resp, err := r.v1alpha1Client.ListContainers(ctx, &v1alpha1.ListContainersRequest{
+			Filter: &v1alpha1.ContainerFilter{
+				State: &v1alpha1.ContainerStateValue{
+					// Filter out non-running containers
+					State: v1alpha1.ContainerState_CONTAINER_RUNNING,
+				},
+			},
+		})
+		if err != nil {
+			glog.Errorf("ListContainers with filter from runtime service failed: %v", err)
+			return nil, err
+		}
+		for _, c := range resp.Containers {
+			if c.Metadata == nil {
+				glog.V(4).Infof("Container does not have metadata: %+v", c)
+				continue
+			}
+			containers = append(containers, criContainer{Labels: c.Labels})
+		}
+		return containers, nil
 	}
 
-	return resp.Items, nil
+	// Try v1alpha2
+	resp, err := r.v1alpha2Client.ListContainers(ctx, &v1alpha2.ListContainersRequest{
+		Filter: &v1alpha2.ContainerFilter{
+			State: &v1alpha2.ContainerStateValue{
+				// Filter out non-running containers
+				State: v1alpha2.ContainerState_CONTAINER_RUNNING,
+			},
+		},
+	})
+	if err != nil {
+		glog.Errorf("ListContainers with filter from runtime service failed: %v", err)
+		return nil, err
+	}
+	for _, c := range resp.Containers {
+		if c.Metadata == nil {
+			glog.V(4).Infof("Container does not have metadata: %+v", c)
+			continue
+		}
+		containers = append(containers, criContainer{Labels: c.Labels})
+	}
+	return containers, nil
 }
 
-func (r *remoteRuntimeService) listContainers(filter *runtimeapi.ContainerFilter) ([]*runtimeapi.Container, error) {
+func (r *remoteRuntimeService) getRunningKubeletSandboxes() ([]criSandbox, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
 	defer cancel()
 
-	resp, err := r.runtimeClient.ListContainers(ctx, &runtimeapi.ListContainersRequest{
-		Filter: filter,
+	var sandboxes []criSandbox
+	if _, err := r.v1alpha1Client.Version(ctx, &v1alpha1.VersionRequest{}); err == nil {
+		resp, err := r.v1alpha1Client.ListPodSandbox(ctx, &v1alpha1.ListPodSandboxRequest{
+			Filter: &v1alpha1.PodSandboxFilter{
+				// Filter out non-running sandboxes
+				State: &v1alpha1.PodSandboxStateValue{
+					State: v1alpha1.PodSandboxState_SANDBOX_READY,
+				},
+			},
+		})
+		if err != nil {
+			glog.Errorf("ListPodSandbox with filter from runtime sevice failed: %v", err)
+			return nil, err
+		}
+		for _, c := range resp.Items {
+			if c.Metadata == nil {
+				glog.V(4).Infof("Sandbox does not have metadata: %+v", c)
+				continue
+			}
+			sandboxes = append(sandboxes, criSandbox{
+				Uid:       c.Metadata.Uid,
+				Name:      c.Metadata.Name,
+				Namespace: c.Metadata.Namespace,
+				Labels:    c.Labels,
+			})
+		}
+		return sandboxes, nil
+	}
+	resp, err := r.v1alpha2Client.ListPodSandbox(ctx, &v1alpha2.ListPodSandboxRequest{
+		Filter: &v1alpha2.PodSandboxFilter{
+			// Filter out non-running sandboxes
+			State: &v1alpha2.PodSandboxStateValue{
+				State: v1alpha2.PodSandboxState_SANDBOX_READY,
+			},
+		},
 	})
 	if err != nil {
-		glog.Errorf("ListContainers with filter %q from runtime service failed: %v", filter, err)
+		glog.Errorf("ListPodSandbox with filter from runtime sevice failed: %v", err)
 		return nil, err
 	}
-
-	return resp.Containers, nil
+	for _, c := range resp.Items {
+		if c.Metadata == nil {
+			glog.V(4).Infof("Sandbox does not have metadata: %+v", c)
+			continue
+		}
+		sandboxes = append(sandboxes, criSandbox{
+			Uid:       c.Metadata.Uid,
+			Name:      c.Metadata.Name,
+			Namespace: c.Metadata.Namespace,
+			Labels:    c.Labels,
+		})
+	}
+	return sandboxes, nil
 }
