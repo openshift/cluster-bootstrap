@@ -457,7 +457,6 @@
   name = "k8s.io/kubernetes"
   packages = [
     "pkg/apis/core",
-    "pkg/kubelet/apis/cri/v1alpha1/runtime",
     "pkg/kubelet/types",
     "pkg/kubelet/util"
   ]
@@ -467,6 +466,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "87999541c260c4e3cd418d617d66ae8d3d7ab7b9649c0235494597d5b537b008"
+  inputs-digest = "de51f6879294a44122536a9176b0822a556a07c460ce6b6d0658d2b9b5eb4bb0"
   solver-name = "gps-cdcl"
   solver-version = 1
