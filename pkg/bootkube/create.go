@@ -33,7 +33,7 @@ const (
 	crdRolloutTimeout  = 2 * time.Minute
 )
 
-func CreateAssets(config clientcmd.ClientConfig, manifestDir string, timeout time.Duration) error {
+func CreateAssets(config clientcmd.ClientConfig, manifestDir string, timeout time.Duration, strict bool) error {
 	if _, err := os.Stat(manifestDir); os.IsNotExist(err) {
 		UserOutput(fmt.Sprintf("WARNING: %v does not exist, not creating any self-hosted assets.\n", manifestDir))
 		return nil
@@ -42,7 +42,7 @@ func CreateAssets(config clientcmd.ClientConfig, manifestDir string, timeout tim
 	if err != nil {
 		return err
 	}
-	creater, err := newCreater(c)
+	creater, err := newCreater(c, strict)
 	if err != nil {
 		return err
 	}
@@ -73,7 +73,11 @@ func CreateAssets(config clientcmd.ClientConfig, manifestDir string, timeout tim
 		UserOutput("For example, after resolving issues: kubectl create -f <failed-manifest>\n\n")
 
 		// Don't fail on manifest creation. It's easier to debug a cluster with a failed
-		// manifest than exiting and tearing down the control plane.
+		// manifest than exiting and tearing down the control plane. If strict
+		// mode is enabled, then error out.
+		if strict {
+			return fmt.Errorf("Self-hosted assets could not be created")
+		}
 	}
 
 	return nil
@@ -120,13 +124,14 @@ func (m manifest) String() string {
 
 type creater struct {
 	client *rest.RESTClient
+	strict bool
 
 	// mapper maps resource kinds ("ConfigMap") with their pluralized URL
 	// path ("configmaps") using the discovery APIs.
 	mapper *resourceMapper
 }
 
-func newCreater(c *rest.Config) (*creater, error) {
+func newCreater(c *rest.Config, strict bool) (*creater, error) {
 	c.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: scheme.Codecs}
 	client, err := rest.UnversionedRESTClientFor(c)
 	if err != nil {
@@ -141,6 +146,7 @@ func newCreater(c *rest.Config) (*creater, error) {
 	return &creater{
 		mapper: newResourceMapper(discoveryClient),
 		client: client,
+		strict: strict,
 	}, nil
 }
 
@@ -164,23 +170,28 @@ func (c *creater) createManifests(manifests []manifest) (ok bool) {
 		}
 	}
 
-	create := func(m manifest) {
+	create := func(m manifest) error {
 		if err := c.create(m); err != nil {
 			ok = false
-			UserOutput("Failed creating %s: %v", m, err)
-		} else {
-			UserOutput("Created %s\n", m)
+			UserOutput("Failed creating %s: %v\n", m, err)
+			return err
 		}
+		UserOutput("Created %s\n", m)
+		return nil
 	}
 
 	// Create all namespaces first
 	for _, m := range namespaces {
-		create(m)
+		if err := create(m); err != nil && c.strict {
+			return false
+		}
 	}
 
 	// Create the custom resource definition before creating the actual custom resources.
 	for _, m := range crds {
-		create(m)
+		if err := create(m); err != nil && c.strict {
+			return false
+		}
 	}
 
 	// Wait until the API server registers the CRDs. Until then it's not safe to create the
@@ -189,11 +200,16 @@ func (c *creater) createManifests(manifests []manifest) (ok bool) {
 		if err := c.waitForCRD(crd); err != nil {
 			ok = false
 			UserOutput("Failed waiting for %s: %v", crd, err)
+			if c.strict {
+				return false
+			}
 		}
 	}
 
 	for _, m := range other {
-		create(m)
+		if err := create(m); err != nil && c.strict {
+			return false
+		}
 	}
 	return ok
 }

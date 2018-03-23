@@ -8,6 +8,7 @@ REMOTE_USER=${REMOTE_USER:-core}
 CLUSTER_DIR=${CLUSTER_DIR:-cluster}
 IDENT=${IDENT:-${HOME}/.ssh/id_rsa}
 SSH_OPTS=${SSH_OPTS:-}
+BOOTKUBE_OPTS=${BOOTKUBE_OPTS:-}
 CLOUD_PROVIDER=${CLOUD_PROVIDER:-}
 NETWORK_PROVIDER=${NETWORK_PROVIDER:-flannel}
 
@@ -105,7 +106,7 @@ function init_master_node() {
     systemctl enable kubelet; sudo systemctl start kubelet
 
     # Start bootkube to launch a self-hosted cluster
-    /home/${REMOTE_USER}/bootkube start --asset-dir=/home/${REMOTE_USER}/assets
+    /home/${REMOTE_USER}/bootkube start ${BOOTKUBE_OPTS} --asset-dir=/home/${REMOTE_USER}/assets
 }
 
 [ "$#" == 1 ] || usage
@@ -136,7 +137,7 @@ if [ "${REMOTE_HOST}" != "local" ]; then
     fi
     # Copy self to remote host so script can be executed in "local" mode
     scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${BASH_SOURCE[0]} ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/init-master.sh
-    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "sudo REMOTE_USER=${REMOTE_USER} CLOUD_PROVIDER=${CLOUD_PROVIDER} NETWORK_PROVIDER=${NETWORK_PROVIDER} /home/${REMOTE_USER}/init-master.sh local"
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "sudo BOOTKUBE_OPTS=${BOOTKUBE_OPTS} REMOTE_USER=${REMOTE_USER} CLOUD_PROVIDER=${CLOUD_PROVIDER} NETWORK_PROVIDER=${NETWORK_PROVIDER} /home/${REMOTE_USER}/init-master.sh local"
 
     # Copy assets from remote host to a local directory. These can be used to launch additional nodes & contain TLS assets
     mkdir -p ${CLUSTER_DIR}

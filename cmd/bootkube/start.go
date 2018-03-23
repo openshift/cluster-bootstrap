@@ -21,6 +21,7 @@ var (
 	startOpts struct {
 		assetDir        string
 		podManifestPath string
+		strict          bool
 	}
 )
 
@@ -28,12 +29,14 @@ func init() {
 	cmdRoot.AddCommand(cmdStart)
 	cmdStart.Flags().StringVar(&startOpts.assetDir, "asset-dir", "", "Path to the cluster asset directory. Expected layout genereted by the `bootkube render` command.")
 	cmdStart.Flags().StringVar(&startOpts.podManifestPath, "pod-manifest-path", "/etc/kubernetes/manifests", "The location where the kubelet is configured to look for static pod manifests.")
+	cmdStart.Flags().BoolVar(&startOpts.strict, "strict", false, "Strict mode will cause bootkube to exit early if any manifests in the asset directory cannot be created.")
 }
 
 func runCmdStart(cmd *cobra.Command, args []string) error {
 	bk, err := bootkube.NewBootkube(bootkube.Config{
 		AssetDir:        startOpts.assetDir,
 		PodManifestPath: startOpts.podManifestPath,
+		Strict:          startOpts.strict,
 	})
 	if err != nil {
 		return err

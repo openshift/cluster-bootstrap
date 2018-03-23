@@ -22,17 +22,20 @@ var requiredPods = []string{
 type Config struct {
 	AssetDir        string
 	PodManifestPath string
+	Strict          bool
 }
 
 type bootkube struct {
 	podManifestPath string
 	assetDir        string
+	strict          bool
 }
 
 func NewBootkube(config Config) (*bootkube, error) {
 	return &bootkube{
 		assetDir:        config.AssetDir,
 		podManifestPath: config.PodManifestPath,
+		strict:          config.Strict,
 	}, nil
 }
 
@@ -64,7 +67,7 @@ func (b *bootkube) Run() error {
 		return err
 	}
 
-	if err = CreateAssets(kubeConfig, filepath.Join(b.assetDir, asset.AssetPathManifests), assetTimeout); err != nil {
+	if err = CreateAssets(kubeConfig, filepath.Join(b.assetDir, asset.AssetPathManifests), assetTimeout, b.strict); err != nil {
 		return err
 	}
 
