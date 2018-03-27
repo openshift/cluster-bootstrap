@@ -1109,7 +1109,7 @@ metadata:
   name: calico-config
   namespace: kube-system
 data:
-  # Typha is still listed as a beta feature. Hence disabling it. 
+  # Typha is still listed as a beta feature. Hence disabling it.
   typha_service_name: "none"
   # The CNI network configuration to install on each node.
   cni_network_config: |-
@@ -1549,7 +1549,7 @@ rules:
     resources: ["networkpolicies"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["crd.projectcalico.org"]
-    resources: ["globalfelixconfigs", "felixconfigurations", "bgppeers", "globalbgpconfigs", "bgpconfigurations", "ippools", "globalnetworkpolicies", "globalnetworksets", "networkpolicies", "clusterinformationsi"]
+    resources: ["globalfelixconfigs", "felixconfigurations", "bgppeers", "globalbgpconfigs", "bgpconfigurations", "ippools", "globalnetworkpolicies", "globalnetworksets", "networkpolicies", "clusterinformations"]
     verbs: ["create", "get", "list", "update", "watch"]
 `)
 
