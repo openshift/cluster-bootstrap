@@ -27,8 +27,7 @@ release: \
 	check \
 	_output/release/bootkube.tar.gz \
 
-check:
-	@gofmt -l -s $(GOFILES) | read; if [ $$? == 0 ]; then gofmt -s -d $(GOFILES); exit 1; fi
+check: gofmt
 ifdef TERRAFORM
 	$(TERRAFORM) fmt -check ; if [ ! $$? -eq 0 ]; then exit 1; fi
 else
@@ -37,6 +36,10 @@ endif
 	@go vet $(shell go list ./... | grep -v '/vendor/')
 	@./scripts/verify-gopkg.sh
 	@go test -v $(shell go list ./... | grep -v '/vendor/\|/e2e')
+
+gofmt:
+	gofmt -s -w $(GOFILES)
+	git diff --exit-code
 
 install:
 	go install -ldflags "$(LDFLAGS)" ./cmd/bootkube
@@ -80,4 +83,4 @@ vendor:
 clean:
 	rm -rf _output
 
-.PHONY: all check clean install release vendor
+.PHONY: all check clean gofmt install release vendor
