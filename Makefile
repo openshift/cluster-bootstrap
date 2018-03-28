@@ -2,7 +2,6 @@ export CGO_ENABLED:=0
 export GOARCH:=amd64
 export PATH:=$(PATH):$(PWD)
 
-SHELL:=$(shell which bash)
 LOCAL_OS:=$(shell uname | tr A-Z a-z)
 GOFILES:=$(shell find . -name '*.go' | grep -v -E '(./vendor)')
 LDFLAGS=-X github.com/kubernetes-incubator/bootkube/pkg/version.Version=$(shell $(CURDIR)/build/git-version.sh)
