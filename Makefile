@@ -3,7 +3,7 @@ export GOARCH:=amd64
 export PATH:=$(PATH):$(PWD)
 
 LOCAL_OS:=$(shell uname | tr A-Z a-z)
-GOFILES:=$(shell find . -name '*.go' | grep -v -E '(./vendor)')
+GOFILES:=$(shell find . -name '*.go' ! -path './vendor/*')
 LDFLAGS=-X github.com/kubernetes-incubator/bootkube/pkg/version.Version=$(shell $(CURDIR)/build/git-version.sh)
 TERRAFORM:=$(shell command -v terraform 2> /dev/null)
 
