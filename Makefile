@@ -4,6 +4,7 @@ export PATH:=$(PATH):$(PWD)
 
 LOCAL_OS:=$(shell uname | tr A-Z a-z)
 GOFILES:=$(shell find . -name '*.go' ! -path './vendor/*')
+VENDOR_GOFILES ?= $(shell find vendor -name '*.go')
 LDFLAGS=-X github.com/kubernetes-incubator/bootkube/pkg/version.Version=$(shell $(CURDIR)/build/git-version.sh)
 TERRAFORM:=$(shell command -v terraform 2> /dev/null)
 
@@ -23,7 +24,6 @@ cross: \
 	_output/bin/linux/s390x/checkpoint
 
 release: \
-	clean \
 	check \
 	_output/release/bootkube.tar.gz \
 
@@ -47,7 +47,7 @@ install:
 _output/bin/%: GOOS=$(word 1, $(subst /, ,$*))
 _output/bin/%: GOARCH=$(word 2, $(subst /, ,$*))
 _output/bin/%: GOARCH:=amd64  # default to amd64 to support release scripts
-_output/bin/%: $(GOFILES)
+_output/bin/%: $(GOFILES) $(VENDOR_GOFILES)
 	mkdir -p $(dir $@)
 	GOOS=$(GOOS) GOARCH=$(GOARCH) go build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $@ github.com/kubernetes-incubator/bootkube/cmd/$(notdir $@)
 
@@ -56,7 +56,7 @@ _output/release/bootkube.tar.gz: _output/bin/linux/bootkube _output/bin/darwin/b
 	tar czf $@ -C _output bin/linux/bootkube bin/darwin/bootkube bin/linux/checkpoint
 
 run-%: GOFLAGS = -i
-run-%: clean-vm-% _output/bin/linux/bootkube _output/bin/$(LOCAL_OS)/bootkube
+run-%: _output/bin/linux/bootkube _output/bin/$(LOCAL_OS)/bootkube
 	@cd hack/$*-node && ./bootkube-up
 	@echo "Bootkube ready"
 
@@ -68,7 +68,7 @@ clean-vm-%:
 	    rm -rf cluster )
 
 #TODO(aaron): Prompt because this is destructive
-conformance-%: clean all
+conformance-%: all
 	@cd hack/$*-node && vagrant destroy -f
 	@cd hack/$*-node && rm -rf cluster
 	@cd hack/$*-node && ./bootkube-up

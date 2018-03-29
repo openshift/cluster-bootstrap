@@ -6,4 +6,4 @@ before_script:
 go:
   - 1.10.x
 script:
-  - make clean release
+  - make release

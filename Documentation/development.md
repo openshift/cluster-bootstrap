@@ -16,20 +16,23 @@ cd $(go env GOPATH | cut -d: -f1)/src/github.com/kubernetes-incubator/bootkube
 Then build:
 
 ```
-make clean all
+make clean
+make all
 ```
 
 ## Local Development Environments
 
-To easily launch local vagrant development clusters:
+To easily launch local, single-node vagrant development clusters:
 
 ```
-# Launch a single-node cluster
+make clean-vm-single
 make run-single
 ```
 
+You can also launch a multi-node cluster:
+
 ```
-# Launch a multi-node cluster
+make clean-vm-multi
 make run-multi
 ```
 
