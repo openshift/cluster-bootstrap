@@ -1,4 +1,3 @@
-export GO15VENDOREXPERIMENT:=1
 export CGO_ENABLED:=0
 export GOARCH:=amd64
 export PATH:=$(PATH):$(PWD)
