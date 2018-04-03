@@ -82,7 +82,7 @@ See [Documentation/development.md](Documentation/development.md) for more inform
 
 Want to contribute to bootkube? Have Questions? We are looking for active participation from the community
 
-You can find us at the bootkube channel on [Kubernetes slack](https://github.com/kubernetes/community/blob/master/communication.md#social-media)
+You can find us at the `#bootkube` channel on [Kubernetes slack][slack].
 
 ## Related Links
 
@@ -91,3 +91,5 @@ You can find us at the bootkube channel on [Kubernetes slack](https://github.com
 ## License
 
 bootkube is under the Apache 2.0 license. See the [LICENSE](LICENSE) file for details.
+
+[slack]: https://github.com/kubernetes/community/tree/master/communication#social-media
