@@ -2,7 +2,7 @@
 
 ## Requirements
 
-* Go 1.8+
+* Go 1.10+
 * Configured [GOPATH](http://golang.org/doc/code.html#GOPATH)
 
 ## Building
@@ -14,7 +14,7 @@ go get -u github.com/kubernetes-incubator/bootkube
 cd $GOPATH/src/github.com/kubernetes-incubator/bootkube
 ```
 
-Then, to build (only Go verson 1.8 is supported now):
+Then build:
 
 ```
 make clean all
