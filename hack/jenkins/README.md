@@ -55,6 +55,8 @@ This shows an example directory structure, added as part of the `bootkube-e2e-*`
 
 ### Currently Defined Jobs
 
--   bootkube-e2e-\*
+-   tku-bootkube-e2e-\*
     -   calico: tests a standard single-master bootkube cluster with calico
     -   flannel: tests a standard single-master bootkube cluster with flannel
+-   tku-2-release-hyperkube
+    -   default: builds and optionally pushes a hyperkube image to quay.io
