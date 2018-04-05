@@ -1,3 +1,4 @@
+def bash(String cmd) { sh("#/usr/bin/env bash\nset -euo pipefail\n${cmd}") }
 
 podTemplate(label: 'hyperkube-build',
   containers: [containerTemplate(name: 'build', image: 'quay.io/coreos/hyperkube-builder:0.2', ttyEnabled: true, command: 'cat')],
@@ -8,20 +9,20 @@ podTemplate(label: 'hyperkube-build',
       git 'https://github.com/coreos/kubernetes.git'
       container('build') {
         withCredentials([usernamePassword(credentialsId: 'quay_userpass', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-          sh '''
-             export IMAGE_TAG=$(echo ${KUBERNETES_VERSION} | tr + _)
+          bash '''
+              export IMAGE_TAG=$(echo ${KUBERNETES_VERSION} | tr + _)
 
-             git checkout ${KUBERNETES_VERSION}
-             build/run.sh make cross ARCH=amd64 KUBE_FASTBUILD=true WHAT=cmd/hyperkube
-             pushd cluster/images/hyperkube && make VERSION=$(IMAGE_TAG) REGISTRY=quay.io/coreos && popd
-             docker tag quay.io/coreos/hyperkube-amd64:$IMAGE_TAG quay.io/coreos/hyperkube:$IMAGE_TAG
-             docker images
-             if [ "$PUSH_IMAGE" = true ] && ! docker pull quay.io/coreos/hyperkube:$IMAGE_TAG ; then
-                 set +x # don't log passwords
-                 docker login quay.io --username $DOCKER_USER --password $DOCKER_PASS
-                 docker push quay.io/coreos/hyperkube:$IMAGE_TAG
-                 wget https://quay.io/c1/aci/quay.io/coreos/hyperkube/$IMAGE_TAG/aci/linux/amd64/ # warm cache before it gets hit in parallel
-             fi
+              git checkout ${KUBERNETES_VERSION}
+              build/run.sh make cross ARCH=amd64 KUBE_FASTBUILD=true WHAT=cmd/hyperkube
+              pushd cluster/images/hyperkube && make VERSION=$(IMAGE_TAG) REGISTRY=quay.io/coreos && popd
+              docker tag quay.io/coreos/hyperkube-amd64:$IMAGE_TAG quay.io/coreos/hyperkube:$IMAGE_TAG
+              docker images
+              if [ "$PUSH_IMAGE" = true ] && ! docker pull quay.io/coreos/hyperkube:$IMAGE_TAG ; then
+                  set +x # don't log passwords
+                  docker login quay.io --username $DOCKER_USER --password $DOCKER_PASS
+                  docker push quay.io/coreos/hyperkube:$IMAGE_TAG
+                  wget https://quay.io/c1/aci/quay.io/coreos/hyperkube/$IMAGE_TAG/aci/linux/amd64/ # warm cache before it gets hit in parallel
+              fi
           '''
         }
       }
