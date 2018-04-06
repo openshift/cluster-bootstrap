@@ -6,6 +6,11 @@ variable "access_key" {
   type = "string"
 }
 
+variable "kubernetes_id" {
+  description = "ID of the kubernetes cluster"
+  type        = "string"
+}
+
 variable "ssh_public_key" {
   description = "SSH Public Key"
   type        = "string"

@@ -9,6 +9,7 @@ export ADDITIONAL_MASTERS=${ADDITIONAL_MASTER:-0}
 export REGION="${REGION:-"us-west-2"}"
 export CLUSTER_NAME="${CLUSTER_NAME:-"default"}"
 export IDENT="${IDENT:-"${HOME}/.ssh/id_rsa"}"
+export KUBERNETES_IDENT=${KUBERNETES_IDENT:-"${DIR}/.kubernetes-id"}
 
 cd "${DIR}/../../terraform-quickstart"
 
@@ -16,6 +17,7 @@ set +x
 export TF_VAR_access_key_id="${ACCESS_KEY_ID}"
 export TF_VAR_access_key="${ACCESS_KEY_SECRET}"
 set -x
+export TF_VAR_kubernetes_id="$(cat ${KUBERNETES_IDENT})"
 export TF_VAR_resource_owner="${CLUSTER_NAME}"
 export TF_VAR_ssh_public_key="$(cat "${IDENT}.pub")"
 export TF_VAR_additional_masters="${ADDITIONAL_MASTERS}"
@@ -46,3 +48,5 @@ if [[ ! -z "${destroyed_extra:-}" ]]; then
     echo "Terraform required multiple 'destroy' runs to cleanup everything!"
     exit -1
 fi
+
+rm -f ${KUBERNETES_IDENT}

@@ -219,12 +219,12 @@ spec:
     command:
     - /hyperkube
     - apiserver
-    - --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultStorageClass,ValidatingAdmissionWebhook,ResourceQuota,DefaultTolerationSeconds,NodeRestriction,MutatingAdmissionWebhook
     - --advertise-address=$(POD_IP)
     - --allow-privileged=true
     - --authorization-mode=Node,RBAC
     - --bind-address=0.0.0.0
     - --client-ca-file=/etc/kubernetes/secrets/ca.crt
+    - --enable-admission-plugins=NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultTolerationSeconds,DefaultStorageClass,MutatingAdmissionWebhook,ValidatingAdmissionWebhook,ResourceQuota
     - --enable-bootstrap-token-auth=true
 {{- if .EtcdUseTLS }}
     - --etcd-cafile=/etc/kubernetes/secrets/etcd-client-ca.crt
@@ -232,7 +232,6 @@ spec:
     - --etcd-keyfile=/etc/kubernetes/secrets/etcd-client.key
 {{- end }}
     - --etcd-servers={{ range $i, $e := .EtcdServers }}{{ if $i }},{{end}}{{ $e }}{{end}}
-    - --insecure-port=0
     - --kubelet-client-certificate=/etc/kubernetes/secrets/apiserver.crt
     - --kubelet-client-key=/etc/kubernetes/secrets/apiserver.key
     - --secure-port={{ (index .APIServers 0).Port }}
@@ -240,7 +239,6 @@ spec:
     - --service-cluster-ip-range={{ .ServiceCIDR }}
     - --cloud-provider={{ .CloudProvider }}
     - --storage-backend=etcd3
-    - --tls-ca-file=/etc/kubernetes/secrets/ca.crt
     - --tls-cert-file=/etc/kubernetes/secrets/apiserver.crt
     - --tls-private-key-file=/etc/kubernetes/secrets/apiserver.key
     env:

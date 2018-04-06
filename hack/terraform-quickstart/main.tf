@@ -1,3 +1,9 @@
+locals {
+  default_keys   = ["Name", "kubernetes.io/cluster/${var.kubernetes_id}"]
+  default_values = ["${var.resource_owner}", true]
+  default_tags   = "${zipmap(local.default_keys, local.default_values)}"
+}
+
 provider "aws" {
   access_key = "${var.access_key_id}"
   secret_key = "${var.access_key}"
@@ -21,9 +27,7 @@ resource "aws_instance" "bootstrap_node" {
   associate_public_ip_address = true
   depends_on                  = ["aws_internet_gateway.main"]
 
-  tags {
-    Name = "${var.resource_owner}"
-  }
+  tags = "${local.default_tags}"
 
   root_block_device {
     volume_type = "gp2"
@@ -64,9 +68,7 @@ resource "aws_instance" "worker_node" {
   associate_public_ip_address = true
   depends_on                  = ["aws_internet_gateway.main"]
 
-  tags {
-    Name = "${var.resource_owner}"
-  }
+  tags = "${local.default_tags}"
 
   root_block_device {
     volume_type = "gp2"
@@ -107,9 +109,7 @@ resource "aws_instance" "master_node" {
   associate_public_ip_address = true
   depends_on                  = ["aws_internet_gateway.main"]
 
-  tags {
-    Name = "${var.resource_owner}"
-  }
+  tags = "${local.default_tags}"
 
   root_block_device {
     volume_type = "gp2"
