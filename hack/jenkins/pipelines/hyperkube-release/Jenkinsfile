@@ -14,7 +14,7 @@ podTemplate(label: 'hyperkube-build',
 
               git checkout ${KUBERNETES_VERSION}
               build/run.sh make cross ARCH=amd64 KUBE_FASTBUILD=true WHAT=cmd/hyperkube
-              pushd cluster/images/hyperkube && make VERSION=$(IMAGE_TAG) REGISTRY=quay.io/coreos && popd
+              pushd cluster/images/hyperkube && make VERSION=$IMAGE_TAG REGISTRY=quay.io/coreos && popd
               docker tag quay.io/coreos/hyperkube-amd64:$IMAGE_TAG quay.io/coreos/hyperkube:$IMAGE_TAG
               docker images
               if [ "$PUSH_IMAGE" = true ] && ! docker pull quay.io/coreos/hyperkube:$IMAGE_TAG ; then
