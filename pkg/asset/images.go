@@ -7,9 +7,9 @@ var DefaultImages = ImageVersions{
 	FlannelCNI:      "quay.io/coreos/flannel-cni:v0.3.0",
 	Calico:          "quay.io/calico/node:v3.0.3",
 	CalicoCNI:       "quay.io/calico/cni:v2.0.0",
-	Hyperkube:       "gcr.io/google_containers/hyperkube:v1.10.0",
-	KubeDNS:         "gcr.io/google_containers/k8s-dns-kube-dns-amd64:1.14.8",
-	KubeDNSMasq:     "gcr.io/google_containers/k8s-dns-dnsmasq-nanny-amd64:1.14.8",
-	KubeDNSSidecar:  "gcr.io/google_containers/k8s-dns-sidecar-amd64:1.14.8",
+	Hyperkube:       "k8s.gcr.io/hyperkube:v1.10.0",
+	KubeDNS:         "k8s.gcr.io/k8s-dns-kube-dns-amd64:1.14.8",
+	KubeDNSMasq:     "k8s.gcr.io/k8s-dns-dnsmasq-nanny-amd64:1.14.8",
+	KubeDNSSidecar:  "k8s.gcr.io/k8s-dns-sidecar-amd64:1.14.8",
 	PodCheckpointer: "quay.io/coreos/pod-checkpointer:9dc83e1ab3bc36ca25c9f7c18ddef1b91d4a0558",
 }
