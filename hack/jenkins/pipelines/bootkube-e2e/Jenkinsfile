@@ -9,7 +9,7 @@ pipeline {
       label "${JOB_NAME}-${BUILD_NUMBER}"
       containerTemplate {
         name 'default'
-        image 'colemickens/bootkube-e2e:1520055055'
+        image 'quay.io/coreos/bootkube-e2e-builder:v0.1'
         ttyEnabled true
         command 'cat'
       }
