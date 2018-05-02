@@ -19,10 +19,6 @@ revision = "kubernetes-1.9.3"
 [[constraint]]
 name = "k8s.io/client-go"
 revision = "kubernetes-1.9.3"
-[[constraint]]
-# Required for CRI integration
-name = "k8s.io/kubernetes"
-version = "v1.9.3"
 
 [[constraint]]
 name = "github.com/coreos/etcd"
