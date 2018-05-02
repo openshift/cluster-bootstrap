@@ -30,6 +30,7 @@ pipeline {
     KUBECONFIG = "${WORKSPACE}/src/github.com/kubernetes-incubator/bootkube/hack/quickstart/cluster/auth/kubeconfig"
     IDENT = "${WORKSPACE}/src/github.com/kubernetes-incubator/bootkube/hack/quickstart/cluster/auth/id_rsa"
     BOOTKUBE_OPTS = "--strict"
+    TF_VAR_network_provider = "${NETWORK_PROVIDER}"
 
     AWS_CRED = credentials('aws')
     ACCESS_KEY_ID = "${AWS_CRED_USR}"

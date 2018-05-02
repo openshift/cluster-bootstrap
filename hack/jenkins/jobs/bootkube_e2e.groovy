@@ -16,6 +16,7 @@ network_providers.each { np ->
   pipelineJob(job_name) {
     parameters {
       stringParam('sha1', 'origin/master', 'git reference to build')
+      stringParam('NETWORK_PROVIDER', "${np}", 'network provider')
     }
     definition {
       triggers {
