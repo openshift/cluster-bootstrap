@@ -8,11 +8,19 @@ import (
 	"google.golang.org/grpc"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
-	"k8s.io/kubernetes/pkg/kubelet/util"
 
 	"github.com/kubernetes-incubator/bootkube/pkg/checkpoint/cri/v1alpha1"
 	"github.com/kubernetes-incubator/bootkube/pkg/checkpoint/cri/v1alpha2"
+	"github.com/kubernetes-incubator/bootkube/pkg/checkpoint/internal"
+)
+
+// Copied from "k8s.io/kubernetes/pkg/kubelet/types"
+const (
+	kubernetesPodNameLabel       = "io.kubernetes.pod.name"
+	kubernetesPodNamespaceLabel  = "io.kubernetes.pod.namespace"
+	kubernetesPodUIDLabel        = "io.kubernetes.pod.uid"
+	kubernetesContainerNameLabel = "io.kubernetes.container.name"
+	kubernetesContainerTypeLabel = "io.kubernetes.container.type"
 )
 
 type remoteRuntimeService struct {
@@ -23,7 +31,7 @@ type remoteRuntimeService struct {
 
 func newRemoteRuntimeService(endpoint string, connectionTimeout time.Duration) (*remoteRuntimeService, error) {
 	glog.Infof("Connecting to runtime service %s", endpoint)
-	addr, dialer, err := util.GetAddressAndDialer(endpoint)
+	addr, dialer, err := internal.GetAddressAndDialer(endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -74,12 +82,12 @@ func (r *remoteRuntimeService) localRunningPods() map[string]*v1.Pod {
 	// Add all pods that containers are apart of
 	for _, c := range containers {
 
-		podName := c.Labels[kubelettypes.KubernetesPodNamespaceLabel] + "/" + c.Labels[kubelettypes.KubernetesPodNameLabel]
+		podName := c.Labels[kubernetesPodNamespaceLabel] + "/" + c.Labels[kubernetesPodNameLabel]
 		if _, ok := pods[podName]; !ok {
 			p := &v1.Pod{}
-			p.UID = types.UID(c.Labels[kubelettypes.KubernetesPodUIDLabel])
-			p.Name = c.Labels[kubelettypes.KubernetesPodNameLabel]
-			p.Namespace = c.Labels[kubelettypes.KubernetesPodNamespaceLabel]
+			p.UID = types.UID(c.Labels[kubernetesPodUIDLabel])
+			p.Name = c.Labels[kubernetesPodNameLabel]
+			p.Namespace = c.Labels[kubernetesPodNamespaceLabel]
 
 			pods[podName] = p
 		}
