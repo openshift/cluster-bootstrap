@@ -393,14 +393,5 @@
 				"confidence": 1
 			}
 		]
-	},
-	{
-		"project": "k8s.io/kubernetes/pkg",
-		"licenses": [
-			{
-				"type": "Apache License 2.0",
-				"confidence": 1
-			}
-		]
 	}
 ]
