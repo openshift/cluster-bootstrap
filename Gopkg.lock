@@ -261,7 +261,7 @@
     "storage/v1alpha1",
     "storage/v1beta1"
   ]
-  revision = "kubernetes-1.10.2"
+  revision = "kubernetes-1.10.3"
 
 [[projects]]
   name = "k8s.io/apiextensions-apiserver"
@@ -269,7 +269,7 @@
     "pkg/apis/apiextensions",
     "pkg/apis/apiextensions/v1beta1"
   ]
-  revision = "kubernetes-1.10.2"
+  revision = "kubernetes-1.10.3"
 
 [[projects]]
   name = "k8s.io/apimachinery"
@@ -315,7 +315,7 @@
     "pkg/watch",
     "third_party/forked/golang/reflect"
   ]
-  revision = "kubernetes-1.10.2"
+  revision = "kubernetes-1.10.3"
 
 [[projects]]
   name = "k8s.io/client-go"
@@ -374,11 +374,11 @@
     "util/integer",
     "util/retry"
   ]
-  revision = "kubernetes-1.10.2"
+  revision = "kubernetes-1.10.3"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "29f4c6848d91b194bd4159e5b2c326228f146fcaf2cbf86953648c6c1b939b51"
+  inputs-digest = "b4b23a45e6e8deb9d6d1428c80a8aeecb5b913e4f7edf0442686a33958b1b21d"
   solver-name = "gps-cdcl"
   solver-version = 1
