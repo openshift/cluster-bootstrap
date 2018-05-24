@@ -2,7 +2,7 @@
 set -euo pipefail
 
 export KUBECONFIG="${KUBECONFIG:-"${DIR}/../../quickstart/cluster/auth/kubeconfig"}"
-export KUBERNETES_VERSION="v1.10.2"
+export KUBERNETES_VERSION="v1.10.3"
 
 # Set up kubectl
 curl -L -O -v https://storage.googleapis.com/kubernetes-release/release/$KUBERNETES_VERSION/bin/linux/amd64/kubectl
