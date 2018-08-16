@@ -2,9 +2,8 @@ export CGO_ENABLED:=0
 export GOARCH:=amd64
 export PATH:=$(PATH):$(PWD)
 
-SHELL:=$(shell which bash)
 LOCAL_OS:=$(shell uname | tr A-Z a-z)
-GOFILES:=$(shell find . -name '*.go' | grep -v -E '(./vendor)')
+GOFILES:=$(shell find . -name '*.go' ! -path './vendor/*')
 LDFLAGS=-X github.com/kubernetes-incubator/bootkube/pkg/version.Version=$(shell $(CURDIR)/build/git-version.sh)
 TERRAFORM:=$(shell command -v terraform 2> /dev/null)
 
@@ -28,8 +27,7 @@ release: \
 	check \
 	_output/release/bootkube.tar.gz \
 
-check:
-	@gofmt -l -s $(GOFILES) | read; if [ $$? == 0 ]; then gofmt -s -d $(GOFILES); exit 1; fi
+check: gofmt
 ifdef TERRAFORM
 	$(TERRAFORM) fmt -check ; if [ ! $$? -eq 0 ]; then exit 1; fi
 else
@@ -38,6 +36,10 @@ endif
 	@go vet $(shell go list ./... | grep -v '/vendor/')
 	@./scripts/verify-gopkg.sh
 	@go test -v $(shell go list ./... | grep -v '/vendor/\|/e2e')
+
+gofmt:
+	gofmt -s -w $(GOFILES)
+	git diff --exit-code
 
 install:
 	go install -ldflags "$(LDFLAGS)" ./cmd/bootkube
@@ -84,4 +86,4 @@ vendor:
 clean:
 	rm -rf _output
 
-.PHONY: all check clean install release vendor
+.PHONY: all check clean gofmt install release vendor
