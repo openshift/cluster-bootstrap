@@ -39,7 +39,6 @@ endif
 
 gofmt:
 	gofmt -s -w $(GOFILES)
-	git diff --exit-code
 
 install:
 	go install -ldflags "$(LDFLAGS)" ./cmd/bootkube
