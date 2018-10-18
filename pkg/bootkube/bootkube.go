@@ -12,23 +12,18 @@ import (
 
 const assetTimeout = 20 * time.Minute
 
-var requiredPods = []string{
-	"pod-checkpointer",
-	"kube-apiserver",
-	"kube-scheduler",
-	"kube-controller-manager",
-}
-
 type Config struct {
 	AssetDir        string
 	PodManifestPath string
 	Strict          bool
+	RequiredPods    []string
 }
 
 type bootkube struct {
 	podManifestPath string
 	assetDir        string
 	strict          bool
+	requiredPods    []string
 }
 
 func NewBootkube(config Config) (*bootkube, error) {
@@ -36,6 +31,7 @@ func NewBootkube(config Config) (*bootkube, error) {
 		assetDir:        config.AssetDir,
 		podManifestPath: config.PodManifestPath,
 		strict:          config.Strict,
+		requiredPods:    config.RequiredPods,
 	}, nil
 }
 
@@ -71,7 +67,7 @@ func (b *bootkube) Run() error {
 		return err
 	}
 
-	if err = WaitUntilPodsRunning(kubeConfig, requiredPods, assetTimeout); err != nil {
+	if err = WaitUntilPodsRunning(kubeConfig, b.requiredPods, assetTimeout); err != nil {
 		return err
 	}
 
