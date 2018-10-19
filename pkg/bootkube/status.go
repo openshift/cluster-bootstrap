@@ -2,7 +2,6 @@ package bootkube
 
 import (
 	"fmt"
-	"path"
 	"reflect"
 	"strings"
 	"time"
@@ -65,10 +64,10 @@ func (s *statusController) Run() {
 	podStore, podController := cache.NewInformer(
 		&cache.ListWatch{
 			ListFunc: func(lo metav1.ListOptions) (runtime.Object, error) {
-				return s.client.Core().Pods("kube-system").List(options)
+				return s.client.Core().Pods("").List(options)
 			},
 			WatchFunc: func(lo metav1.ListOptions) (watch.Interface, error) {
-				return s.client.Core().Pods("kube-system").Watch(options)
+				return s.client.Core().Pods("").Watch(options)
 			},
 		},
 		&v1.Pod{},
@@ -110,24 +109,24 @@ func (s *statusController) PodStatus() (map[string]v1.PodPhase, error) {
 	status := make(map[string]v1.PodPhase)
 
 	podNames := s.podStore.ListKeys()
-	for _, pod := range s.watchPods {
+	for _, watchedPod := range s.watchPods {
 		// Pod names are suffixed with random data. Match on prefix
-		podName := pod
 		for _, pn := range podNames {
-			if strings.HasPrefix(pn, path.Join("kube-system", pod)) {
-				podName = pn
+			if strings.HasPrefix(pn, watchedPod) {
+				watchedPod = pn
+				break
 			}
 		}
-		p, exists, err := s.podStore.GetByKey(podName)
+		p, exists, err := s.podStore.GetByKey(watchedPod)
 		if err != nil {
 			return nil, err
 		}
 		if !exists {
-			status[pod] = doesNotExist
+			status[watchedPod] = doesNotExist
 			continue
 		}
 		if p, ok := p.(*v1.Pod); ok {
-			status[pod] = p.Status.Phase
+			status[watchedPod] = p.Status.Phase
 		}
 	}
 	return status, nil
