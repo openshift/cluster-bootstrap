@@ -18,6 +18,7 @@ import (
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -29,7 +30,7 @@ import (
 )
 
 const (
-	crdRolloutDuration = 5 * time.Second
+	crdRolloutDuration = 1 * time.Second
 	crdRolloutTimeout  = 2 * time.Minute
 )
 
@@ -222,9 +223,26 @@ func (c *creater) waitForCRD(m manifest) error {
 		return fmt.Errorf("failed to unmarshal manifest: %v", err)
 	}
 
+	// get first served version
+	firstVer := ""
+	if len(crd.Spec.Versions) > 0 {
+		for _, v := range crd.Spec.Versions {
+			if v.Served {
+				firstVer = v.Name
+				break
+			}
+		}
+	} else {
+		firstVer = crd.Spec.Version
+	}
+	if len(firstVer) == 0 {
+		return fmt.Errorf("expected at least one served version")
+	}
+
 	return wait.PollImmediate(crdRolloutDuration, crdRolloutTimeout, func() (bool, error) {
-		uri := customResourceDefinitionKindURI(crd.Spec.Group, crd.Spec.Version, crd.GetNamespace(), crd.Spec.Names.Plural)
-		res := c.client.Get().RequestURI(uri).Do()
+		// get all resources, giving a 200 result with empty list on success, 404 before the CRD is active.
+		namespaceLessURI := allCustomResourcesURI(schema.GroupVersionResource{Group: crd.Spec.Group, Version: firstVer, Resource: crd.Spec.Names.Plural})
+		res := c.client.Get().RequestURI(namespaceLessURI).Do()
 		if res.Error() != nil {
 			if errors.IsNotFound(res.Error()) {
 				return false, nil
@@ -235,21 +253,14 @@ func (c *creater) waitForCRD(m manifest) error {
 	})
 }
 
-// customResourceDefinitionKindURI returns the URI for the CRD kind.
-//
-// Example of apiGroup: "tco.coreos.com"
-// Example of version: "v1"
-// Example of namespace: "default"
-// Example of plural: "appversions"
-func customResourceDefinitionKindURI(apiGroup, version, namespace, plural string) string {
-	if namespace == "" {
-		namespace = metav1.NamespaceDefault
-	}
-	return fmt.Sprintf("/apis/%s/%s/namespaces/%s/%s",
-		strings.ToLower(apiGroup),
-		strings.ToLower(version),
-		strings.ToLower(namespace),
-		strings.ToLower(plural))
+// allCustomResourcesURI returns the URI for the CRD resource without a namespace, listing
+// all objects of that GroupVersionResource.
+func allCustomResourcesURI(gvr schema.GroupVersionResource) string {
+	return fmt.Sprintf("/apis/%s/%s/%s",
+		strings.ToLower(gvr.Group),
+		strings.ToLower(gvr.Version),
+		strings.ToLower(gvr.Resource),
+	)
 }
 
 func (c *creater) create(m manifest) error {
