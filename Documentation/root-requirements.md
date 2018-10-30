@@ -3,7 +3,7 @@
 Running services as a non-root user is typically better for security, since
 permissions can be controlled.
 
-Some Kubenetes services can be run as a non-root user, but most require root
+Some Kubernetes services can be run as a non-root user, but most require root
 privileges in some manner. This document will try out outline why certain
 Kubernetes services require root privileges.
 
