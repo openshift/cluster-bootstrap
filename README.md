@@ -63,7 +63,7 @@ Example:
 bootkube start --asset-dir=my-cluster
 ```
 
-When `bootkube start` is creating Kuberentes resources from manifests, the following order is used:
+When `bootkube start` is creating Kubernetes resources from manifests, the following order is used:
 1. Any `Namespace` objects are created, in lexicographical order.
 1. Any `CustomResourceDefinition` objects are created, in lexicographical order.
 1. Any remaining resouces are created, in lexicographical order.
