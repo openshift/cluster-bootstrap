@@ -173,7 +173,7 @@ func (r *remoteRuntimeService) getRunningKubeletSandboxes() ([]criSandbox, error
 			},
 		})
 		if err != nil {
-			glog.Errorf("ListPodSandbox with filter from runtime sevice failed: %v", err)
+			glog.Errorf("ListPodSandbox with filter from runtime service failed: %v", err)
 			return nil, err
 		}
 		for _, c := range resp.Items {
@@ -199,7 +199,7 @@ func (r *remoteRuntimeService) getRunningKubeletSandboxes() ([]criSandbox, error
 		},
 	})
 	if err != nil {
-		glog.Errorf("ListPodSandbox with filter from runtime sevice failed: %v", err)
+		glog.Errorf("ListPodSandbox with filter from runtime service failed: %v", err)
 		return nil, err
 	}
 	for _, c := range resp.Items {
