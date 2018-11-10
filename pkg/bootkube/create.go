@@ -414,7 +414,7 @@ func (m *resourceMapper) resourceInfo(groupVersion, kind string) (*metav1.APIRes
 
 	l, err := m.discoveryClient.ServerResourcesForGroupVersion(groupVersion)
 	if err != nil {
-		return nil, fmt.Errorf("discover group verison %s: %v", groupVersion, err)
+		return nil, fmt.Errorf("discover group version %s: %v", groupVersion, err)
 	}
 
 	m.mu.Lock()
