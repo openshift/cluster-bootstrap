@@ -791,6 +791,11 @@ rules:
     verbs:
       - list
       - watch
+  - apiGroups: [""]
+    resources:
+      - nodes
+    verbs:
+      - get
 `)
 
 var CoreDNSConfigTemplate = []byte(`apiVersion: v1
@@ -812,7 +817,9 @@ data:
         prometheus :9153
         proxy . /etc/resolv.conf
         cache 30
+        loop
         reload
+        loadbalance
     }
 `)
 
