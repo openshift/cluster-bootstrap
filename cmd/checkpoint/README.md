@@ -10,7 +10,7 @@ The kubelet will already attempt to ensure that local pods will continue to run 
 
 This is accomplished by managing checkpoints as static pod manifests:
 
-- When the checkpointer sees that a "parent pod" (a pod which should be checkpointed), is succesfully running, the checkpointer will save a local copy of the manifest.
+- When the checkpointer sees that a "parent pod" (a pod which should be checkpointed), is successfully running, the checkpointer will save a local copy of the manifest.
 
 - If the parent pod is detected as no longer running, the checkpointer will "activate" the checkpoint manifest. It will allow the checkpoint to continue running until the parent-pod is restarted on the local node, or it is able to contact an api-server to determine that the parent pod is no longer scheduled to this node.
 

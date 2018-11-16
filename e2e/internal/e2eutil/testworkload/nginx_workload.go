@@ -166,7 +166,7 @@ func (n *Nginx) Delete() error {
 		}
 		return true, nil
 	}); err != nil {
-		return fmt.Errorf("error deleting %s deployment and serivce: %v", n.Name, err)
+		return fmt.Errorf("error deleting %s deployment and service: %v", n.Name, err)
 	}
 
 	return nil
