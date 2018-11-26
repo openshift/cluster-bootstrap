@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/kubernetes-incubator/bootkube/pkg/asset"
-
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -39,7 +37,7 @@ func (b *bootkube) Run() error {
 	// TODO(diegs): create and share a single client rather than the kubeconfig once all uses of it
 	// are migrated to client-go.
 	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		&clientcmd.ClientConfigLoadingRules{ExplicitPath: filepath.Join(b.assetDir, asset.AssetPathAdminKubeConfig)},
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: filepath.Join(b.assetDir, AssetPathAdminKubeConfig)},
 		&clientcmd.ConfigOverrides{})
 
 	bcp := NewBootstrapControlPlane(b.assetDir, b.podManifestPath)
@@ -63,7 +61,7 @@ func (b *bootkube) Run() error {
 		return err
 	}
 
-	if err = CreateAssets(kubeConfig, filepath.Join(b.assetDir, asset.AssetPathManifests), assetTimeout, b.strict); err != nil {
+	if err = CreateAssets(kubeConfig, filepath.Join(b.assetDir, AssetPathManifests), assetTimeout, b.strict); err != nil {
 		return err
 	}
 

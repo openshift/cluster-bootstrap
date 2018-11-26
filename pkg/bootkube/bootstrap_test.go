@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
-
-	"github.com/kubernetes-incubator/bootkube/pkg/asset"
 )
 
 var (
@@ -26,31 +24,31 @@ func setUp(t *testing.T) (assetDir, podManifestPath string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	asset.BootstrapSecretsDir, err = ioutil.TempDir("", "bootstrap-secrets")
+	BootstrapSecretsDir, err = ioutil.TempDir("", "bootstrap-secrets")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Create assets.
-	if err := os.Mkdir(filepath.Join(assetDir, filepath.Dir(asset.AssetPathAdminKubeConfig)), os.FileMode(0755)); err != nil {
+	if err := os.Mkdir(filepath.Join(assetDir, filepath.Dir(AssetPathAdminKubeConfig)), os.FileMode(0755)); err != nil {
 		t.Fatal(err)
 	}
-	if err := ioutil.WriteFile(filepath.Join(assetDir, asset.AssetPathAdminKubeConfig), []byte("kubeconfig data"), os.FileMode(0644)); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(assetDir, AssetPathAdminKubeConfig), []byte("kubeconfig data"), os.FileMode(0644)); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(filepath.Join(assetDir, asset.AssetPathSecrets), os.FileMode(0755)); err != nil {
+	if err := os.Mkdir(filepath.Join(assetDir, AssetPathSecrets), os.FileMode(0755)); err != nil {
 		t.Fatal(err)
 	}
 	for _, secret := range secrets {
-		if err := ioutil.WriteFile(filepath.Join(assetDir, asset.AssetPathSecrets, secret), []byte("secret data"), os.FileMode(0644)); err != nil {
+		if err := ioutil.WriteFile(filepath.Join(assetDir, AssetPathSecrets, secret), []byte("secret data"), os.FileMode(0644)); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := os.Mkdir(filepath.Join(assetDir, asset.AssetPathBootstrapManifests), os.FileMode(0755)); err != nil {
+	if err := os.Mkdir(filepath.Join(assetDir, AssetPathBootstrapManifests), os.FileMode(0755)); err != nil {
 		t.Fatal(err)
 	}
 	for _, manifest := range manifests {
-		if err := ioutil.WriteFile(filepath.Join(assetDir, asset.AssetPathBootstrapManifests, manifest), []byte("manifest data"), os.FileMode(0644)); err != nil {
+		if err := ioutil.WriteFile(filepath.Join(assetDir, AssetPathBootstrapManifests, manifest), []byte("manifest data"), os.FileMode(0644)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -64,7 +62,7 @@ func tearDown(assetDir, podManifestPath string, t *testing.T) {
 	if err := os.RemoveAll(podManifestPath); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.RemoveAll(asset.BootstrapSecretsDir); err != nil {
+	if err := os.RemoveAll(BootstrapSecretsDir); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -81,7 +79,7 @@ func TestBootstrapControlPlane(t *testing.T) {
 
 	// Make sure assets were copied.
 	for _, secret := range secrets {
-		if _, err := os.Stat(filepath.Join(asset.BootstrapSecretsDir, secret)); os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(BootstrapSecretsDir, secret)); os.IsNotExist(err) {
 			t.Errorf("bcp.Start() failed to copy secret: %v", secret)
 		}
 	}
@@ -97,7 +95,7 @@ func TestBootstrapControlPlane(t *testing.T) {
 	}
 
 	// Make sure directories were properly cleaned up.
-	if fi, err := os.Stat(asset.BootstrapSecretsDir); fi != nil || !os.IsNotExist(err) {
+	if fi, err := os.Stat(BootstrapSecretsDir); fi != nil || !os.IsNotExist(err) {
 		t.Error("bcp.Teardown() failed to delete secrets directory")
 	}
 	for _, manifest := range manifests {
@@ -126,7 +124,7 @@ func TestBootstrapControlPlaneNoOverwrite(t *testing.T) {
 
 	// Make sure assets were copied.
 	for _, secret := range secrets {
-		if _, err := os.Stat(filepath.Join(asset.BootstrapSecretsDir, secret)); os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(BootstrapSecretsDir, secret)); os.IsNotExist(err) {
 			t.Errorf("bcp.Start() failed to copy secret: %v", secret)
 		}
 	}
@@ -151,7 +149,7 @@ func TestBootstrapControlPlaneNoOverwrite(t *testing.T) {
 	}
 
 	// Make sure directories were properly cleaned up.
-	if fi, err := os.Stat(asset.BootstrapSecretsDir); fi != nil || !os.IsNotExist(err) {
+	if fi, err := os.Stat(BootstrapSecretsDir); fi != nil || !os.IsNotExist(err) {
 		t.Error("bcp.Teardown() failed to delete secrets directory")
 	}
 	for _, manifest := range manifests {

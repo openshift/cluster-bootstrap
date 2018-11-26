@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/kubernetes-incubator/bootkube/pkg/asset"
 )
 
 type bootstrapControlPlane struct {
@@ -28,20 +26,20 @@ func NewBootstrapControlPlane(assetDir, podManifestPath string) *bootstrapContro
 func (b *bootstrapControlPlane) Start() error {
 	UserOutput("Starting temporary bootstrap control plane...\n")
 	// Make secrets temporarily available to bootstrap cluster.
-	if err := os.RemoveAll(asset.BootstrapSecretsDir); err != nil {
+	if err := os.RemoveAll(BootstrapSecretsDir); err != nil {
 		return err
 	}
-	secretsDir := filepath.Join(b.assetDir, asset.AssetPathSecrets)
-	if _, err := copyDirectory(secretsDir, asset.BootstrapSecretsDir, true /* overwrite */); err != nil {
+	secretsDir := filepath.Join(b.assetDir, AssetPathSecrets)
+	if _, err := copyDirectory(secretsDir, BootstrapSecretsDir, true /* overwrite */); err != nil {
 		return err
 	}
 	// Copy the admin kubeconfig. TODO(diegs): this is kind of a hack, maybe do something better.
-	if err := copyFile(filepath.Join(b.assetDir, asset.AssetPathAdminKubeConfig), filepath.Join(asset.BootstrapSecretsDir, "kubeconfig"), true /* overwrite */); err != nil {
+	if err := copyFile(filepath.Join(b.assetDir, AssetPathAdminKubeConfig), filepath.Join(BootstrapSecretsDir, "kubeconfig"), true /* overwrite */); err != nil {
 		return err
 	}
 
 	// Copy the static manifests to the kubelet's pod manifest path.
-	manifestsDir := filepath.Join(b.assetDir, asset.AssetPathBootstrapManifests)
+	manifestsDir := filepath.Join(b.assetDir, AssetPathBootstrapManifests)
 	ownedManifests, err := copyDirectory(manifestsDir, b.podManifestPath, false /* overwrite */)
 	b.ownedManifests = ownedManifests // always copy in case of partial failure.
 	return err
@@ -51,7 +49,7 @@ func (b *bootstrapControlPlane) Start() error {
 // secrets. This function is idempotent.
 func (b *bootstrapControlPlane) Teardown() error {
 	UserOutput("Tearing down temporary bootstrap control plane...\n")
-	if err := os.RemoveAll(asset.BootstrapSecretsDir); err != nil {
+	if err := os.RemoveAll(BootstrapSecretsDir); err != nil {
 		return err
 	}
 	for _, manifest := range b.ownedManifests {
