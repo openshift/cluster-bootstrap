@@ -1,4 +1,4 @@
-package bootkube
+package start
 
 const (
 	AssetPathSecrets            = "tls"

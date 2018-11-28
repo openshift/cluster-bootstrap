@@ -1,4 +1,4 @@
-package bootkube
+package start
 
 import (
 	"fmt"
@@ -17,15 +17,15 @@ type Config struct {
 	RequiredPods    []string
 }
 
-type bootkube struct {
+type startCommand struct {
 	podManifestPath string
 	assetDir        string
 	strict          bool
 	requiredPods    []string
 }
 
-func NewBootkube(config Config) (*bootkube, error) {
-	return &bootkube{
+func NewStartCommand(config Config) (*startCommand, error) {
+	return &startCommand{
 		assetDir:        config.AssetDir,
 		podManifestPath: config.PodManifestPath,
 		strict:          config.Strict,
@@ -33,7 +33,7 @@ func NewBootkube(config Config) (*bootkube, error) {
 	}, nil
 }
 
-func (b *bootkube) Run() error {
+func (b *startCommand) Run() error {
 	// TODO(diegs): create and share a single client rather than the kubeconfig once all uses of it
 	// are migrated to client-go.
 	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
@@ -72,8 +72,8 @@ func (b *bootkube) Run() error {
 	return nil
 }
 
-// All bootkube printing to stdout should go through this fmt.Printf wrapper.
-// The stdout of bootkube should convey information useful to a human sitting
+// All start command printing to stdout should go through this fmt.Printf wrapper.
+// The stdout of the start command should convey information useful to a human sitting
 // at a terminal watching their cluster bootstrap itself. Otherwise the message
 // should go to stderr.
 func UserOutput(format string, a ...interface{}) {
