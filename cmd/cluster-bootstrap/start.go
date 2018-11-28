@@ -40,7 +40,7 @@ func init() {
 	cmdStart.Flags().StringVar(&startOpts.assetDir, "asset-dir", "", "Path to the cluster asset directory.")
 	cmdStart.Flags().StringVar(&startOpts.podManifestPath, "pod-manifest-path", "/etc/kubernetes/manifests", "The location where the kubelet is configured to look for static pod manifests.")
 	cmdStart.Flags().BoolVar(&startOpts.strict, "strict", false, "Strict mode will cause start command to exit early if any manifests in the asset directory cannot be created.")
-	cmdStart.Flags().StringSliceVar(&startOpts.requiredPods, "required-pods", defaultRequiredPods, "List of pods with their namespace (written as <namespace>/<pod-name>) that are required to be running before the start command does the pivot.")
+	cmdStart.Flags().StringSliceVar(&startOpts.requiredPods, "required-pods", defaultRequiredPods, "List of pods with their namespace (written as <namespace>/<pod-name>) that are required to be running and ready before the start command does the pivot.")
 }
 
 func runCmdStart(cmd *cobra.Command, args []string) error {

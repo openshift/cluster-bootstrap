@@ -17,10 +17,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-const (
-	doesNotExist = "DoesNotExist"
-)
-
 func WaitUntilPodsRunning(c clientcmd.ClientConfig, pods []string, timeout time.Duration) error {
 	sc, err := NewStatusController(c, pods)
 	if err != nil {
@@ -28,7 +24,7 @@ func WaitUntilPodsRunning(c clientcmd.ClientConfig, pods []string, timeout time.
 	}
 	sc.Run()
 
-	if err := wait.Poll(5*time.Second, timeout, sc.AllRunning); err != nil {
+	if err := wait.Poll(5*time.Second, timeout, sc.AllRunningAndReady); err != nil {
 		return fmt.Errorf("error while checking pod status: %v", err)
 	}
 
@@ -40,7 +36,7 @@ type statusController struct {
 	client        kubernetes.Interface
 	podStore      cache.Store
 	watchPods     []string
-	lastPodPhases map[string]v1.PodPhase
+	lastPodPhases map[string]*PodStatus
 }
 
 func NewStatusController(c clientcmd.ClientConfig, pods []string) (*statusController, error) {
@@ -78,7 +74,7 @@ func (s *statusController) Run() {
 	go podController.Run(wait.NeverStop)
 }
 
-func (s *statusController) AllRunning() (bool, error) {
+func (s *statusController) AllRunningAndReady() (bool, error) {
 	ps, err := s.PodStatus()
 	if err != nil {
 		glog.Infof("Error retriving pod statuses: %v", err)
@@ -93,20 +89,40 @@ func (s *statusController) AllRunning() (bool, error) {
 	changed := !reflect.DeepEqual(ps, s.lastPodPhases)
 	s.lastPodPhases = ps
 
-	running := true
+	runningAndReady := true
 	for p, s := range ps {
 		if changed {
-			UserOutput("\tPod Status:%24s\t%s\n", p, s)
+			var status string
+			switch {
+			case s == nil:
+				status = "DoesNotExist"
+			case s.Phase == v1.PodRunning && s.IsReady:
+				status = "Ready"
+			case s.Phase == v1.PodRunning && !s.IsReady:
+				status = "RunningNotReady"
+			default:
+				status = string(s.Phase)
+			}
+
+			UserOutput("\tPod Status:%24s\t%s\n", p, status)
 		}
-		if s != v1.PodRunning {
-			running = false
+		if s == nil || s.Phase != v1.PodRunning || !s.IsReady {
+			runningAndReady = false
 		}
 	}
-	return running, nil
+	return runningAndReady, nil
 }
 
-func (s *statusController) PodStatus() (map[string]v1.PodPhase, error) {
-	status := make(map[string]v1.PodPhase)
+// PodStatus describes a pod's phase and readiness.
+type PodStatus struct {
+	Phase   v1.PodPhase
+	IsReady bool
+}
+
+// PodStatus retrieves the pod status by reading the PodPhase and whether it is ready.
+// A non existing pod is represented with nil.
+func (s *statusController) PodStatus() (map[string]*PodStatus, error) {
+	status := make(map[string]*PodStatus)
 
 	podNames := s.podStore.ListKeys()
 	for _, watchedPod := range s.watchPods {
@@ -122,11 +138,18 @@ func (s *statusController) PodStatus() (map[string]v1.PodPhase, error) {
 			return nil, err
 		}
 		if !exists {
-			status[watchedPod] = doesNotExist
+			status[watchedPod] = nil
 			continue
 		}
 		if p, ok := p.(*v1.Pod); ok {
-			status[watchedPod] = p.Status.Phase
+			status[watchedPod] = &PodStatus{
+				Phase: p.Status.Phase,
+			}
+			for _, c := range p.Status.Conditions {
+				if c.Type == v1.PodReady {
+					status[watchedPod].IsReady = c.Status == v1.ConditionTrue
+				}
+			}
 		}
 	}
 	return status, nil
