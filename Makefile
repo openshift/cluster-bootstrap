@@ -3,7 +3,9 @@ all: build
 
 # Include the library makefile
 include $(addprefix ./vendor/github.com/openshift/library-go/alpha-build-machinery/make/, \
-	operator.mk \
+	golang.mk \
+	targets/openshift/images.mk \
+	targets/openshift/deps.mk \
 )
 
 # This will call a macro called "build-image" which will generate image specific targets based on the parameters:
