@@ -7,3 +7,5 @@ RUN go build -ldflags "-X $GO_PACKAGE/pkg/version.Version=$(git describe --long 
 FROM registry.svc.ci.openshift.org/openshift/origin-v4.0:base
 COPY --from=builder /go/src/github.com/openshift/cluster-bootstrap/cluster-bootstrap /
 ENTRYPOINT ["/cluster-bootstrap"]
+COPY manifests /manifests
+LABEL io.openshift.release.operator true
