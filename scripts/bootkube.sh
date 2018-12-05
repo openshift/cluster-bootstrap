@@ -34,7 +34,6 @@ podman run \
 	--asset-input-dir=/assets/tls \
 	--asset-output-dir=${OUT_DIR} \
 	--config-output-file=${OUT_DIR}/configs \
-	--config-override-files=/assets/bootkube-config-overrides/kube-apiserver-config-overrides.yaml \
 	--cluster-config-file=/assets/tectonic/99_openshift-cluster-api_cluster.yaml
 
 echo "Rendering Kubernetes Controller Manager core manifests..."
@@ -47,7 +46,6 @@ podman run \
 	--asset-input-dir=/assets/tls \
 	--asset-output-dir=${OUT_DIR} \
 	--config-output-file=${OUT_DIR}/configs \
-	--config-override-files=/assets/bootkube-config-overrides/kube-controller-manager-config-overrides.yaml \
 	--cluster-config-file=/assets/tectonic/99_openshift-cluster-api_cluster.yaml
 
 echo "Rendering Kubernetes Scheduler core manifests..."
@@ -59,8 +57,7 @@ podman run \
 	--manifest-image=${OPENSHIFT_HYPERKUBE_IMAGE} \
 	--asset-input-dir=/assets/tls \
 	--asset-output-dir=${OUT_DIR} \
-	--config-output-file=${OUT_DIR}/configs \
-	--config-override-files=/assets/bootkube-config-overrides/kube-scheduler-config-overrides.yaml \
+	--config-output-file=${OUT_DIR}/configs
 
 echo "Starting cluster-bootstrap..."
 podman run \
