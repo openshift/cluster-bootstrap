@@ -24,6 +24,7 @@ var (
 		releaseImageDigest string
 		templatePath       string
 		etcdServerURLs     []string
+		assetsDir          string
 	}
 )
 
@@ -33,6 +34,7 @@ func init() {
 	cmdScript.Flags().StringVar(&scriptOpts.templatePath, "template-path", "/bootkube.sh", "Script template path.")
 	cmdScript.Flags().MarkHidden("template-path")
 	cmdScript.Flags().StringSliceVar(&scriptOpts.etcdServerURLs, "etcd-server-urls", nil, "The etcd server URL, comma separated.")
+	cmdScript.Flags().StringVar(&scriptOpts.assetsDir, "input-assets-dir", "", "Input directory with assets.")
 }
 
 func runCmdScript(cmd *cobra.Command, args []string) error {
@@ -40,6 +42,7 @@ func runCmdScript(cmd *cobra.Command, args []string) error {
 		ScriptPath:         scriptOpts.templatePath,
 		ReleaseImageDigest: scriptOpts.releaseImageDigest,
 		EtcdCluster:        strings.Join(scriptOpts.etcdServerURLs, ","),
+		AssetsDir:          scriptOpts.assetsDir,
 	})
 	if err != nil {
 		return err
@@ -59,6 +62,9 @@ func validateScriptOpts(cmd *cobra.Command, args []string) error {
 	}
 	if len(scriptOpts.etcdServerURLs) == 0 {
 		return errors.New("missing required flag: --etcd-server-urls")
+	}
+	if len(scriptOpts.assetsDir) == 0 {
+		return errors.New("missing required flag: --input-assets-dir")
 	}
 	return nil
 }

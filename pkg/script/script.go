@@ -10,37 +10,30 @@ type Config struct {
 	ScriptPath         string
 	ReleaseImageDigest string
 	EtcdCluster        string
+	AssetsDir       string
 }
 
 type scriptCommand struct {
-	scriptPath         string
-	releaseImageDigest string
-}
-
-type scriptTemplate struct {
-	ReleaseImageDigest string
+	config Config
 }
 
 func NewScriptCommand(config Config) (*scriptCommand, error) {
 	return &scriptCommand{
-		scriptPath:         config.ScriptPath,
-		releaseImageDigest: config.ReleaseImageDigest,
+		config: config,
 	}, nil
 }
 
 func (c *scriptCommand) Run() error {
-	bs, err := ioutil.ReadFile(c.scriptPath)
+	bs, err := ioutil.ReadFile(c.config.ScriptPath)
 	if err != nil {
 		return err
 	}
 
-	tmpl, err := template.New(c.scriptPath).Parse(string(bs))
+	tmpl, err := template.New(c.config.ScriptPath).Parse(string(bs))
 	if err != nil {
 		return err
 	}
-	err = tmpl.Execute(os.Stdout, scriptTemplate{
-		ReleaseImageDigest: c.releaseImageDigest,
-	})
+	err = tmpl.Execute(os.Stdout, c.config)
 	if err != nil {
 		return err
 	}
