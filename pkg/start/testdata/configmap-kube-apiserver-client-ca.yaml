@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: client-ca
+  namespace: openshift-kube-apiserver
+data:
+  ca-bundle.crt: 
+

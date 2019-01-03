@@ -1,11 +1,8 @@
 package start
 
 import (
-	"bufio"
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,18 +11,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/golang/glog"
-	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -34,21 +30,28 @@ const (
 	crdRolloutTimeout  = 2 * time.Minute
 )
 
-func CreateAssets(config clientcmd.ClientConfig, manifestDir string, timeout time.Duration, strict bool) error {
+func CreateAssets(config clientcmd.ClientConfig, manifestDir string, timeout time.Duration) error {
 	if _, err := os.Stat(manifestDir); os.IsNotExist(err) {
 		UserOutput(fmt.Sprintf("WARNING: %v does not exist, not creating any self-hosted assets.\n", manifestDir))
 		return nil
 	}
-	c, err := config.ClientConfig()
-	if err != nil {
-		return err
-	}
-	creater, err := newCreater(c, strict)
+	clientConfig, err := config.ClientConfig()
 	if err != nil {
 		return err
 	}
 
-	m, err := loadManifests(manifestDir)
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(clientConfig)
+	if err != nil {
+		return err
+	}
+	dynamicClient, err := dynamic.NewForConfig(clientConfig)
+	if err != nil {
+		return err
+	}
+
+	creater := newCreater(dynamicClient, discoveryClient)
+
+	manifests, err := creater.loadManifests(manifestDir)
 	if err != nil {
 		return fmt.Errorf("loading manifests: %v", err)
 	}
@@ -69,16 +72,10 @@ func CreateAssets(config clientcmd.ClientConfig, manifestDir string, timeout tim
 	}
 
 	UserOutput("Creating self-hosted assets...\n")
-	if ok := creater.createManifests(m); !ok {
+	if err := creater.createManifests(manifests); err != nil {
 		UserOutput("\nNOTE: Bootkube failed to create some cluster assets. It is important that manifest errors are resolved and resubmitted to the apiserver.\n")
 		UserOutput("For example, after resolving issues: kubectl create -f <failed-manifest>\n\n")
-
-		// Don't fail on manifest creation. It's easier to debug a cluster with a failed
-		// manifest than exiting and tearing down the control plane. If strict
-		// mode is enabled, then error out.
-		if strict {
-			return fmt.Errorf("Self-hosted assets could not be created")
-		}
+		UserOutput("Errors:\n%v\n\n", err)
 	}
 
 	return nil
@@ -106,193 +103,200 @@ func apiTest(c clientcmd.ClientConfig) error {
 	return err
 }
 
-type manifest struct {
-	kind       string
-	apiVersion string
-	namespace  string
-	name       string
-	raw        []byte
-
-	filepath string
+type errorReporter struct {
+	errors []error
 }
 
-func (m manifest) String() string {
-	if m.namespace == "" {
-		return fmt.Sprintf("%s %s %s", m.filepath, m.kind, m.name)
+func (r *errorReporter) errorf(format string, obj ...interface{}) {
+	err := fmt.Errorf(format, obj...)
+	UserOutput("ERROR: %v\n", err)
+	r.errors = append(r.errors, err)
+}
+
+func (r *errorReporter) warningf(format string, obj ...interface{}) {
+	UserOutput("WARNING: %v\n", fmt.Errorf("%v", obj...))
+}
+
+func (r *errorReporter) allErrors() error {
+	if !r.hasErrors() {
+		return nil
 	}
-	return fmt.Sprintf("%s %s %s/%s", m.filepath, m.kind, m.namespace, m.name)
+	var msgs []string
+	for _, err := range r.errors {
+		msgs = append(msgs, err.Error())
+	}
+	return fmt.Errorf("%s", strings.Join(msgs, "\n"))
+}
+
+func (r *errorReporter) hasErrors() bool {
+	return len(r.errors) > 0
 }
 
 type creater struct {
-	client *rest.RESTClient
-	strict bool
-
+	client dynamic.Interface
 	// mapper maps resource kinds ("ConfigMap") with their pluralized URL
 	// path ("configmaps") using the discovery APIs.
 	mapper *resourceMapper
 }
 
-func newCreater(c *rest.Config, strict bool) (*creater, error) {
-	c.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: scheme.Codecs}
-	client, err := rest.UnversionedRESTClientFor(c)
-	if err != nil {
-		return nil, err
-	}
-
-	discoveryClient, err := discovery.NewDiscoveryClientForConfig(c)
-	if err != nil {
-		return nil, err
-	}
-
+func newCreater(client dynamic.Interface, discoveryClient *discovery.DiscoveryClient) *creater {
 	return &creater{
-		mapper: newResourceMapper(discoveryClient),
 		client: client,
-		strict: strict,
-	}, nil
+		mapper: newResourceMapper(discoveryClient),
+	}
 }
 
-func (c *creater) createManifests(manifests []manifest) (ok bool) {
-	ok = true
+func (c *creater) createManifests(manifests map[string]*unstructured.Unstructured) error {
 	// Bootkube used to create manifests in named order ("01-foo" before "02-foo").
 	// Maintain this behavior for everything except CRDs and NSs, which have strict ordering
 	// that we should always respect.
-	sort.Slice(manifests, func(i, j int) bool {
-		return manifests[i].filepath < manifests[j].filepath
-	})
+	var sortedManifests []string
+	for key := range manifests {
+		sortedManifests = append(sortedManifests, key)
+	}
+	sort.Strings(sortedManifests)
 
-	var namespaces, crds, other []manifest
-	for _, m := range manifests {
-		if m.kind == "CustomResourceDefinition" && strings.HasPrefix(m.apiVersion, "apiextensions.k8s.io/") {
-			crds = append(crds, m)
-		} else if m.kind == "Namespace" && m.apiVersion == "v1" {
-			namespaces = append(namespaces, m)
-		} else {
-			other = append(other, m)
+	var (
+		namespaces []*unstructured.Unstructured
+		crds       []*unstructured.Unstructured
+		others     []*unstructured.Unstructured
+	)
+
+	for _, path := range sortedManifests {
+		// fmt.Printf("got: %+v\n", c.mapper.groupVersionResource(manifests[path]))
+		switch c.mapper.groupVersionResource(manifests[path]) {
+		case schema.GroupVersionResource{Version: "v1", Resource: "namespaces"}:
+			namespaces = append(namespaces, manifests[path])
+		case schema.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1beta1", Resource: "customresourcedefinitions"}:
+			crds = append(crds, manifests[path])
+		default:
+			others = append(others, manifests[path])
 		}
 	}
 
-	create := func(m manifest) error {
-		if err := c.create(m); err != nil {
-			ok = false
-			UserOutput("Failed creating %s: %v\n", m, err)
-			return err
-		}
-		UserOutput("Created %s\n", m)
-		return nil
-	}
+	report := errorReporter{}
 
 	// Create all namespaces first
-	for _, m := range namespaces {
-		if err := create(m); err != nil && c.strict {
-			return false
+	for _, namespace := range namespaces {
+		UserOutput("Creating %s %q ...\n", namespace.GroupVersionKind(), namespace.GetName())
+		if _, err := c.client.Resource(c.mapper.groupVersionResource(namespace)).Create(namespace); err != nil {
+			if errors.IsAlreadyExists(err) {
+				report.warningf("%s: %v", err)
+				continue
+			}
+			report.errorf("Failed to create %s %q: %v", namespace.GroupVersionKind(), namespace.GetName(), err)
+			return err
 		}
+	}
+
+	// We can't continue when namespaces failed to created
+	if report.hasErrors() {
+		return report.allErrors()
 	}
 
 	// Create the custom resource definition before creating the actual custom resources.
-	for _, m := range crds {
-		if err := create(m); err != nil && c.strict {
-			return false
-		}
-	}
-
-	// Wait until the API server registers the CRDs. Until then it's not safe to create the
-	// manifests for those custom resources.
 	for _, crd := range crds {
-		if err := c.waitForCRD(crd); err != nil {
-			ok = false
-			UserOutput("Failed waiting for %s: %v", crd, err)
-			if c.strict {
-				return false
+		UserOutput("Creating %s %q ...\n", crd.GroupVersionKind(), crd.GetName())
+		if _, err := c.client.Resource(c.mapper.groupVersionResource(crd)).Create(crd); err != nil {
+			if errors.IsAlreadyExists(err) {
+				report.warningf("%s: %v", crd, err)
+				continue
 			}
+			report.errorf("Failed to create %s %q: %v", crd.GroupVersionKind(), crd.GetName(), err)
+			continue
 		}
-	}
-
-	for _, m := range other {
-		if err := create(m); err != nil && c.strict {
-			return false
+		crdGroup, _, err := unstructured.NestedString(crd.UnstructuredContent(), "spec", "group")
+		if err != nil {
+			report.errorf("Expected spec.group field in %s: %v", crd, err)
+			continue
 		}
-	}
-	return ok
-}
+		crdPlural, _, err := unstructured.NestedString(crd.UnstructuredContent(), "spec", "names", "plural")
+		if err != nil {
+			report.errorf("Expected spec.names.plural field in %s: %v", crd, err)
+			continue
+		}
 
-// waitForCRD blocks until the API server begins serving the custom resource this
-// manifest defines. This is determined by listing the custom resource in a loop.
-func (c *creater) waitForCRD(m manifest) error {
-	var crd apiextensionsv1beta1.CustomResourceDefinition
-	if err := json.Unmarshal(m.raw, &crd); err != nil {
-		return fmt.Errorf("failed to unmarshal manifest: %v", err)
-	}
+		crdVersion := ""
+		crdVersions, _, err := unstructured.NestedSlice(crd.UnstructuredContent(), "spec", "versions")
+		if err != nil {
+			report.errorf("Expected spec.versions field in %s: %v", crd, err)
+			continue
+		}
 
-	// get first served version
-	firstVer := ""
-	if len(crd.Spec.Versions) > 0 {
-		for _, v := range crd.Spec.Versions {
-			if v.Served {
-				firstVer = v.Name
-				break
+		if len(crdVersions) > 0 {
+			for i, v := range crdVersions {
+				version := v.(map[string]interface{})
+				if isServed, _, _ := unstructured.NestedBool(version, "served"); isServed {
+					versionName, _, err := unstructured.NestedString(version, "name")
+					if err != nil {
+						report.errorf("Expected spec.versions[%d].name field in %s: %v", i, crd, err)
+						continue
+					}
+					crdVersion = versionName
+				}
 			}
+		} else {
+			// TODO: This field is deprecated.
+			crdSpecVersion, _, err := unstructured.NestedString(crd.UnstructuredContent(), "spec", "version")
+			if err != nil {
+				report.errorf("Expected spec.version field in %s: %v", crd, err)
+				continue
+			}
+			crdVersion = crdSpecVersion
 		}
-	} else {
-		firstVer = crd.Spec.Version
-	}
-	if len(firstVer) == 0 {
-		return fmt.Errorf("expected at least one served version")
-	}
 
-	return wait.PollImmediate(crdRolloutDuration, crdRolloutTimeout, func() (bool, error) {
-		// get all resources, giving a 200 result with empty list on success, 404 before the CRD is active.
-		namespaceLessURI := allCustomResourcesURI(schema.GroupVersionResource{Group: crd.Spec.Group, Version: firstVer, Resource: crd.Spec.Names.Plural})
-		res := c.client.Get().RequestURI(namespaceLessURI).Do()
-		if res.Error() != nil {
-			if errors.IsNotFound(res.Error()) {
+		crGVR := schema.GroupVersionResource{Group: crdGroup, Version: crdVersion, Resource: crdPlural}
+
+		// Wait for the CRD to be available
+		UserOutput("Waiting for %s %q to be available ...\n", crGVR.GroupVersion(), crGVR.Resource)
+		waitErr := wait.PollImmediate(crdRolloutDuration, crdRolloutTimeout, func() (bool, error) {
+			_, err := c.client.Resource(crGVR).List(metav1.ListOptions{})
+			if errors.IsNotFound(err) {
 				return false, nil
 			}
-			return false, res.Error()
+			if err != nil {
+				return false, err
+			}
+			return true, nil
+		})
+		if waitErr != nil {
+			report.errorf("Failed to wait for %q to be available: %v", crGVR.Resource, waitErr)
 		}
-		return true, nil
-	})
-}
-
-// allCustomResourcesURI returns the URI for the CRD resource without a namespace, listing
-// all objects of that GroupVersionResource.
-func allCustomResourcesURI(gvr schema.GroupVersionResource) string {
-	return fmt.Sprintf("/apis/%s/%s/%s",
-		strings.ToLower(gvr.Group),
-		strings.ToLower(gvr.Version),
-		strings.ToLower(gvr.Resource),
-	)
-}
-
-func (c *creater) create(m manifest) error {
-	info, err := c.mapper.resourceInfo(m.apiVersion, m.kind)
-	if err != nil {
-		return fmt.Errorf("dicovery failed: %v", err)
 	}
 
-	return c.client.Post().
-		AbsPath(m.urlPath(info.Name, info.Namespaced)).
-		Body(m.raw).
-		SetHeader("Content-Type", "application/json").
-		Do().Error()
-}
+	// If some CRDs failed to create, do not continue
+	if report.hasErrors() {
+		return report.allErrors()
+	}
 
-func (m manifest) urlPath(plural string, namespaced bool) string {
-	u := "/apis"
-	if m.apiVersion == "v1" {
-		u = "/api"
+	// Create other resources
+	for _, resource := range others {
+		UserOutput("Creating %s %q ...\n", resource.GroupVersionKind(), resource.GetName())
+		if c.mapper.isNamespaced(resource) {
+			if _, err := c.client.Resource(c.mapper.groupVersionResource(resource)).Namespace(resource.GetNamespace()).Create(resource); err != nil {
+				if errors.IsAlreadyExists(err) {
+					report.warningf("%s: %v", err)
+					continue
+				}
+				report.errorf("Failed to create %s %q: %v", resource.GroupVersionKind(), resource.GetName(), err)
+			}
+			continue
+		}
+		if _, err := c.client.Resource(c.mapper.groupVersionResource(resource)).Create(resource); err != nil {
+			if errors.IsAlreadyExists(err) {
+				report.warningf("%s: %v", err)
+				continue
+			}
+			report.errorf("Failed to create %s %q: %v", resource.GroupVersionKind(), resource.GetName(), err)
+		}
 	}
-	u = u + "/" + m.apiVersion
-	// NOTE(ericchiang): Some of our non-namespaced manifests have a "namespace" field.
-	// Since kubectl create accepts this, also accept this.
-	if m.namespace != "" && namespaced {
-		u = u + "/namespaces/" + m.namespace
-	}
-	return u + "/" + plural
+
+	return report.allErrors()
 }
 
 // loadManifests parses a directory of YAML Kubernetes manifest.
-func loadManifests(p string) ([]manifest, error) {
-	var manifests []manifest
+func (c *creater) loadManifests(p string) (map[string]*unstructured.Unstructured, error) {
+	manifests := map[string]*unstructured.Unstructured{}
 	err := filepath.Walk(p, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -306,78 +310,27 @@ func loadManifests(p string) ([]manifest, error) {
 			return nil
 		}
 
-		f, err := os.Open(path)
+		manifestBytes, err := ioutil.ReadFile(path)
 		if err != nil {
-			return fmt.Errorf("open %s: %v", path, err)
+			return err
 		}
-		defer f.Close()
+		manifestJSON, err := yaml.YAMLToJSON(manifestBytes)
+		if err != nil {
+			return err
+		}
+		manifestObj, err := runtime.Decode(unstructured.UnstructuredJSONScheme, manifestJSON)
+		if err != nil {
+			return err
+		}
+		manifestObject, ok := manifestObj.(*unstructured.Unstructured)
+		if !ok {
+			return fmt.Errorf("unable to convert %+v to unstructed", manifestObj)
+		}
 
-		ms, err := parseManifests(f)
-		if err != nil {
-			return fmt.Errorf("parse file %s: %v", path, err)
-		}
-		for i := range ms {
-			ms[i].filepath = path
-		}
-		manifests = append(manifests, ms...)
+		manifests[path] = manifestObject
 		return nil
 	})
 	return manifests, err
-}
-
-// parseManifests parses a YAML or JSON document that may contain one or more
-// kubernetes resoures.
-func parseManifests(r io.Reader) ([]manifest, error) {
-	reader := yaml.NewYAMLReader(bufio.NewReader(r))
-	var manifests []manifest
-	for {
-		yamlManifest, err := reader.Read()
-		if err != nil {
-			if err == io.EOF {
-				if len(manifests) == 0 {
-					return nil, fmt.Errorf("no resources found")
-				}
-				return manifests, nil
-			}
-			return nil, err
-		}
-		yamlManifest = bytes.TrimSpace(yamlManifest)
-		if len(yamlManifest) == 0 {
-			continue
-		}
-
-		jsonManifest, err := yaml.ToJSON(yamlManifest)
-		if err != nil {
-			return nil, fmt.Errorf("invalid manifest: %v", err)
-		}
-		m, err := parseJSONManifest(jsonManifest)
-		if err != nil {
-			return nil, fmt.Errorf("parse manifest: %v", err)
-		}
-		manifests = append(manifests, m)
-	}
-}
-
-// parseJSONManifest parses a single JSON Kubernetes resource.
-func parseJSONManifest(data []byte) (manifest, error) {
-	var m struct {
-		APIVersion string `json:"apiVersion"`
-		Kind       string `json:"kind"`
-		Metadata   struct {
-			Name      string `json:"name"`
-			Namespace string `json:"namespace"`
-		} `json:"metadata"`
-	}
-	if err := json.Unmarshal(data, &m); err != nil {
-		return manifest{}, fmt.Errorf("parse manifest: %v", err)
-	}
-	return manifest{
-		kind:       m.Kind,
-		apiVersion: m.APIVersion,
-		namespace:  m.Metadata.Namespace,
-		name:       m.Metadata.Name,
-		raw:        data,
-	}, nil
 }
 
 func newResourceMapper(d discovery.DiscoveryInterface) *resourceMapper {
@@ -427,4 +380,31 @@ func (m *resourceMapper) resourceInfo(groupVersion, kind string) (*metav1.APIRes
 		}
 	}
 	return nil, fmt.Errorf("resource %s %s not found", groupVersion, kind)
+}
+
+func (m *resourceMapper) isNamespaced(obj *unstructured.Unstructured) bool {
+	apiResource, err := m.resourceInfo(obj.GetAPIVersion(), obj.GetKind())
+	if err != nil {
+		panic(err)
+	}
+	return apiResource.Namespaced
+}
+
+func (m *resourceMapper) groupVersionResource(obj *unstructured.Unstructured) schema.GroupVersionResource {
+	apiResource, err := m.resourceInfo(obj.GetAPIVersion(), obj.GetKind())
+	if err != nil {
+		panic(err)
+	}
+	return schema.GroupVersionResource{
+		Group:    apiResource.Group,
+		Version:  apiResource.Version,
+		Resource: apiResource.Name,
+	}
+}
+
+func (m *resourceMapper) toString(resource *unstructured.Unstructured) string {
+	if m.isNamespaced(resource) {
+		return fmt.Sprintf("%s %s", resource.GetKind(), resource.GetName())
+	}
+	return fmt.Sprintf("%s %s/%s", resource.GetKind(), resource.GetNamespace(), resource.GetName())
 }

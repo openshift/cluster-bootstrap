@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sa-token-signing-certs
+  namespace: openshift-kube-apiserver
+data:
+  ca-bundle.crt:

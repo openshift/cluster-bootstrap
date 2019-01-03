@@ -1,155 +1,132 @@
 package start
 
 import (
-	"reflect"
-	"strings"
+	"sync"
 	"testing"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/version"
+	"k8s.io/client-go/discovery/fake"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
+	clienttesting "k8s.io/client-go/testing"
 )
 
-func TestParseManifests(t *testing.T) {
-	tests := []struct {
-		name string
-		raw  string
-		want []manifest
-	}{
-		{
-			name: "ingress",
-			raw: `
-apiVersion: extensions/v1beta1
-kind: Ingress
-metadata:
-  name: test-ingress
-  namespace: test-namespace
-spec:
-  rules:
-  - http:
-      paths:
-      - path: /testpath
-        backend:
-          serviceName: test
-          servicePort: 80
-`,
-			want: []manifest{
-				{
-					kind:       "Ingress",
-					apiVersion: "extensions/v1beta1",
-					namespace:  "test-namespace",
-					name:       "test-ingress",
-				},
-			},
-		},
-		{
-			name: "configmap",
-			raw: `
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: a-config
-  namespace: default
-data:
-  color: "red"
-  multi-line: |
-    hello world
-    how are you?
-`,
-			want: []manifest{
-				{
-					kind:       "ConfigMap",
-					apiVersion: "v1",
-					namespace:  "default",
-					name:       "a-config",
-				},
-			},
-		},
-		{
-			name: "two-resources",
-			raw: `
-apiVersion: extensions/v1beta1
-kind: Ingress
-metadata:
-  name: test-ingress
-  namespace: test-namespace
-spec:
-  rules:
-  - http:
-      paths:
-      - path: /testpath
-        backend:
-          serviceName: test
-          servicePort: 80
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: a-config
-  namespace: default
-data:
-  color: "red"
-  multi-line: |
-    hello world
-    how are you?
-`,
-			want: []manifest{
-				{
-					kind:       "Ingress",
-					apiVersion: "extensions/v1beta1",
-					namespace:  "test-namespace",
-					name:       "test-ingress",
-				},
-				{
-					kind:       "ConfigMap",
-					apiVersion: "v1",
-					namespace:  "default",
-					name:       "a-config",
-				},
-			},
-		},
+func TestCreateLoadManifests(t *testing.T) {
+	c := &creater{}
+	result, err := c.loadManifests("testdata")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			got, err := parseManifests(strings.NewReader(test.raw))
-			if err != nil {
-				t.Fatalf("failed to parse manifest: %v", err)
-			}
-			for i := range got {
-				got[i].raw = nil
-			}
-			if !reflect.DeepEqual(test.want, got) {
-				t.Errorf("wanted %#v, got %#v", test.want, got)
-			}
-		})
+	if len(result) != 12 {
+		t.Fatalf("expected 12 loaded manifests, got %d", len(result))
 	}
-
 }
 
-func TestManifestURLPath(t *testing.T) {
-	tests := []struct {
-		apiVersion string
-		namespace  string
+func TestCreateManifests(t *testing.T) {
+	fakeScheme := runtime.NewScheme()
 
-		plural     string
-		namespaced bool
+	// TODO: This is a workaround for dynamic fake client bug where the List kind is enforced and duplicated in object reactor.
+	fakeScheme.AddKnownTypeWithName(schema.GroupVersionKind{Version: "v1", Kind: "ListList"}, &unstructured.UnstructuredList{})
 
-		want string
-	}{
-		{"v1", "my-ns", "pods", true, "/api/v1/namespaces/my-ns/pods"},
-		{"apps.k8s.io/v1beta1", "my-ns", "deployments", true, "/apis/apps.k8s.io/v1beta1/namespaces/my-ns/deployments"},
-		{"v1", "", "nodes", false, "/api/v1/nodes"},
-		{"apiextensions.k8s.io/v1beta1", "", "customresourcedefinitions", false, "/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions"},
-		// If non-namespaced, ignore the namespace field. This is to mimic kubectl create
-		// behavior, which allows this but drops the namespace.
-		{"apiextensions.k8s.io/v1beta1", "my-ns", "customresourcedefinitions", false, "/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions"},
+	dynamicClient := dynamicfake.NewSimpleDynamicClient(fakeScheme)
+	fakeDiscovery := &fake.FakeDiscovery{
+		Fake:               &dynamicClient.Fake,
+		FakedServerVersion: &version.Info{},
 	}
 
-	for _, test := range tests {
-		m := manifest{
-			apiVersion: test.apiVersion,
-			namespace:  test.namespace,
+	fakeDiscovery.Resources = []*metav1.APIResourceList{
+		{
+			GroupVersion: "kubeapiserver.operator.openshift.io/v1alpha1",
+			APIResources: []metav1.APIResource{
+				{
+					Kind:    "KubeAPIServerOperatorConfig",
+					Name:    "kubeapiserveroperatorconfigs",
+					Version: "v1alpha1",
+					Group:   "kubeapiserver.operator.openshift.io",
+				},
+			},
+		},
+		{
+			GroupVersion: "apiextensions.k8s.io/v1beta1",
+			APIResources: []metav1.APIResource{
+				{
+					Kind:    "CustomResourceDefinition",
+					Name:    "customresourcedefinitions",
+					Version: "v1beta1",
+					Group:   "apiextensions.k8s.io",
+				},
+			},
+		},
+		{
+			GroupVersion: "v1",
+			APIResources: []metav1.APIResource{
+				{
+					Version: "v1",
+					Kind:    "Namespace",
+					Name:    "namespaces",
+				},
+				{
+					Version:    "v1",
+					Kind:       "ConfigMap",
+					Name:       "configmaps",
+					Namespaced: true,
+				},
+				{
+					Version:    "v1",
+					Kind:       "Secret",
+					Name:       "secrets",
+					Namespaced: true,
+				},
+			},
+		},
+		{
+			GroupVersion: "rbac.authorization.k8s.io/v1",
+			APIResources: []metav1.APIResource{
+				{
+					Version: "v1",
+					Group:   "rbac.authorization.k8s.io",
+					Name:    "clusterrolebindings",
+					Kind:    "ClusterRoleBinding",
+				},
+				{
+					Version: "v1",
+					Group:   "rbac.authorization.k8s.io",
+					Name:    "clusterroles",
+					Kind:    "ClusterRole",
+				},
+			},
+		},
+	}
+
+	c := newCreater(dynamicClient, nil)
+	c.mapper = &resourceMapper{
+		discoveryClient: fakeDiscovery,
+		mu:              sync.Mutex{},
+		cache:           make(map[string]*metav1.APIResourceList),
+	}
+
+	result, _ := c.loadManifests("testdata")
+	if len(result) != 12 {
+		t.Fatalf("expected 12 loaded manifests, got %d", len(result))
+	}
+	if err := c.createManifests(result); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	createActions := []clienttesting.CreateAction{}
+	for _, action := range dynamicClient.Actions() {
+		if createAction, ok := action.(clienttesting.CreateAction); ok {
+			createActions = append(createActions, createAction)
 		}
-		got := m.urlPath(test.plural, test.namespaced)
-		if test.want != got {
-			t.Errorf("{&manifest{apiVersion:%q, namespace: %q}).urlPath(%q, %t); wanted=%q, got=%q",
-				test.apiVersion, test.namespace, test.plural, test.namespaced, test.want, got)
-		}
+	}
+	if len(createActions) != 12 {
+		t.Fatalf("expected 12 create actions, got %d", len(createActions))
+	}
+
+	if createActions[0].GetResource().Resource != "namespaces" {
+		t.Fatalf("expected to create namespace first, got %+v", createActions[0])
 	}
 }

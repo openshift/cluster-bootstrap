@@ -20,7 +20,6 @@ type Config struct {
 type startCommand struct {
 	podManifestPath string
 	assetDir        string
-	strict          bool
 	requiredPods    []string
 }
 
@@ -28,7 +27,6 @@ func NewStartCommand(config Config) (*startCommand, error) {
 	return &startCommand{
 		assetDir:        config.AssetDir,
 		podManifestPath: config.PodManifestPath,
-		strict:          config.Strict,
 		requiredPods:    config.RequiredPods,
 	}, nil
 }
@@ -61,7 +59,7 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
-	if err = CreateAssets(kubeConfig, filepath.Join(b.assetDir, AssetPathManifests), assetTimeout, b.strict); err != nil {
+	if err = CreateAssets(kubeConfig, filepath.Join(b.assetDir, AssetPathManifests), assetTimeout); err != nil {
 		return err
 	}
 
