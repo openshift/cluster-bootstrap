@@ -24,7 +24,7 @@ var (
 		assetDir             string
 		podManifestPath      string
 		strict               bool
-		requiredPods         []string
+		requiredPodClauses   []string
 		waitForTearDownEvent string
 	}
 )
@@ -41,16 +41,21 @@ func init() {
 	cmdStart.Flags().StringVar(&startOpts.assetDir, "asset-dir", "", "Path to the cluster asset directory.")
 	cmdStart.Flags().StringVar(&startOpts.podManifestPath, "pod-manifest-path", "/etc/kubernetes/manifests", "The location where the kubelet is configured to look for static pod manifests.")
 	cmdStart.Flags().BoolVar(&startOpts.strict, "strict", false, "Strict mode will cause start command to exit early if any manifests in the asset directory cannot be created.")
-	cmdStart.Flags().StringSliceVar(&startOpts.requiredPods, "required-pods", defaultRequiredPods, "List of pods with their namespace (written as <namespace>/<pod-name>) that are required to be running and ready before the start command does the pivot.")
+	cmdStart.Flags().StringSliceVar(&startOpts.requiredPodClauses, "required-pods", defaultRequiredPods, "List of pods name prefixes with their namespace (written as <namespace>/<pod-prefix>) that are required to be running and ready before the start command does the pivot, or alternatively a list of or'ed pod prefixes with a description (written as <desc>:<namespace>/<pod-prefix>|<namespace>/<pod-prefix>|...).")
 	cmdStart.Flags().StringVar(&startOpts.waitForTearDownEvent, "tear-down-event", "", "if this optional event name of the form <ns>/<event-name> is given, the event is waited for before tearing down the bootstrap control plane")
 }
 
 func runCmdStart(cmd *cobra.Command, args []string) error {
+	podPrefixes, err := parsePodPrefixes(startOpts.requiredPodClauses)
+	if err != nil {
+		return err
+	}
+
 	bk, err := start.NewStartCommand(start.Config{
 		AssetDir:             startOpts.assetDir,
 		PodManifestPath:      startOpts.podManifestPath,
 		Strict:               startOpts.strict,
-		RequiredPods:         startOpts.requiredPods,
+		RequiredPodPrefixes:  podPrefixes,
 		WaitForTearDownEvent: startOpts.waitForTearDownEvent,
 	})
 	if err != nil {
@@ -60,6 +65,25 @@ func runCmdStart(cmd *cobra.Command, args []string) error {
 	return bk.Run()
 }
 
+// parsePodPrefixes parses <ns>/<pod-prefix> or <desc>:<ns>/<pod-prefix>|... into a map with
+// the description as key and <ns>/<pod-prefix> as values.
+func parsePodPrefixes(clauses []string) (map[string][]string, error) {
+	podPrefixes := map[string][]string{}
+	for _, p := range clauses {
+		if strings.Contains(p, ":") {
+			ss := strings.Split(p, ":")
+			desc := ss[0]
+			ps := strings.Split(ss[1], "|")
+			podPrefixes[desc] = append(podPrefixes[desc], ps...)
+		} else if strings.Contains(p, "|") {
+			return nil, errors.New("required-pods must be either <namespace>/<pod-name> or <desc>:<namespace>/<pod-name>|<namespace>/<pod-name>|...")
+		} else {
+			podPrefixes[p] = []string{p}
+		}
+	}
+	return podPrefixes, nil
+}
+
 func validateStartOpts(cmd *cobra.Command, args []string) error {
 	if startOpts.podManifestPath == "" {
 		return errors.New("missing required flag: --pod-manifest-path")
@@ -67,7 +91,7 @@ func validateStartOpts(cmd *cobra.Command, args []string) error {
 	if startOpts.assetDir == "" {
 		return errors.New("missing required flag: --asset-dir")
 	}
-	for _, nsPod := range startOpts.requiredPods {
+	for _, nsPod := range startOpts.requiredPodClauses {
 		if len(strings.Split(nsPod, "/")) != 2 {
 			return fmt.Errorf("invalid required pod: expected %q to be of shape <namespace>/<pod-name>", nsPod)
 		}

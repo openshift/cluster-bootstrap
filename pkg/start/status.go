@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-func waitUntilPodsRunning(c kubernetes.Interface, pods []string, timeout time.Duration) error {
+func waitUntilPodsRunning(c kubernetes.Interface, pods map[string][]string, timeout time.Duration) error {
 	sc, err := newStatusController(c, pods)
 	if err != nil {
 		return err
@@ -32,14 +32,14 @@ func waitUntilPodsRunning(c kubernetes.Interface, pods []string, timeout time.Du
 }
 
 type statusController struct {
-	client        kubernetes.Interface
-	podStore      cache.Store
-	watchPods     []string
-	lastPodPhases map[string]*podStatus
+	client           kubernetes.Interface
+	podStore         cache.Store
+	watchPodPrefixes map[string][]string
+	lastPodPhases    map[string]*podStatus
 }
 
-func newStatusController(client kubernetes.Interface, pods []string) (*statusController, error) {
-	return &statusController{client: client, watchPods: pods}, nil
+func newStatusController(client kubernetes.Interface, pods map[string][]string) (*statusController, error) {
+	return &statusController{client: client, watchPodPrefixes: pods}, nil
 }
 
 func (s *statusController) Run() {
@@ -116,29 +116,37 @@ func (s *statusController) podStatus() (map[string]*podStatus, error) {
 	status := make(map[string]*podStatus)
 
 	podNames := s.podStore.ListKeys()
-	for _, watchedPod := range s.watchPods {
-		// Pod names are suffixed with random data. Match on prefix
+	for desc, prefixes := range s.watchPodPrefixes {
+		// Prefixes names are suffixed with random data. Match on prefix
+		var podName string
+	found:
 		for _, pn := range podNames {
-			if strings.HasPrefix(pn, watchedPod) {
-				watchedPod = pn
-				break
+			for _, prefix := range prefixes {
+				if strings.HasPrefix(pn, prefix) {
+					podName = pn
+					break found
+				}
 			}
 		}
-		p, exists, err := s.podStore.GetByKey(watchedPod)
-		if err != nil {
-			return nil, err
+		exists := false
+		var p interface{}
+		if len(podName) > 0 {
+			var err error
+			if p, exists, err = s.podStore.GetByKey(podName); err != nil {
+				return nil, err
+			}
 		}
 		if !exists {
-			status[watchedPod] = nil
+			status[desc] = nil
 			continue
 		}
 		if p, ok := p.(*v1.Pod); ok {
-			status[watchedPod] = &podStatus{
+			status[desc] = &podStatus{
 				Phase: p.Status.Phase,
 			}
 			for _, c := range p.Status.Conditions {
 				if c.Type == v1.PodReady {
-					status[watchedPod].IsReady = c.Status == v1.ConditionTrue
+					status[desc].IsReady = c.Status == v1.ConditionTrue
 				}
 			}
 		}
