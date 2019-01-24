@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -72,6 +74,12 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
+	// notify installer that we are ready to tear down the temporary bootstrap control plane
+	UserOutput("Sending bootstrap-success event.")
+	if _, err := client.CoreV1().Events("kube-system").Create(makeBootstrapSuccessEvent("kube-system", "bootstrap-success")); err != nil && !apierrors.IsAlreadyExists(err) {
+		return err
+	}
+
 	return nil
 }
 
@@ -81,4 +89,22 @@ func (b *startCommand) Run() error {
 // should go to stderr.
 func UserOutput(format string, a ...interface{}) {
 	fmt.Printf(format, a...)
+}
+
+func makeBootstrapSuccessEvent(ns, name string) *corev1.Event {
+	currentTime := metav1.Time{Time: time.Now()}
+	event := &corev1.Event{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+		InvolvedObject: corev1.ObjectReference{
+			Namespace: ns,
+		},
+		Message:        "Required control plane pods have been created",
+		Count:          1,
+		FirstTimestamp: currentTime,
+		LastTimestamp:  currentTime,
+	}
+	return event
 }
