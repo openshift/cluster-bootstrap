@@ -34,7 +34,7 @@ const (
 	crdRolloutTimeout  = 2 * time.Minute
 )
 
-func CreateAssets(config clientcmd.ClientConfig, manifestDir string, timeout time.Duration, strict bool) error {
+func createAssets(config clientcmd.ClientConfig, manifestDir string, timeout time.Duration, strict bool) error {
 	if _, err := os.Stat(manifestDir); os.IsNotExist(err) {
 		UserOutput(fmt.Sprintf("WARNING: %v does not exist, not creating any self-hosted assets.\n", manifestDir))
 		return nil
