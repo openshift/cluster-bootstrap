@@ -26,7 +26,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 const (
@@ -34,14 +33,10 @@ const (
 	crdRolloutTimeout  = 2 * time.Minute
 )
 
-func createAssets(config clientcmd.ClientConfig, manifestDir string, timeout time.Duration, strict bool) error {
+func createAssets(c *rest.Config, manifestDir string, timeout time.Duration, strict bool) error {
 	if _, err := os.Stat(manifestDir); os.IsNotExist(err) {
 		UserOutput(fmt.Sprintf("WARNING: %v does not exist, not creating any self-hosted assets.\n", manifestDir))
 		return nil
-	}
-	c, err := config.ClientConfig()
-	if err != nil {
-		return err
 	}
 	creater, err := newCreater(c, strict)
 	if err != nil {
@@ -54,7 +49,7 @@ func createAssets(config clientcmd.ClientConfig, manifestDir string, timeout tim
 	}
 
 	upFn := func() (bool, error) {
-		if err := apiTest(config); err != nil {
+		if err := apiTest(c); err != nil {
 			glog.Warningf("Unable to determine api-server readiness: %v", err)
 			return false, nil
 		}
@@ -84,11 +79,7 @@ func createAssets(config clientcmd.ClientConfig, manifestDir string, timeout tim
 	return nil
 }
 
-func apiTest(c clientcmd.ClientConfig) error {
-	config, err := c.ClientConfig()
-	if err != nil {
-		return err
-	}
+func apiTest(config *rest.Config) error {
 	client, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return err

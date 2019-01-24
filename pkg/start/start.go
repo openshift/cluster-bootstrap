@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -34,11 +35,14 @@ func NewStartCommand(config Config) (*startCommand, error) {
 }
 
 func (b *startCommand) Run() error {
-	// TODO(diegs): create and share a single client rather than the kubeconfig once all uses of it
-	// are migrated to client-go.
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		&clientcmd.ClientConfigLoadingRules{ExplicitPath: filepath.Join(b.assetDir, assetPathAdminKubeConfig)},
-		&clientcmd.ConfigOverrides{})
+	restConfig, err := clientcmd.BuildConfigFromFlags("", filepath.Join(b.assetDir, assetPathAdminKubeConfig))
+	if err != nil {
+		return err
+	}
+	client, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return err
+	}
 
 	bcp := newBootstrapControlPlane(b.assetDir, b.podManifestPath)
 
@@ -49,7 +53,6 @@ func (b *startCommand) Run() error {
 		}
 	}()
 
-	var err error
 	defer func() {
 		// Always report errors.
 		if err != nil {
@@ -61,11 +64,11 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
-	if err = createAssets(kubeConfig, filepath.Join(b.assetDir, assetPathManifests), assetTimeout, b.strict); err != nil {
+	if err = createAssets(restConfig, filepath.Join(b.assetDir, assetPathManifests), assetTimeout, b.strict); err != nil {
 		return err
 	}
 
-	if err = waitUntilPodsRunning(kubeConfig, b.requiredPods, assetTimeout); err != nil {
+	if err = waitUntilPodsRunning(client, b.requiredPods, assetTimeout); err != nil {
 		return err
 	}
 
