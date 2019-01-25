@@ -19,3 +19,5 @@ $(call build-image,origin-$(GO_PACKAGE),./Dockerfile,.)
 clean:
 	$(RM) ./cluster-bootstrap
 .PHONY: clean
+
+test-e2e: # there is none right now
