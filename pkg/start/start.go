@@ -2,7 +2,9 @@ package start
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -10,6 +12,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -21,28 +25,31 @@ const (
 )
 
 type Config struct {
-	AssetDir             string
-	PodManifestPath      string
-	Strict               bool
-	RequiredPods         []string
-	WaitForTearDownEvent string
+	AssetDir                   string
+	PodManifestPath            string
+	Strict                     bool
+	RequiredPods               []string
+	WaitForTearDownEvent       string
+	SendStaticPodLogsToSystemD bool
 }
 
 type startCommand struct {
-	podManifestPath      string
-	assetDir             string
-	strict               bool
-	requiredPods         []string
-	waitForTearDownEvent string
+	podManifestPath            string
+	assetDir                   string
+	strict                     bool
+	requiredPods               []string
+	waitForTearDownEvent       string
+	sendStaticPodLogsToSystemD bool
 }
 
 func NewStartCommand(config Config) (*startCommand, error) {
 	return &startCommand{
-		assetDir:             config.AssetDir,
-		podManifestPath:      config.PodManifestPath,
-		strict:               config.Strict,
-		requiredPods:         config.RequiredPods,
-		waitForTearDownEvent: config.WaitForTearDownEvent,
+		assetDir:                   config.AssetDir,
+		podManifestPath:            config.PodManifestPath,
+		strict:                     config.Strict,
+		requiredPods:               config.RequiredPods,
+		waitForTearDownEvent:       config.WaitForTearDownEvent,
+		sendStaticPodLogsToSystemD: config.SendStaticPodLogsToSystemD,
 	}, nil
 }
 
@@ -59,6 +66,10 @@ func (b *startCommand) Run() error {
 	bcp := newBootstrapControlPlane(b.assetDir, b.podManifestPath)
 
 	defer func() {
+		if err := sendStaticPodLogsToSystemd(); err != nil {
+			UserOutput("Error scraping static pod logs to systemd: %v", err)
+		}
+
 		// Always tear down the bootstrap control plane and clean up manifests and secrets.
 		if err := bcp.Teardown(); err != nil {
 			UserOutput("Error tearing down temporary bootstrap control plane: %v\n", err)
@@ -113,6 +124,69 @@ func (b *startCommand) Run() error {
 // should go to stderr.
 func UserOutput(format string, a ...interface{}) {
 	fmt.Printf(format, a...)
+}
+
+func sendStaticPodLogsToSystemd() error {
+	// get containers
+	cmd := exec.Command("crictl", "ps", "-a", "--output", "json")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return err
+	}
+	j := map[string]interface{}{}
+	if err := json.Unmarshal(out, &j); err != nil {
+		return fmt.Errorf("failed to parse crictl ps output: %v", err)
+	}
+	containers, _, err := unstructured.NestedSlice(j, "containers")
+
+	podContainerIDs := map[string][]struct{ id, name string }{}
+	errs := []error{}
+	for i, c := range containers {
+		container, ok := c.(map[string]interface{})
+		if !ok {
+			errs = append(errs, fmt.Errorf("invalid format of container %d", i))
+		}
+		id, _, _ := unstructured.NestedString(container, "id")
+		if len(id) == 0 {
+			errs = append(errs, fmt.Errorf("id of container %d not found", i))
+			continue
+		}
+		name, _, err := unstructured.NestedString(container, "metadata", "name")
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to get name of container %s: %v", id, err))
+			continue
+		}
+		if len(name) == 0 {
+			errs = append(errs, fmt.Errorf("name of container %s not found", id))
+			continue
+		}
+		podName, _, _ := unstructured.NestedString(container, "labels", "io.kubernetes.pod.name")
+		if len(podName) == 0 {
+			continue
+		}
+		podContainerIDs[podName] = append(podContainerIDs[podName], struct{ id, name string }{
+			id:   id,
+			name: name,
+		})
+	}
+
+	// call systemd-run with "crictl logs ..." log commands per container for each pod
+	for podName, containers := range podContainerIDs {
+		cmdLine := strings.Builder{}
+		sep := ""
+		for _, c := range containers {
+			cmdLine.WriteString(fmt.Sprintf("%secho '== container %q =='; crictl logs %s", sep, c.name, c.id))
+			sep = "; "
+		}
+		UserOutput("Scraping static pod %q logs into %q systemd unit")
+		cmd := exec.Command("systemd-run", "--quiet", "--unit", podName, "bash", "-c", cmdLine.String())
+		if _, err := cmd.CombinedOutput(); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+	}
+
+	return utilerrors.NewAggregate(errs)
 }
 
 func waitForEvent(ctx context.Context, client kubernetes.Interface, ns, name string) error {

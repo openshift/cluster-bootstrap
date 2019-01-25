@@ -21,11 +21,12 @@ var (
 	}
 
 	startOpts struct {
-		assetDir             string
-		podManifestPath      string
-		strict               bool
-		requiredPods         []string
-		waitForTearDownEvent string
+		assetDir                   string
+		podManifestPath            string
+		strict                     bool
+		requiredPods               []string
+		waitForTearDownEvent       string
+		sendStaticPodLogsToSystemD bool
 	}
 )
 
@@ -43,15 +44,17 @@ func init() {
 	cmdStart.Flags().BoolVar(&startOpts.strict, "strict", false, "Strict mode will cause start command to exit early if any manifests in the asset directory cannot be created.")
 	cmdStart.Flags().StringSliceVar(&startOpts.requiredPods, "required-pods", defaultRequiredPods, "List of pods with their namespace (written as <namespace>/<pod-name>) that are required to be running and ready before the start command does the pivot.")
 	cmdStart.Flags().StringVar(&startOpts.waitForTearDownEvent, "tear-down-event", "", "if this optional event name of the form <ns>/<event-name> is given, the event is waited for before tearing down the bootstrap control plane")
+	cmdStart.Flags().BoolVar(&startOpts.sendStaticPodLogsToSystemD, "--send-static-pod-logs-to-systemd", false, "Send cri-o logs of static pods to the equaly named systemd units before tear down for later scraping.")
 }
 
 func runCmdStart(cmd *cobra.Command, args []string) error {
 	bk, err := start.NewStartCommand(start.Config{
-		AssetDir:             startOpts.assetDir,
-		PodManifestPath:      startOpts.podManifestPath,
-		Strict:               startOpts.strict,
-		RequiredPods:         startOpts.requiredPods,
-		WaitForTearDownEvent: startOpts.waitForTearDownEvent,
+		AssetDir:                   startOpts.assetDir,
+		PodManifestPath:            startOpts.podManifestPath,
+		Strict:                     startOpts.strict,
+		RequiredPods:               startOpts.requiredPods,
+		WaitForTearDownEvent:       startOpts.waitForTearDownEvent,
+		SendStaticPodLogsToSystemD: startOpts.sendStaticPodLogsToSystemD,
 	})
 	if err != nil {
 		return err
