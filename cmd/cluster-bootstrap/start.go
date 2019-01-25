@@ -57,12 +57,7 @@ func runCmdStart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	err = bk.Run()
-	if err != nil {
-		// Always report errors.
-		start.UserOutput("Error: %v\n", err)
-	}
-	return err
+	return bk.Run()
 }
 
 func validateStartOpts(cmd *cobra.Command, args []string) error {
