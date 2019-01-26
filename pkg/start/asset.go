@@ -1,12 +1,12 @@
 package start
 
 const (
-	AssetPathSecrets            = "tls"
-	AssetPathAdminKubeConfig    = "auth/kubeconfig"
-	AssetPathManifests          = "manifests"
-	AssetPathBootstrapManifests = "bootstrap-manifests"
+	assetPathSecrets            = "tls"
+	assetPathAdminKubeConfig    = "auth/kubeconfig"
+	assetPathManifests          = "manifests"
+	assetPathBootstrapManifests = "bootstrap-manifests"
 )
 
 var (
-	BootstrapSecretsDir = "/etc/kubernetes/bootstrap-secrets" // Overridden for testing.
+	bootstrapSecretsDir = "/etc/kubernetes/bootstrap-secrets" // Overridden for testing.
 )

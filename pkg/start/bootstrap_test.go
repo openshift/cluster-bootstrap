@@ -24,31 +24,31 @@ func setUp(t *testing.T) (assetDir, podManifestPath string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	BootstrapSecretsDir, err = ioutil.TempDir("", "bootstrap-secrets")
+	bootstrapSecretsDir, err = ioutil.TempDir("", "bootstrap-secrets")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Create assets.
-	if err := os.Mkdir(filepath.Join(assetDir, filepath.Dir(AssetPathAdminKubeConfig)), os.FileMode(0755)); err != nil {
+	if err := os.Mkdir(filepath.Join(assetDir, filepath.Dir(assetPathAdminKubeConfig)), os.FileMode(0755)); err != nil {
 		t.Fatal(err)
 	}
-	if err := ioutil.WriteFile(filepath.Join(assetDir, AssetPathAdminKubeConfig), []byte("kubeconfig data"), os.FileMode(0644)); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(assetDir, assetPathAdminKubeConfig), []byte("kubeconfig data"), os.FileMode(0644)); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(filepath.Join(assetDir, AssetPathSecrets), os.FileMode(0755)); err != nil {
+	if err := os.Mkdir(filepath.Join(assetDir, assetPathSecrets), os.FileMode(0755)); err != nil {
 		t.Fatal(err)
 	}
 	for _, secret := range secrets {
-		if err := ioutil.WriteFile(filepath.Join(assetDir, AssetPathSecrets, secret), []byte("secret data"), os.FileMode(0644)); err != nil {
+		if err := ioutil.WriteFile(filepath.Join(assetDir, assetPathSecrets, secret), []byte("secret data"), os.FileMode(0644)); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := os.Mkdir(filepath.Join(assetDir, AssetPathBootstrapManifests), os.FileMode(0755)); err != nil {
+	if err := os.Mkdir(filepath.Join(assetDir, assetPathBootstrapManifests), os.FileMode(0755)); err != nil {
 		t.Fatal(err)
 	}
 	for _, manifest := range manifests {
-		if err := ioutil.WriteFile(filepath.Join(assetDir, AssetPathBootstrapManifests, manifest), []byte("manifest data"), os.FileMode(0644)); err != nil {
+		if err := ioutil.WriteFile(filepath.Join(assetDir, assetPathBootstrapManifests, manifest), []byte("manifest data"), os.FileMode(0644)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -62,7 +62,7 @@ func tearDown(assetDir, podManifestPath string, t *testing.T) {
 	if err := os.RemoveAll(podManifestPath); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.RemoveAll(BootstrapSecretsDir); err != nil {
+	if err := os.RemoveAll(bootstrapSecretsDir); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -72,14 +72,14 @@ func TestBootstrapControlPlane(t *testing.T) {
 	defer tearDown(assetDir, podManifestPath, t)
 
 	// Create and start bootstrap control plane.
-	bcp := NewBootstrapControlPlane(assetDir, podManifestPath)
+	bcp := newBootstrapControlPlane(assetDir, podManifestPath)
 	if err := bcp.Start(); err != nil {
 		t.Errorf("bcp.Start() = %v, want: nil", err)
 	}
 
 	// Make sure assets were copied.
 	for _, secret := range secrets {
-		if _, err := os.Stat(filepath.Join(BootstrapSecretsDir, secret)); os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(bootstrapSecretsDir, secret)); os.IsNotExist(err) {
 			t.Errorf("bcp.Start() failed to copy secret: %v", secret)
 		}
 	}
@@ -95,7 +95,7 @@ func TestBootstrapControlPlane(t *testing.T) {
 	}
 
 	// Make sure directories were properly cleaned up.
-	if fi, err := os.Stat(BootstrapSecretsDir); fi != nil || !os.IsNotExist(err) {
+	if fi, err := os.Stat(bootstrapSecretsDir); fi != nil || !os.IsNotExist(err) {
 		t.Error("bcp.Teardown() failed to delete secrets directory")
 	}
 	for _, manifest := range manifests {
@@ -117,14 +117,14 @@ func TestBootstrapControlPlaneNoOverwrite(t *testing.T) {
 	}
 
 	// Create and start bootstrap control plane.
-	bcp := NewBootstrapControlPlane(assetDir, podManifestPath)
+	bcp := newBootstrapControlPlane(assetDir, podManifestPath)
 	if err := bcp.Start(); err == nil {
 		t.Errorf("bcp.Start() = %v, want: non-nil", err)
 	}
 
 	// Make sure assets were copied.
 	for _, secret := range secrets {
-		if _, err := os.Stat(filepath.Join(BootstrapSecretsDir, secret)); os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(bootstrapSecretsDir, secret)); os.IsNotExist(err) {
 			t.Errorf("bcp.Start() failed to copy secret: %v", secret)
 		}
 	}
@@ -149,7 +149,7 @@ func TestBootstrapControlPlaneNoOverwrite(t *testing.T) {
 	}
 
 	// Make sure directories were properly cleaned up.
-	if fi, err := os.Stat(BootstrapSecretsDir); fi != nil || !os.IsNotExist(err) {
+	if fi, err := os.Stat(bootstrapSecretsDir); fi != nil || !os.IsNotExist(err) {
 		t.Error("bcp.Teardown() failed to delete secrets directory")
 	}
 	for _, manifest := range manifests {

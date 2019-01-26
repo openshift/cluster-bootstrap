@@ -37,10 +37,10 @@ func (b *startCommand) Run() error {
 	// TODO(diegs): create and share a single client rather than the kubeconfig once all uses of it
 	// are migrated to client-go.
 	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		&clientcmd.ClientConfigLoadingRules{ExplicitPath: filepath.Join(b.assetDir, AssetPathAdminKubeConfig)},
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: filepath.Join(b.assetDir, assetPathAdminKubeConfig)},
 		&clientcmd.ConfigOverrides{})
 
-	bcp := NewBootstrapControlPlane(b.assetDir, b.podManifestPath)
+	bcp := newBootstrapControlPlane(b.assetDir, b.podManifestPath)
 
 	defer func() {
 		// Always tear down the bootstrap control plane and clean up manifests and secrets.
@@ -61,11 +61,11 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
-	if err = CreateAssets(kubeConfig, filepath.Join(b.assetDir, AssetPathManifests), assetTimeout, b.strict); err != nil {
+	if err = createAssets(kubeConfig, filepath.Join(b.assetDir, assetPathManifests), assetTimeout, b.strict); err != nil {
 		return err
 	}
 
-	if err = WaitUntilPodsRunning(kubeConfig, b.requiredPods, assetTimeout); err != nil {
+	if err = waitUntilPodsRunning(kubeConfig, b.requiredPods, assetTimeout); err != nil {
 		return err
 	}
 

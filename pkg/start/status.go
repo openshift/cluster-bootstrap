@@ -17,8 +17,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-func WaitUntilPodsRunning(c clientcmd.ClientConfig, pods []string, timeout time.Duration) error {
-	sc, err := NewStatusController(c, pods)
+func waitUntilPodsRunning(c clientcmd.ClientConfig, pods []string, timeout time.Duration) error {
+	sc, err := newStatusController(c, pods)
 	if err != nil {
 		return err
 	}
@@ -36,10 +36,10 @@ type statusController struct {
 	client        kubernetes.Interface
 	podStore      cache.Store
 	watchPods     []string
-	lastPodPhases map[string]*PodStatus
+	lastPodPhases map[string]*podStatus
 }
 
-func NewStatusController(c clientcmd.ClientConfig, pods []string) (*statusController, error) {
+func newStatusController(c clientcmd.ClientConfig, pods []string) (*statusController, error) {
 	config, err := c.ClientConfig()
 	if err != nil {
 		return nil, err
@@ -75,7 +75,7 @@ func (s *statusController) Run() {
 }
 
 func (s *statusController) AllRunningAndReady() (bool, error) {
-	ps, err := s.PodStatus()
+	ps, err := s.podStatus()
 	if err != nil {
 		glog.Infof("Error retriving pod statuses: %v", err)
 		return false, nil
@@ -113,16 +113,16 @@ func (s *statusController) AllRunningAndReady() (bool, error) {
 	return runningAndReady, nil
 }
 
-// PodStatus describes a pod's phase and readiness.
-type PodStatus struct {
+// podStatus describes a pod's phase and readiness.
+type podStatus struct {
 	Phase   v1.PodPhase
 	IsReady bool
 }
 
-// PodStatus retrieves the pod status by reading the PodPhase and whether it is ready.
+// podStatus retrieves the pod status by reading the PodPhase and whether it is ready.
 // A non existing pod is represented with nil.
-func (s *statusController) PodStatus() (map[string]*PodStatus, error) {
-	status := make(map[string]*PodStatus)
+func (s *statusController) podStatus() (map[string]*podStatus, error) {
+	status := make(map[string]*podStatus)
 
 	podNames := s.podStore.ListKeys()
 	for _, watchedPod := range s.watchPods {
@@ -142,7 +142,7 @@ func (s *statusController) PodStatus() (map[string]*PodStatus, error) {
 			continue
 		}
 		if p, ok := p.(*v1.Pod); ok {
-			status[watchedPod] = &PodStatus{
+			status[watchedPod] = &podStatus{
 				Phase: p.Status.Phase,
 			}
 			for _, c := range p.Status.Conditions {
