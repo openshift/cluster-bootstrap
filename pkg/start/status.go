@@ -14,10 +14,9 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
-func waitUntilPodsRunning(c clientcmd.ClientConfig, pods []string, timeout time.Duration) error {
+func waitUntilPodsRunning(c kubernetes.Interface, pods []string, timeout time.Duration) error {
 	sc, err := newStatusController(c, pods)
 	if err != nil {
 		return err
@@ -39,15 +38,7 @@ type statusController struct {
 	lastPodPhases map[string]*podStatus
 }
 
-func newStatusController(c clientcmd.ClientConfig, pods []string) (*statusController, error) {
-	config, err := c.ClientConfig()
-	if err != nil {
-		return nil, err
-	}
-	client, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, err
-	}
+func newStatusController(client kubernetes.Interface, pods []string) (*statusController, error) {
 	return &statusController{client: client, watchPods: pods}, nil
 }
 
