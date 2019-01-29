@@ -84,6 +84,10 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
+	if err = createAssets(restConfig, filepath.Join(b.assetDir, assetPathPostPodManifests), bootstrapPodsRunningTimeout, b.strict); err != nil {
+		return err
+	}
+
 	// notify installer that we are ready to tear down the temporary bootstrap control plane
 	UserOutput("Sending bootstrap-success event.")
 	if _, err := client.CoreV1().Events("kube-system").Create(makeBootstrapSuccessEvent("kube-system", "bootstrap-success")); err != nil && !apierrors.IsAlreadyExists(err) {

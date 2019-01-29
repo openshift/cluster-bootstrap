@@ -4,6 +4,7 @@ const (
 	assetPathSecrets            = "tls"
 	assetPathAdminKubeConfig    = "auth/kubeconfig"
 	assetPathManifests          = "manifests"
+	assetPathPostPodManifests   = "post-pod-manifests"
 	assetPathBootstrapManifests = "bootstrap-manifests"
 )
 
