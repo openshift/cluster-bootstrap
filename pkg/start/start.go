@@ -76,7 +76,7 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
-	if err = createAssets(restConfig, filepath.Join(b.assetDir, assetPathManifests), bootstrapPodsRunningTimeout, b.strict); err != nil {
+	if err = createAssets(restConfig, filepath.Join(b.assetDir, assetPathManifests), bootstrapPodsRunningTimeout, b.strict, 0); err != nil {
 		return err
 	}
 
@@ -84,7 +84,7 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
-	if err = createAssets(restConfig, filepath.Join(b.assetDir, assetPathPostPodManifests), bootstrapPodsRunningTimeout, b.strict); err != nil {
+	if err = createAssets(restConfig, filepath.Join(b.assetDir, assetPathPostPodManifests), bootstrapPodsRunningTimeout, b.strict, 10*time.Second); err != nil {
 		return err
 	}
 

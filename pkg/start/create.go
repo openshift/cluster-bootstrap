@@ -33,7 +33,7 @@ const (
 	crdRolloutTimeout  = 2 * time.Minute
 )
 
-func createAssets(c *rest.Config, manifestDir string, timeout time.Duration, strict bool) error {
+func createAssets(c *rest.Config, manifestDir string, timeout time.Duration, strict bool, retryDelay time.Duration) error {
 	if _, err := os.Stat(manifestDir); os.IsNotExist(err) {
 		UserOutput(fmt.Sprintf("WARNING: %v does not exist, not creating any self-hosted assets.\n", manifestDir))
 		return nil
@@ -64,7 +64,7 @@ func createAssets(c *rest.Config, manifestDir string, timeout time.Duration, str
 	}
 
 	UserOutput("Creating self-hosted assets...\n")
-	if ok := creater.createManifests(m); !ok {
+	if ok := creater.createManifests(m, retryDelay); !ok {
 		UserOutput("\nNOTE: Bootkube failed to create some cluster assets. It is important that manifest errors are resolved and resubmitted to the apiserver.\n")
 		UserOutput("For example, after resolving issues: kubectl create -f <failed-manifest>\n\n")
 
@@ -142,7 +142,7 @@ func newCreater(c *rest.Config, strict bool) (*creater, error) {
 	}, nil
 }
 
-func (c *creater) createManifests(manifests []manifest) (ok bool) {
+func (c *creater) createManifests(manifests []manifest, retryDelay time.Duration) (ok bool) {
 	ok = true
 	// Bootkube used to create manifests in named order ("01-foo" before "02-foo").
 	// Maintain this behavior for everything except CRDs and NSs, which have strict ordering
@@ -163,7 +163,7 @@ func (c *creater) createManifests(manifests []manifest) (ok bool) {
 	}
 
 	create := func(m manifest) error {
-		if err := c.create(m); err != nil {
+		if err := c.create(m, retryDelay); err != nil {
 			ok = false
 			UserOutput("Failed creating %s: %v\n", m, err)
 			return err
@@ -254,17 +254,23 @@ func allCustomResourcesURI(gvr schema.GroupVersionResource) string {
 	)
 }
 
-func (c *creater) create(m manifest) error {
+func (c *creater) create(m manifest, retryDelay time.Duration) error {
 	info, err := c.mapper.resourceInfo(m.apiVersion, m.kind)
 	if err != nil {
 		return fmt.Errorf("dicovery failed: %v", err)
 	}
 
-	return c.client.Post().
-		AbsPath(m.urlPath(info.Name, info.Namespaced)).
-		Body(m.raw).
-		SetHeader("Content-Type", "application/json").
-		Do().Error()
+	for {
+		err = c.client.Post().
+			AbsPath(m.urlPath(info.Name, info.Namespaced)).
+			Body(m.raw).
+			SetHeader("Content-Type", "application/json").
+			Do().Error()
+		if err == nil || retryDelay == 0 {
+			return nil
+		}
+		UserOutput(fmt.Sprintf("Failed creating %s: %v (will retry in %v)\n", m, err, retryDelay))
+	}
 }
 
 func (m manifest) urlPath(plural string, namespaced bool) string {
