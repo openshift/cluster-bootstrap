@@ -24,7 +24,7 @@ type Config struct {
 	AssetDir             string
 	PodManifestPath      string
 	Strict               bool
-	RequiredPods         []string
+	RequiredPodPrefixes  map[string][]string
 	WaitForTearDownEvent string
 }
 
@@ -32,7 +32,7 @@ type startCommand struct {
 	podManifestPath      string
 	assetDir             string
 	strict               bool
-	requiredPods         []string
+	requiredPodPrefixes  map[string][]string
 	waitForTearDownEvent string
 }
 
@@ -41,7 +41,7 @@ func NewStartCommand(config Config) (*startCommand, error) {
 		assetDir:             config.AssetDir,
 		podManifestPath:      config.PodManifestPath,
 		strict:               config.Strict,
-		requiredPods:         config.RequiredPods,
+		requiredPodPrefixes:  config.RequiredPodPrefixes,
 		waitForTearDownEvent: config.WaitForTearDownEvent,
 	}, nil
 }
@@ -80,7 +80,7 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
-	if err = waitUntilPodsRunning(client, b.requiredPods, bootstrapPodsRunningTimeout); err != nil {
+	if err = waitUntilPodsRunning(client, b.requiredPodPrefixes, bootstrapPodsRunningTimeout); err != nil {
 		return err
 	}
 
