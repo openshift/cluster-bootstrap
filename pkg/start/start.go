@@ -3,10 +3,12 @@ package start
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/openshift/library-go/pkg/assets/create"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -76,7 +78,13 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
-	if err = createAssets(restConfig, filepath.Join(b.assetDir, assetPathManifests), bootstrapPodsRunningTimeout, b.strict); err != nil {
+	ctx, cancel := context.WithTimeout(context.TODO(), bootstrapPodsRunningTimeout)
+	defer cancel()
+
+	if err := create.EnsureManifestsCreated(ctx, filepath.Join(b.assetDir, assetPathManifests), restConfig, create.CreateOptions{
+		Verbose: true,
+		StdErr:  os.Stderr,
+	}); err != nil {
 		return err
 	}
 

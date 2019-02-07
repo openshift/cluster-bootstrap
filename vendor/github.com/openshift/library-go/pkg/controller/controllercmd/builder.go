@@ -1,8 +1,10 @@
 package controllercmd
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
+	"sync"
 	"time"
 
 	"github.com/golang/glog"
@@ -31,7 +33,7 @@ type ControllerContext struct {
 	ComponentConfig *unstructured.Unstructured
 	KubeConfig      *rest.Config
 	EventRecorder   events.Recorder
-	StopCh          <-chan struct{}
+	Context         context.Context
 }
 
 // defaultObserverInterval specifies the default interval that file observer will do rehash the files it watches and react to any changes
@@ -79,10 +81,13 @@ func (b *ControllerBuilder) WithRestartOnChange(stopCh chan<- struct{}, files ..
 		}
 		b.fileObserver = observer
 	}
+	var once sync.Once
 
 	b.fileObserverReactorFn = func(filename string, action fileobserver.ActionType) error {
-		defer close(stopCh)
-		glog.Warning(fmt.Sprintf("Restart triggered because of %s", action.String(filename)))
+		once.Do(func() {
+			glog.Warning(fmt.Sprintf("Restart triggered because of %s", action.String(filename)))
+			close(stopCh)
+		})
 		return nil
 	}
 
@@ -131,14 +136,14 @@ func (b *ControllerBuilder) WithInstanceIdentity(identity string) *ControllerBui
 }
 
 // Run starts your controller for you.  It uses leader election if you asked, otherwise it directly calls you
-func (b *ControllerBuilder) Run(config *unstructured.Unstructured, stopCh <-chan struct{}) error {
+func (b *ControllerBuilder) Run(config *unstructured.Unstructured, ctx context.Context) error {
 	clientConfig, err := b.getClientConfig()
 	if err != nil {
 		return err
 	}
 
 	if b.fileObserver != nil {
-		go b.fileObserver.Run(stopCh)
+		go b.fileObserver.Run(ctx.Done())
 	}
 
 	kubeClient := kubernetes.NewForConfigOrDie(clientConfig)
@@ -146,7 +151,7 @@ func (b *ControllerBuilder) Run(config *unstructured.Unstructured, stopCh <-chan
 	if err != nil {
 		panic("unable to read the namespace")
 	}
-	controllerRef, err := events.GetControllerReferenceForCurrentPod(kubeClient.CoreV1().Pods(namespace))
+	controllerRef, err := events.GetControllerReferenceForCurrentPod(kubeClient, namespace, nil)
 	if err != nil {
 		panic(fmt.Sprintf("unable to obtain replicaset reference for events: %v", err))
 	}
@@ -182,7 +187,7 @@ func (b *ControllerBuilder) Run(config *unstructured.Unstructured, stopCh <-chan
 		}
 
 		go func() {
-			if err := server.PrepareRun().Run(stopCh); err != nil {
+			if err := server.PrepareRun().Run(ctx.Done()); err != nil {
 				glog.Error(err)
 			}
 			glog.Fatal("server exited")
@@ -193,7 +198,7 @@ func (b *ControllerBuilder) Run(config *unstructured.Unstructured, stopCh <-chan
 		ComponentConfig: config,
 		KubeConfig:      clientConfig,
 		EventRecorder:   eventRecorder,
-		StopCh:          stopCh,
+		Context:         ctx,
 	}
 
 	if b.leaderElection == nil {
@@ -208,13 +213,13 @@ func (b *ControllerBuilder) Run(config *unstructured.Unstructured, stopCh <-chan
 		return err
 	}
 
-	leaderElection.Callbacks.OnStartedLeading = func(stop <-chan struct{}) {
-		controllerContext.StopCh = stop
+	leaderElection.Callbacks.OnStartedLeading = func(ctx context.Context) {
+		controllerContext.Context = ctx
 		if err := b.startFunc(controllerContext); err != nil {
 			glog.Fatal(err)
 		}
 	}
-	leaderelection.RunOrDie(leaderElection)
+	leaderelection.RunOrDie(ctx, leaderElection)
 	return fmt.Errorf("exited")
 }
 
