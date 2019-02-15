@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -91,10 +90,8 @@ func validateStartOpts(cmd *cobra.Command, args []string) error {
 	if startOpts.assetDir == "" {
 		return errors.New("missing required flag: --asset-dir")
 	}
-	for _, nsPod := range startOpts.requiredPodClauses {
-		if len(strings.Split(nsPod, "/")) != 2 {
-			return fmt.Errorf("invalid required pod: expected %q to be of shape <namespace>/<pod-name>", nsPod)
-		}
+	if _, err := parsePodPrefixes(startOpts.requiredPodClauses); err != nil {
+		return err
 	}
 	return nil
 }
