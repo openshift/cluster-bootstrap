@@ -61,9 +61,10 @@ func (b *startCommand) Run() error {
 	bcp := newBootstrapControlPlane(b.assetDir, b.podManifestPath)
 
 	defer func() {
-		// Always tear down the bootstrap control plane and clean up manifests and secrets.
-		if err := bcp.Teardown(); err != nil {
-			UserOutput("Error tearing down temporary bootstrap control plane: %v\n", err)
+		// Teardown will remove all manifests and secrets in addition to preserving all bootstrap container logs
+		bcp.Teardown()
+		if err := bcp.TeardownError(); err != nil {
+			UserOutput("Tearing down temporary bootstrap control plane failed with following errors:\n%v\n", err)
 		}
 	}()
 

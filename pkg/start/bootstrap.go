@@ -1,8 +1,10 @@
 package start
 
 import (
+	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -11,6 +13,7 @@ type bootstrapControlPlane struct {
 	assetDir        string
 	podManifestPath string
 	ownedManifests  []string
+	teardownErrors  []error
 }
 
 // newBootstrapControlPlane constructs a new bootstrap control plane object.
@@ -45,20 +48,99 @@ func (b *bootstrapControlPlane) Start() error {
 	return err
 }
 
-// Teardown brings down the bootstrap control plane and cleans up the temporary manifests and
-// secrets. This function is idempotent.
-func (b *bootstrapControlPlane) Teardown() error {
+// Teardown brings down the bootstrap control plane and cleans up the temporary manifests and secrets and scrape all bootstrap container logs.
+// This function is idempotent.
+func (b *bootstrapControlPlane) Teardown() {
 	UserOutput("Tearing down temporary bootstrap control plane...\n")
+	// Copy all CRI-O container logs to systemd
+	b.copyContainerLogsToSystemD()
+
+	// Remove all manifests (only after we copied the logs, otherwise kubelet will remove the container and the log file.
+	defer b.removeManifests()
+}
+
+// TeardownError return aggregated errors from the teardown process.
+func (b *bootstrapControlPlane) TeardownError() error {
+	messages := []string{}
+	for _, err := range b.teardownErrors {
+		messages = append(messages, err.Error())
+	}
+	return fmt.Errorf(strings.Join(messages, "\n"))
+}
+
+const podLogsDir = "/var/log/pods"
+
+// listContainerLogFilesForPod lists all log files (0.log, 1.log, etc..) for a given pod UUID.
+func listContainerLogFilesForPod(podUUID string) (map[string][]string, error) {
+	result := map[string][]string{}
+	walkErr := filepath.Walk(filepath.Join(podLogsDir, podUUID), func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			return nil
+		}
+		containerName := info.Name()
+		result[containerName] = []string{}
+		// We have container directory, now merge all its *.log files
+		if err := filepath.Walk(filepath.Join(path, containerName), func(containerLogPath string, containerLogInfo os.FileInfo, containerDirErr error) error {
+			if info.IsDir() {
+				return nil
+			}
+			// Find all *.log files for given containers (more files means container restarts)
+			if strings.HasSuffix(info.Name(), ".log") {
+				result[containerName] = append(result[containerName], filepath.Join(containerLogPath, info.Name()))
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		return nil
+	})
+	return result, walkErr
+}
+
+// copyContainerLogsToSystemD copies all containers logs into systemd journal.
+func (b *bootstrapControlPlane) copyContainerLogsToSystemD() {
+	walkErr := filepath.Walk(podLogsDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			return nil
+		}
+		podUUID := info.Name()
+		containerLogs, err := listContainerLogFilesForPod(podUUID)
+		if err != nil {
+			return err
+		}
+		for containerName, logFiles := range containerLogs {
+			for containerID, logFile := range logFiles {
+				_, err := exec.Command("/bin/systemd-run", "--unit", fmt.Sprintf("bootstrap-%s-%s-%d", podUUID, containerName, containerID), "/bin/cat", logFile).Output()
+				if err != nil {
+					b.teardownErrors = append(b.teardownErrors, err)
+					continue
+				}
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		b.teardownErrors = append(b.teardownErrors, walkErr)
+	}
+}
+
+func (b *bootstrapControlPlane) removeManifests() {
 	if err := os.RemoveAll(bootstrapSecretsDir); err != nil {
-		return err
+		b.teardownErrors = append(b.teardownErrors, err)
+		return
 	}
 	for _, manifest := range b.ownedManifests {
 		if err := os.Remove(manifest); err != nil && !os.IsNotExist(err) {
-			return err
+			b.teardownErrors = append(b.teardownErrors, err)
 		}
 	}
 	b.ownedManifests = nil
-	return nil
 }
 
 // copyFile copies a single file from src to dst. Returns an error if overwrite is true and dst
