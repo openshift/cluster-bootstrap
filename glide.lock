@@ -1,5 +1,5 @@
 hash: 154f206156d67ae4388fc1a0119c3812452b939cbdfd91deb8223ef451d1887a
-updated: 2019-02-05T16:48:56.411956+01:00
+updated: 2019-02-21T12:48:12.976358+01:00
 imports:
 - name: github.com/davecgh/go-spew
   version: 782f4967f2dc4564575ca782fe2d04090b5faca8
@@ -51,7 +51,10 @@ imports:
 - name: github.com/modern-go/reflect2
   version: 05fbef0ca5da472bbf96c9322b84a53edc03c9fd
 - name: github.com/openshift/library-go
-  version: 4dab83143a4b28f9b790007a2e749d3ddeb5dd10
+  version: 9bc4d63d731db28f1beed6e193d13fd1d6acb211
+  subpackages:
+  - pkg/assets
+  - pkg/assets/create
 - name: github.com/peterbourgon/diskv
   version: 5f041e8faa004a95c88a202771f4cc3e991971e6
 - name: github.com/spf13/cobra
@@ -61,8 +64,6 @@ imports:
 - name: golang.org/x/crypto
   version: de0752318171da717af4ce24d0a2e8626afaeb11
   subpackages:
-  - bcrypt
-  - blowfish
   - ssh/terminal
 - name: golang.org/x/net
   version: 0ed95abb35c445290478a5348a7b38bb154135fd
@@ -78,7 +79,10 @@ imports:
 - name: golang.org/x/oauth2
   version: a6bd8cefa1811bd24b86f8902872e4e8225f74c4
   subpackages:
+  - google
   - internal
+  - jws
+  - jwt
 - name: golang.org/x/sys
   version: 95c6576299259db960f6c5b9b69ea52422860fce
   subpackages:
@@ -96,7 +100,7 @@ imports:
   subpackages:
   - rate
 - name: google.golang.org/appengine
-  version: 12d5545dc1cfa6047a286d5e853841b6471f4c19
+  version: 54a98f90d1c46b7731eb8fb305d2a321c30ef610
   subpackages:
   - internal
   - internal/base
@@ -143,11 +147,6 @@ imports:
   - storage/v1
   - storage/v1alpha1
   - storage/v1beta1
-- name: k8s.io/apiextensions-apiserver
-  version: a384d17938fe55d54a52d5668bf0ff40044daef0
-  subpackages:
-  - pkg/apis/apiextensions
-  - pkg/apis/apiextensions/v1beta1
 - name: k8s.io/apimachinery
   version: 49ce2735e5074ffc3f8190c8406cf51a96302dad
   subpackages:
@@ -194,6 +193,7 @@ imports:
   version: 701b913670036511e3d752318272c97f1a2a2edd
   subpackages:
   - discovery
+  - dynamic
   - kubernetes
   - kubernetes/scheme
   - kubernetes/typed/admissionregistration/v1alpha1
@@ -234,6 +234,7 @@ imports:
   - plugin/pkg/client/auth/exec
   - rest
   - rest/watch
+  - restmapper
   - tools/auth
   - tools/cache
   - tools/clientcmd
