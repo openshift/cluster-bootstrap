@@ -3,6 +3,8 @@ package start
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -81,7 +84,21 @@ func (b *startCommand) Run() error {
 	ctx, cancel := context.WithTimeout(context.TODO(), bootstrapPodsRunningTimeout)
 	defer cancel()
 
-	if err := create.EnsureManifestsCreated(ctx, filepath.Join(b.assetDir, assetPathManifests), restConfig, create.CreateOptions{
+	// We don't want the client contact the API servers via load-balancer, but only talk to the local API server.
+	// This will speed up the initial "where is working API server" process.
+	localClientConfig := rest.CopyConfig(restConfig)
+	localClientConfig.Host = "localhost:6443"
+	// Set the ServerName to original hostname so we pass the certificate check.
+	hostURL, err := url.Parse(restConfig.Host)
+	if err != nil {
+		return err
+	}
+	localClientConfig.ServerName, _, err = net.SplitHostPort(hostURL.Host)
+	if err != nil {
+		return err
+	}
+
+	if err := create.EnsureManifestsCreated(ctx, filepath.Join(b.assetDir, assetPathManifests), localClientConfig, create.CreateOptions{
 		Verbose: true,
 		StdErr:  os.Stderr,
 	}); err != nil {
