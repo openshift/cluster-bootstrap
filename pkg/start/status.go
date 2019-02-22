@@ -1,6 +1,7 @@
 package start
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strings"
@@ -16,14 +17,14 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-func waitUntilPodsRunning(c kubernetes.Interface, pods map[string][]string, timeout time.Duration) error {
+func waitUntilPodsRunning(ctx context.Context, c kubernetes.Interface, pods map[string][]string) error {
 	sc, err := newStatusController(c, pods)
 	if err != nil {
 		return err
 	}
 	sc.Run()
 
-	if err := wait.Poll(5*time.Second, timeout, sc.AllRunningAndReady); err != nil {
+	if err := wait.PollImmediateUntil(5*time.Second, sc.AllRunningAndReady, ctx.Done()); err != nil {
 		return fmt.Errorf("error while checking pod status: %v", err)
 	}
 
