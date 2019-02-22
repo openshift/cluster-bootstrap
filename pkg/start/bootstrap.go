@@ -48,6 +48,10 @@ func (b *bootstrapControlPlane) Start() error {
 // Teardown brings down the bootstrap control plane and cleans up the temporary manifests and
 // secrets. This function is idempotent.
 func (b *bootstrapControlPlane) Teardown() error {
+	if b == nil {
+		return nil
+	}
+
 	UserOutput("Tearing down temporary bootstrap control plane...\n")
 	if err := os.RemoveAll(bootstrapSecretsDir); err != nil {
 		return err

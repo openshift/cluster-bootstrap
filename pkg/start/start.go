@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/openshift/library-go/pkg/assets/create"
@@ -23,6 +24,8 @@ import (
 const (
 	// how long we wait until the bootstrap pods to be running
 	bootstrapPodsRunningTimeout = 20 * time.Minute
+	// how long we wait until the assets must all be created
+	assetsCreatedTimeout = 60 * time.Minute
 )
 
 type Config struct {
@@ -63,8 +66,8 @@ func (b *startCommand) Run() error {
 
 	bcp := newBootstrapControlPlane(b.assetDir, b.podManifestPath)
 
+	// Always tear down the bootstrap control plane and clean up manifests and secrets.
 	defer func() {
-		// Always tear down the bootstrap control plane and clean up manifests and secrets.
 		if err := bcp.Teardown(); err != nil {
 			UserOutput("Error tearing down temporary bootstrap control plane: %v\n", err)
 		}
@@ -81,9 +84,6 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.TODO(), bootstrapPodsRunningTimeout)
-	defer cancel()
-
 	// We don't want the client contact the API servers via load-balancer, but only talk to the local API server.
 	// This will speed up the initial "where is working API server" process.
 	localClientConfig := rest.CopyConfig(restConfig)
@@ -98,22 +98,45 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
-	if err := create.EnsureManifestsCreated(ctx, filepath.Join(b.assetDir, assetPathManifests), localClientConfig, create.CreateOptions{
-		Verbose: true,
-		StdErr:  os.Stderr,
-	}); err != nil {
+	// create assets against localhost apiserver (in the background) and wait for control plane to be up
+	createAssetsInBackground := func(ctx context.Context, cancel func(), client *rest.Config) *sync.WaitGroup {
+		done := sync.WaitGroup{}
+		done.Add(1)
+		go func() {
+			defer done.Done()
+			if err := create.EnsureManifestsCreated(ctx, filepath.Join(b.assetDir, assetPathManifests), client, create.CreateOptions{
+				Verbose: true,
+				StdErr:  os.Stderr,
+			}); err != nil {
+				select {
+				case <-ctx.Done():
+				default:
+					UserOutput("Assert creation failed: %v\n", err)
+					cancel()
+				}
+			}
+		}()
+		return &done
+	}
+	ctx, cancel := context.WithTimeout(context.TODO(), bootstrapPodsRunningTimeout)
+	defer cancel()
+	assetsDone := createAssetsInBackground(ctx, cancel, localClientConfig)
+	if err = waitUntilPodsRunning(ctx, client, b.requiredPodPrefixes); err != nil {
 		return err
 	}
-
-	if err = waitUntilPodsRunning(client, b.requiredPodPrefixes, bootstrapPodsRunningTimeout); err != nil {
-		return err
-	}
+	cancel()
+	assetsDone.Wait()
 
 	// notify installer that we are ready to tear down the temporary bootstrap control plane
 	UserOutput("Sending bootstrap-success event.")
 	if _, err := client.CoreV1().Events("kube-system").Create(makeBootstrapSuccessEvent("kube-system", "bootstrap-success")); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
+
+	// switch over to ELB client and continue with the assets
+	ctx, cancel = context.WithTimeout(context.Background(), assetsCreatedTimeout)
+	defer cancel()
+	assetsDone = createAssetsInBackground(ctx, cancel, restConfig)
 
 	// optionally wait for tear down event coming from the installer. This is necessary to
 	// remove the bootstrap node from the AWS load balancer.
@@ -128,6 +151,17 @@ func (b *startCommand) Run() error {
 		}
 		UserOutput("Got %s event.", b.waitForTearDownEvent)
 	}
+
+	// tear down the bootstrap control plane. Set bcp to nil to avoid a second tear down in the defer func.
+	err = bcp.Teardown()
+	bcp = nil
+	if err != nil {
+		UserOutput("Error tearing down temporary bootstrap control plane: %v\n", err)
+	}
+
+	// wait for the tail of assets to be created after tear down
+	UserOutput("Waiting for remaining assets to be created.\n")
+	assetsDone.Wait()
 
 	return nil
 }
