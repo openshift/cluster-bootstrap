@@ -34,6 +34,7 @@ type Config struct {
 	Strict               bool
 	RequiredPodPrefixes  map[string][]string
 	WaitForTearDownEvent string
+	EarlyTearDown        bool
 }
 
 type startCommand struct {
@@ -42,6 +43,7 @@ type startCommand struct {
 	strict               bool
 	requiredPodPrefixes  map[string][]string
 	waitForTearDownEvent string
+	earlyTearDown        bool
 }
 
 func NewStartCommand(config Config) (*startCommand, error) {
@@ -51,6 +53,7 @@ func NewStartCommand(config Config) (*startCommand, error) {
 		strict:               config.Strict,
 		requiredPodPrefixes:  config.RequiredPodPrefixes,
 		waitForTearDownEvent: config.WaitForTearDownEvent,
+		earlyTearDown:        config.EarlyTearDown,
 	}, nil
 }
 
@@ -133,10 +136,16 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
-	// switch over to ELB client and continue with the assets
+	// continue with assets
 	ctx, cancel = context.WithTimeout(context.Background(), assetsCreatedTimeout)
 	defer cancel()
-	assetsDone = createAssetsInBackground(ctx, cancel, restConfig)
+	if b.earlyTearDown {
+		// switch over to ELB client and continue with the assets
+		assetsDone = createAssetsInBackground(ctx, cancel, restConfig)
+	} else {
+		// we don't tear down the local control plane early. So we can keep using it and enjoy the speed up.
+		assetsDone = createAssetsInBackground(ctx, cancel, localClientConfig)
+	}
 
 	// optionally wait for tear down event coming from the installer. This is necessary to
 	// remove the bootstrap node from the AWS load balancer.
@@ -153,10 +162,12 @@ func (b *startCommand) Run() error {
 	}
 
 	// tear down the bootstrap control plane. Set bcp to nil to avoid a second tear down in the defer func.
-	err = bcp.Teardown()
-	bcp = nil
-	if err != nil {
-		UserOutput("Error tearing down temporary bootstrap control plane: %v\n", err)
+	if b.earlyTearDown {
+		err = bcp.Teardown()
+		bcp = nil
+		if err != nil {
+			UserOutput("Error tearing down temporary bootstrap control plane: %v\n", err)
+		}
 	}
 
 	// wait for the tail of assets to be created after tear down
