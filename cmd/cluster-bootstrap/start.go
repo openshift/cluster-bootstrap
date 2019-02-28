@@ -25,6 +25,7 @@ var (
 		strict               bool
 		requiredPodClauses   []string
 		waitForTearDownEvent string
+		earlyTearDown        bool
 	}
 )
 
@@ -42,6 +43,7 @@ func init() {
 	cmdStart.Flags().BoolVar(&startOpts.strict, "strict", false, "Strict mode will cause start command to exit early if any manifests in the asset directory cannot be created.")
 	cmdStart.Flags().StringSliceVar(&startOpts.requiredPodClauses, "required-pods", defaultRequiredPods, "List of pods name prefixes with their namespace (written as <namespace>/<pod-prefix>) that are required to be running and ready before the start command does the pivot, or alternatively a list of or'ed pod prefixes with a description (written as <desc>:<namespace>/<pod-prefix>|<namespace>/<pod-prefix>|...).")
 	cmdStart.Flags().StringVar(&startOpts.waitForTearDownEvent, "tear-down-event", "", "if this optional event name of the form <ns>/<event-name> is given, the event is waited for before tearing down the bootstrap control plane")
+	cmdStart.Flags().BoolVar(&startOpts.earlyTearDown, "tear-down-early", true, "tear down immediate after the non-bootstrap control plane is up and bootstrap-success event is created.")
 }
 
 func runCmdStart(cmd *cobra.Command, args []string) error {
@@ -56,6 +58,7 @@ func runCmdStart(cmd *cobra.Command, args []string) error {
 		Strict:               startOpts.strict,
 		RequiredPodPrefixes:  podPrefixes,
 		WaitForTearDownEvent: startOpts.waitForTearDownEvent,
+		EarlyTearDown:        startOpts.earlyTearDown,
 	})
 	if err != nil {
 		return err
