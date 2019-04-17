@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"strings"
 
@@ -47,6 +48,8 @@ func init() {
 }
 
 func runCmdStart(cmd *cobra.Command, args []string) error {
+	ctx := context.Background()
+
 	podPrefixes, err := parsePodPrefixes(startOpts.requiredPodClauses)
 	if err != nil {
 		return err
@@ -64,7 +67,7 @@ func runCmdStart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return bk.Run()
+	return bk.Run(ctx)
 }
 
 // parsePodPrefixes parses <ns>/<pod-prefix> or <desc>:<ns>/<pod-prefix>|... into a map with

@@ -22,8 +22,6 @@ import (
 )
 
 const (
-	// how long we wait until the bootstrap pods to be running
-	bootstrapPodsRunningTimeout = 20 * time.Minute
 	// how long we wait until the assets must all be created
 	assetsCreatedTimeout = 60 * time.Minute
 )
@@ -57,7 +55,7 @@ func NewStartCommand(config Config) (*startCommand, error) {
 	}, nil
 }
 
-func (b *startCommand) Run() error {
+func (b *startCommand) Run(ctx context.Context) error {
 	restConfig, err := clientcmd.BuildConfigFromFlags("", filepath.Join(b.assetDir, assetPathAdminKubeConfig))
 	if err != nil {
 		return err
@@ -121,13 +119,12 @@ func (b *startCommand) Run() error {
 		}()
 		return &done
 	}
-	ctx, cancel := context.WithTimeout(context.TODO(), bootstrapPodsRunningTimeout)
+	assetContext, cancel := context.WithTimeout(ctx, assetsCreatedTimeout)
 	defer cancel()
-	assetsDone := createAssetsInBackground(ctx, cancel, localClientConfig)
+	assetsDone := createAssetsInBackground(assetContext, cancel, localClientConfig)
 	if err = waitUntilPodsRunning(ctx, client, b.requiredPodPrefixes); err != nil {
 		return err
 	}
-	cancel()
 	assetsDone.Wait()
 
 	// notify installer that we are ready to tear down the temporary bootstrap control plane
@@ -137,14 +134,12 @@ func (b *startCommand) Run() error {
 	}
 
 	// continue with assets
-	ctx, cancel = context.WithTimeout(context.Background(), assetsCreatedTimeout)
-	defer cancel()
 	if b.earlyTearDown {
 		// switch over to ELB client and continue with the assets
-		assetsDone = createAssetsInBackground(ctx, cancel, restConfig)
+		assetsDone = createAssetsInBackground(assetContext, cancel, restConfig)
 	} else {
 		// we don't tear down the local control plane early. So we can keep using it and enjoy the speed up.
-		assetsDone = createAssetsInBackground(ctx, cancel, localClientConfig)
+		assetsDone = createAssetsInBackground(assetContext, cancel, localClientConfig)
 	}
 
 	// optionally wait for tear down event coming from the installer. This is necessary to
@@ -155,7 +150,7 @@ func (b *startCommand) Run() error {
 			return fmt.Errorf("tear down event name of format <namespace>/<event-name> expected, got: %q", b.waitForTearDownEvent)
 		}
 		ns, name := ss[0], ss[1]
-		if err := waitForEvent(context.TODO(), client, ns, name); err != nil {
+		if err := waitForEvent(ctx, client, ns, name); err != nil {
 			return err
 		}
 		UserOutput("Got %s event.", b.waitForTearDownEvent)
