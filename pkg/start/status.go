@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -15,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog"
 )
 
 func waitUntilPodsRunning(ctx context.Context, c kubernetes.Interface, pods map[string][]string) error {
@@ -69,7 +69,7 @@ func (s *statusController) Run() {
 func (s *statusController) AllRunningAndReady() (bool, error) {
 	ps, err := s.podStatus()
 	if err != nil {
-		glog.Infof("Error retriving pod statuses: %v", err)
+		klog.Infof("Error retriving pod statuses: %v", err)
 		return false, nil
 	}
 

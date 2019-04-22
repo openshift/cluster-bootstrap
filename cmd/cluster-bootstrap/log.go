@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/klog"
 )
 
 type GlogWriter struct{}
@@ -16,7 +16,7 @@ func init() {
 }
 
 func (writer GlogWriter) Write(data []byte) (n int, err error) {
-	glog.Info(string(data))
+	klog.Info(string(data))
 	return len(data), nil
 }
 
@@ -24,9 +24,9 @@ func InitLogs() {
 	log.SetOutput(GlogWriter{})
 	log.SetFlags(log.LUTC | log.Ldate | log.Ltime)
 	flushFreq := 5 * time.Second
-	go wait.Until(glog.Flush, flushFreq, wait.NeverStop)
+	go wait.Until(klog.Flush, flushFreq, wait.NeverStop)
 }
 
 func FlushLogs() {
-	glog.Flush()
+	klog.Flush()
 }
