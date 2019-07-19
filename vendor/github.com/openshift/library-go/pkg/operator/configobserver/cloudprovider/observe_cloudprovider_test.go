@@ -56,14 +56,19 @@ func TestObserveCloudProviderNames(t *testing.T) {
 		expected:           "azure",
 		cloudProviderCount: 1,
 	}, {
+		platform:           configv1.BareMetalPlatformType,
+		cloudProviderCount: 0,
+	}, {
 		platform:           configv1.LibvirtPlatformType,
 		cloudProviderCount: 0,
 	}, {
 		platform:           configv1.OpenStackPlatformType,
-		cloudProviderCount: 0,
+		expected:           "openstack",
+		cloudProviderCount: 1,
 	}, {
 		platform:           configv1.GCPPlatformType,
-		cloudProviderCount: 0,
+		expected:           "gce",
+		cloudProviderCount: 1,
 	}, {
 		platform:           configv1.NonePlatformType,
 		cloudProviderCount: 0,
