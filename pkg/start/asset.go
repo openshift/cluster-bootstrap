@@ -2,7 +2,7 @@ package start
 
 const (
 	assetPathSecrets            = "tls"
-	assetPathAdminKubeConfig    = "auth/kubeconfig"
+	assetPathAdminKubeConfig    = "auth/kubeconfig-loopback"
 	assetPathManifests          = "manifests"
 	assetPathBootstrapManifests = "bootstrap-manifests"
 )
