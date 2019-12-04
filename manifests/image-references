@@ -6,9 +6,10 @@ spec:
     from:
       kind: DockerImage
       name: docker.io/openshift/origin-cluster-bootstrap:v4.0
-# The `kube-etcd-signer-server` image is required on the bootstrap node to sign certificates
-# for the etcd members to allow bootstrapping of the etcd cluster.      
-  - name: kube-etcd-signer-server
+# The `cluster-etcd-operator` image is required on the bootstrap node to sign certificates
+# for the etcd members to allow bootstrapping of the etcd cluster. This reference will be
+# removed when the operator is deployed via CVO.
+  - name: cluster-etcd-operator
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift/origin-v4.0:kube-etcd-signer-server
+      name: registry.svc.ci.openshift.org/openshift/origin-v4.0:cluster-etcd-operator
