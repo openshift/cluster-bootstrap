@@ -174,6 +174,11 @@ func (b *startCommand) Run() error {
 	UserOutput("Waiting for remaining assets to be created.\n")
 	assetsDone.Wait()
 
+	UserOutput("Sending bootstrap-finished event.")
+	if _, err := client.CoreV1().Events("kube-system").Create(makeBootstrapSuccessEvent("kube-system", "bootstrap-finished")); err != nil && !apierrors.IsAlreadyExists(err) {
+		return err
+	}
+
 	return nil
 }
 
