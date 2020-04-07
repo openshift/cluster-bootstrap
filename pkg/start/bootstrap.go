@@ -40,7 +40,7 @@ func (b *bootstrapControlPlane) Start() error {
 
 	// Copy the static manifests to the kubelet's pod manifest path.
 	manifestsDir := filepath.Join(b.assetDir, assetPathBootstrapManifests)
-	ownedManifests, err := copyDirectory(manifestsDir, b.podManifestPath, false /* overwrite */)
+	ownedManifests, err := copyDirectory(manifestsDir, b.podManifestPath, true /* overwrite */)
 	b.ownedManifests = ownedManifests // always copy in case of partial failure.
 	return err
 }
