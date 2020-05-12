@@ -1,12 +1,13 @@
 package prune
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
@@ -200,17 +201,6 @@ func TestPruneAPIResources(t *testing.T) {
 		)
 		eventRecorder := events.NewRecorder(kubeClient.CoreV1().Events("test"), "test-operator", &v1.ObjectReference{})
 
-		operatorStatus := &operatorv1.StaticPodOperatorStatus{
-			LatestAvailableRevision: 1,
-			NodeStatuses: []operatorv1.NodeStatus{
-				{
-					NodeName:        "test-node-1",
-					CurrentRevision: 1,
-					TargetRevision:  0,
-				},
-			},
-		}
-
 		c := &PruneController{
 			targetNamespace:   tc.targetNamespace,
 			podResourcePrefix: "test-pod",
@@ -218,7 +208,6 @@ func TestPruneAPIResources(t *testing.T) {
 			configMapGetter:   kubeClient.CoreV1(),
 			secretGetter:      kubeClient.CoreV1(),
 			podGetter:         kubeClient.CoreV1(),
-			eventRecorder:     eventRecorder,
 			operatorClient:    fakeStaticPodOperatorClient,
 		}
 		c.ownerRefsFn = func(revision int32) ([]metav1.OwnerReference, error) {
@@ -232,15 +221,15 @@ func TestPruneAPIResources(t *testing.T) {
 		}
 		failedLimit, succeededLimit := getRevisionLimits(operatorSpec)
 
-		excludedRevisions, err := c.excludedRevisionHistory(operatorStatus, failedLimit, succeededLimit)
+		excludedRevisions, err := c.excludedRevisionHistory(context.TODO(), eventRecorder, failedLimit, succeededLimit)
 		if err != nil {
 			t.Fatalf("unexpected error %q", err)
 		}
-		if apiErr := c.pruneAPIResources(excludedRevisions, excludedRevisions[len(excludedRevisions)-1]); apiErr != nil {
+		if apiErr := c.pruneAPIResources(context.TODO(), excludedRevisions, excludedRevisions[len(excludedRevisions)-1]); apiErr != nil {
 			t.Fatalf("unexpected error %q", apiErr)
 		}
 
-		statusConfigMaps, err := c.configMapGetter.ConfigMaps(tc.targetNamespace).List(metav1.ListOptions{})
+		statusConfigMaps, err := c.configMapGetter.ConfigMaps(tc.targetNamespace).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			t.Fatalf("unexpected error %q", err)
 		}
@@ -431,7 +420,6 @@ func TestPruneDiskResources(t *testing.T) {
 				configMapGetter:   kubeClient.CoreV1(),
 				secretGetter:      kubeClient.CoreV1(),
 				podGetter:         kubeClient.CoreV1(),
-				eventRecorder:     eventRecorder,
 				operatorClient:    fakeStaticPodOperatorClient,
 			}
 			c.ownerRefsFn = func(revision int32) ([]metav1.OwnerReference, error) {
@@ -445,11 +433,11 @@ func TestPruneDiskResources(t *testing.T) {
 			}
 			failedLimit, succeededLimit := getRevisionLimits(operatorSpec)
 
-			excludedRevisions, err := c.excludedRevisionHistory(operatorStatus, failedLimit, succeededLimit)
+			excludedRevisions, err := c.excludedRevisionHistory(context.TODO(), eventRecorder, failedLimit, succeededLimit)
 			if err != nil {
 				t.Fatalf("unexpected error %q", err)
 			}
-			if diskErr := c.pruneDiskResources(operatorStatus, excludedRevisions, excludedRevisions[len(excludedRevisions)-1]); diskErr != nil {
+			if diskErr := c.pruneDiskResources(eventRecorder, operatorStatus, excludedRevisions, excludedRevisions[len(excludedRevisions)-1]); diskErr != nil {
 				t.Fatalf("unexpected error %q", diskErr)
 			}
 

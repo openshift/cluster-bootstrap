@@ -37,30 +37,37 @@ func TestObserveFeatureFlags(t *testing.T) {
 	tests := []struct {
 		name string
 
-		configValue     configv1.FeatureSet
-		expectedResult  []string
-		expectError     bool
-		customNoUpgrade *configv1.CustomFeatureGates
-		knownFeatures   sets.String
+		configValue         configv1.FeatureSet
+		expectedResult      []string
+		expectError         bool
+		customNoUpgrade     *configv1.CustomFeatureGates
+		knownFeatures       sets.String
+		blacklistedFeatures sets.String
 	}{
 		{
 			name:        "default",
 			configValue: configv1.Default,
 			expectedResult: []string{
-				"ExperimentalCriticalPodAnnotation=true",
+				"APIPriorityAndFairness=true",
 				"RotateKubeletServerCertificate=true",
 				"SupportPodPidsLimit=true",
-				"LocalStorageCapacityIsolation=false",
+				"NodeDisruptionExclusion=true",
+				"ServiceNodeExclusion=true",
+				"SCTPSupport=true",
+				"LegacyNodeRoleBehavior=false",
 			},
 		},
 		{
 			name:        "techpreview",
 			configValue: configv1.TechPreviewNoUpgrade,
 			expectedResult: []string{
-				"ExperimentalCriticalPodAnnotation=true",
+				"APIPriorityAndFairness=true",
 				"RotateKubeletServerCertificate=true",
 				"SupportPodPidsLimit=true",
-				"LocalStorageCapacityIsolation=false",
+				"NodeDisruptionExclusion=true",
+				"ServiceNodeExclusion=true",
+				"SCTPSupport=true",
+				"LegacyNodeRoleBehavior=false",
 			},
 		},
 		{
@@ -92,6 +99,20 @@ func TestObserveFeatureFlags(t *testing.T) {
 			},
 			knownFeatures: sets.NewString("CustomFeatureEnabled"),
 		},
+		{
+			name:        "custom no upgrade and blacklisted features",
+			configValue: configv1.CustomNoUpgrade,
+			expectedResult: []string{
+				"CustomFeatureEnabled=true",
+				"AThirdThing=true",
+				"CustomFeatureDisabled=false",
+			},
+			customNoUpgrade: &configv1.CustomFeatureGates{
+				Enabled:  []string{"CustomFeatureEnabled", "AnotherThing", "AThirdThing"},
+				Disabled: []string{"CustomFeatureDisabled", "DisabledThing"},
+			},
+			blacklistedFeatures: sets.NewString("AnotherThing", "DisabledThing"),
+		},
 	}
 
 	for _, tc := range tests {
@@ -113,7 +134,7 @@ func TestObserveFeatureFlags(t *testing.T) {
 
 			initialExistingConfig := map[string]interface{}{}
 
-			observeFn := NewObserveFeatureFlagsFunc(tc.knownFeatures, configPath)
+			observeFn := NewObserveFeatureFlagsFunc(tc.knownFeatures, tc.blacklistedFeatures, configPath)
 
 			observed, errs := observeFn(listers, eventRecorder, initialExistingConfig)
 			if len(errs) != 0 && !tc.expectError {
@@ -127,7 +148,7 @@ func TestObserveFeatureFlags(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if !reflect.DeepEqual(tc.expectedResult, actual) {
-				t.Errorf("%v", actual)
+				t.Errorf("Unexpected features gates\n  got:      %v\n  expected: %v", actual, tc.expectedResult)
 			}
 		})
 	}

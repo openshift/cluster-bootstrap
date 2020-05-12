@@ -4,12 +4,18 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
+	"k8s.io/client-go/tools/record"
+	"k8s.io/component-base/metrics"
+	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/klog"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/version"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/client-go/kubernetes"
@@ -28,7 +34,7 @@ import (
 )
 
 // StartFunc is the function to call on leader election start
-type StartFunc func(*ControllerContext) error
+type StartFunc func(context.Context, *ControllerContext) error
 
 type ControllerContext struct {
 	ComponentConfig *unstructured.Unstructured
@@ -46,13 +52,6 @@ type ControllerContext struct {
 
 	// Server is the GenericAPIServer serving healthz checks and debug info
 	Server *genericapiserver.GenericAPIServer
-
-	stopChan <-chan struct{}
-}
-
-// Done returns a channel which will close on termination.
-func (c ControllerContext) Done() <-chan struct{} {
-	return c.stopChan
 }
 
 // defaultObserverInterval specifies the default interval that file observer will do rehash the files it watches and react to any changes
@@ -66,6 +65,7 @@ type ControllerBuilder struct {
 	leaderElection          *configv1.LeaderElection
 	fileObserver            fileobserver.Observer
 	fileObserverReactorFn   func(file string, action fileobserver.ActionType) error
+	eventRecorderOptions    record.CorrelatorOptions
 
 	startFunc          StartFunc
 	componentName      string
@@ -76,7 +76,14 @@ type ControllerBuilder struct {
 	servingInfo          *configv1.HTTPServingInfo
 	authenticationConfig *operatorv1alpha1.DelegatedAuthentication
 	authorizationConfig  *operatorv1alpha1.DelegatedAuthorization
-	healthChecks         []healthz.HealthzChecker
+	healthChecks         []healthz.HealthChecker
+
+	versionInfo *version.Info
+
+	// nonZeroExitFn takes a function that exit the process with non-zero code.
+	// This stub exists for unit test where we can check if the graceful termination work properly.
+	// Default function will klog.Warning(args) and os.Exit(1).
+	nonZeroExitFn func(args ...interface{})
 }
 
 // NewController returns a builder struct for constructing the command you want to run
@@ -85,6 +92,10 @@ func NewController(componentName string, startFunc StartFunc) *ControllerBuilder
 		startFunc:        startFunc,
 		componentName:    componentName,
 		observerInterval: defaultObserverInterval,
+		nonZeroExitFn: func(args ...interface{}) {
+			klog.Warning(args...)
+			os.Exit(1)
+		},
 	}
 }
 
@@ -131,6 +142,12 @@ func (b *ControllerBuilder) WithLeaderElection(leaderElection configv1.LeaderEle
 	return b
 }
 
+// WithVersion accepts a getting that provide binary version information that is used to report build_info information to prometheus
+func (b *ControllerBuilder) WithVersion(info version.Info) *ControllerBuilder {
+	b.versionInfo = &info
+	return b
+}
+
 // WithServer adds a server that provides metrics and healthz
 func (b *ControllerBuilder) WithServer(servingInfo configv1.HTTPServingInfo, authenticationConfig operatorv1alpha1.DelegatedAuthentication, authorizationConfig operatorv1alpha1.DelegatedAuthorization) *ControllerBuilder {
 	b.servingInfo = servingInfo.DeepCopy()
@@ -141,7 +158,7 @@ func (b *ControllerBuilder) WithServer(servingInfo configv1.HTTPServingInfo, aut
 }
 
 // WithHealthChecks adds a list of healthchecks to the server
-func (b *ControllerBuilder) WithHealthChecks(healthChecks ...healthz.HealthzChecker) *ControllerBuilder {
+func (b *ControllerBuilder) WithHealthChecks(healthChecks ...healthz.HealthChecker) *ControllerBuilder {
 	b.healthChecks = append(b.healthChecks, healthChecks...)
 	return b
 }
@@ -160,8 +177,16 @@ func (b *ControllerBuilder) WithInstanceIdentity(identity string) *ControllerBui
 	return b
 }
 
+// WithEventRecorderOptions allows to override the default Kubernetes event recorder correlator options.
+// This is needed if the binary is sending a lot of events.
+// Using events.DefaultOperatorEventRecorderOptions here makes a good default for normal operator binary.
+func (b *ControllerBuilder) WithEventRecorderOptions(options record.CorrelatorOptions) *ControllerBuilder {
+	b.eventRecorderOptions = options
+	return b
+}
+
 // Run starts your controller for you.  It uses leader election if you asked, otherwise it directly calls you
-func (b *ControllerBuilder) Run(config *unstructured.Unstructured, ctx context.Context) error {
+func (b *ControllerBuilder) Run(ctx context.Context, config *unstructured.Unstructured) error {
 	clientConfig, err := b.getClientConfig()
 	if err != nil {
 		return err
@@ -180,7 +205,7 @@ func (b *ControllerBuilder) Run(config *unstructured.Unstructured, ctx context.C
 	if err != nil {
 		klog.Warningf("unable to get owner reference (falling back to namespace): %v", err)
 	}
-	eventRecorder := events.NewKubeRecorder(kubeClient.CoreV1().Events(namespace), b.componentName, controllerRef)
+	eventRecorder := events.NewKubeRecorderWithOptions(kubeClient.CoreV1().Events(namespace), b.eventRecorderOptions, b.componentName, controllerRef)
 
 	// if there is file observer defined for this command, add event into default reaction function.
 	if b.fileObserverReactorFn != nil {
@@ -191,31 +216,48 @@ func (b *ControllerBuilder) Run(config *unstructured.Unstructured, ctx context.C
 		}
 	}
 
-	if b.servingInfo == nil {
-		return fmt.Errorf("server config required for health checks and debugging endpoints")
+	// report the binary version metrics to prometheus
+	if b.versionInfo != nil {
+		buildInfo := metrics.NewGaugeVec(
+			&metrics.GaugeOpts{
+				Name: strings.Replace(namespace, "-", "_", -1) + "_build_info",
+				Help: "A metric with a constant '1' value labeled by major, minor, git version, git commit, git tree state, build date, Go version, " +
+					"and compiler from which " + b.componentName + " was built, and platform on which it is running.",
+				StabilityLevel: metrics.ALPHA,
+			},
+			[]string{"major", "minor", "gitVersion", "gitCommit", "gitTreeState", "buildDate", "goVersion", "compiler", "platform"},
+		)
+		legacyregistry.MustRegister(buildInfo)
+		buildInfo.WithLabelValues(b.versionInfo.Major, b.versionInfo.Minor, b.versionInfo.GitVersion, b.versionInfo.GitCommit, b.versionInfo.GitTreeState, b.versionInfo.BuildDate, b.versionInfo.GoVersion,
+			b.versionInfo.Compiler, b.versionInfo.Platform).Set(1)
+		klog.Infof("%s version %s-%s", b.componentName, b.versionInfo.GitVersion, b.versionInfo.GitCommit)
 	}
 
 	kubeConfig := ""
 	if b.kubeAPIServerConfigFile != nil {
 		kubeConfig = *b.kubeAPIServerConfigFile
 	}
-	serverConfig, err := serving.ToServerConfig(ctx, *b.servingInfo, *b.authenticationConfig, *b.authorizationConfig, kubeConfig)
-	if err != nil {
-		return err
-	}
-	serverConfig.HealthzChecks = append(serverConfig.HealthzChecks, b.healthChecks...)
 
-	server, err := serverConfig.Complete(nil).New(b.componentName, genericapiserver.NewEmptyDelegate())
-	if err != nil {
-		return err
-	}
-
-	go func() {
-		if err := server.PrepareRun().Run(ctx.Done()); err != nil {
-			klog.Error(err)
+	var server *genericapiserver.GenericAPIServer
+	if b.servingInfo != nil {
+		serverConfig, err := serving.ToServerConfig(ctx, *b.servingInfo, *b.authenticationConfig, *b.authorizationConfig, kubeConfig)
+		if err != nil {
+			return err
 		}
-		klog.Fatal("server exited")
-	}()
+		serverConfig.HealthzChecks = append(serverConfig.HealthzChecks, b.healthChecks...)
+
+		server, err = serverConfig.Complete(nil).New(b.componentName, genericapiserver.NewEmptyDelegate())
+		if err != nil {
+			return err
+		}
+
+		go func() {
+			if err := server.PrepareRun().Run(ctx.Done()); err != nil {
+				klog.Fatal(err)
+			}
+			klog.Info("server exited")
+		}()
+	}
 
 	protoConfig := rest.CopyConfig(clientConfig)
 	protoConfig.AcceptContentTypes = "application/vnd.kubernetes.protobuf,application/json"
@@ -227,29 +269,60 @@ func (b *ControllerBuilder) Run(config *unstructured.Unstructured, ctx context.C
 		ProtoKubeConfig: protoConfig,
 		EventRecorder:   eventRecorder,
 		Server:          server,
-		stopChan:        ctx.Done(),
 	}
 
 	if b.leaderElection == nil {
-		if err := b.startFunc(controllerContext); err != nil {
+		if err := b.startFunc(ctx, controllerContext); err != nil {
 			return err
 		}
-		return fmt.Errorf("exited")
+		return nil
 	}
 
-	leaderElection, err := leaderelectionconverter.ToConfigMapLeaderElection(clientConfig, *b.leaderElection, b.componentName, b.instanceIdentity)
+	// ensure blocking TCP connections don't block the leader election
+	leaderConfig := rest.CopyConfig(protoConfig)
+	leaderConfig.Timeout = b.leaderElection.RenewDeadline.Duration
+
+	leaderElection, err := leaderelectionconverter.ToConfigMapLeaderElection(leaderConfig, *b.leaderElection, b.componentName, b.instanceIdentity)
 	if err != nil {
 		return err
 	}
 
-	leaderElection.Callbacks.OnStartedLeading = func(ctx context.Context) {
-		controllerContext.stopChan = ctx.Done()
-		if err := b.startFunc(controllerContext); err != nil {
-			klog.Fatal(err)
+	// 10s is the graceful termination time we give the controllers to finish their workers.
+	// when this time pass, we exit with non-zero code, killing all controller workers.
+	// NOTE: The pod must set the termination graceful time.
+	leaderElection.Callbacks.OnStartedLeading = b.getOnStartedLeadingFunc(controllerContext, 10*time.Second)
+
+	leaderelection.RunOrDie(ctx, leaderElection)
+	return nil
+}
+
+func (b ControllerBuilder) getOnStartedLeadingFunc(controllerContext *ControllerContext, gracefulTerminationDuration time.Duration) func(ctx context.Context) {
+	return func(ctx context.Context) {
+		stoppedCh := make(chan struct{})
+		go func() {
+			defer close(stoppedCh)
+			if err := b.startFunc(ctx, controllerContext); err != nil {
+				b.nonZeroExitFn(fmt.Sprintf("graceful termination failed, controllers failed with error: %v", err))
+			}
+		}()
+
+		select {
+		case <-ctx.Done(): // context closed means the process likely received signal to terminate
+			controllerContext.EventRecorder.Shutdown()
+		case <-stoppedCh:
+			// if context was not cancelled (it is not "done"), but the startFunc terminated, it means it terminated prematurely
+			// when this happen, it means the controllers terminated without error.
+			if ctx.Err() == nil {
+				b.nonZeroExitFn("graceful termination failed, controllers terminated prematurely")
+			}
+		}
+
+		select {
+		case <-time.After(gracefulTerminationDuration): // when context was closed above, give controllers extra time to terminate gracefully
+			b.nonZeroExitFn(fmt.Sprintf("graceful termination failed, some controllers failed to shutdown in %s", gracefulTerminationDuration))
+		case <-stoppedCh: // stoppedCh here means the controllers finished termination and we exit 0
 		}
 	}
-	leaderelection.RunOrDie(ctx, leaderElection)
-	return fmt.Errorf("exited")
 }
 
 func (b *ControllerBuilder) getComponentNamespace() (string, error) {

@@ -36,9 +36,10 @@ func TestNeedNewTargetCertKeyPairForTime(t *testing.T) {
 	tests := []struct {
 		name string
 
-		annotations map[string]string
-		signerFn    func() (*crypto.CA, error)
-		refresh     time.Duration
+		annotations            map[string]string
+		signerFn               func() (*crypto.CA, error)
+		refresh                time.Duration
+		refreshOnlyWhenExpired bool
 
 		expected string
 	}{
@@ -86,6 +87,32 @@ func TestNeedNewTargetCertKeyPairForTime(t *testing.T) {
 			refresh:  40 * time.Minute,
 			expected: "",
 		},
+		{
+			name: "past refresh but not expired",
+			annotations: map[string]string{
+				CertificateNotAfterAnnotation:  now.Add(45 * time.Minute).Format(time.RFC3339),
+				CertificateNotBeforeAnnotation: now.Add(-45 * time.Minute).Format(time.RFC3339),
+			},
+			signerFn: func() (*crypto.CA, error) {
+				return nowCert, nil
+			},
+			refresh:                40 * time.Minute,
+			refreshOnlyWhenExpired: true,
+			expected:               "",
+		},
+		{
+			name: "already expired",
+			annotations: map[string]string{
+				CertificateNotAfterAnnotation:  now.Add(-1 * time.Millisecond).Format(time.RFC3339),
+				CertificateNotBeforeAnnotation: now.Add(-45 * time.Minute).Format(time.RFC3339),
+			},
+			signerFn: func() (*crypto.CA, error) {
+				return nowCert, nil
+			},
+			refresh:                30 * time.Minute,
+			refreshOnlyWhenExpired: true,
+			expected:               "already expired",
+		},
 	}
 
 	for _, test := range tests {
@@ -95,7 +122,7 @@ func TestNeedNewTargetCertKeyPairForTime(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			actual := needNewTargetCertKeyPairForTime(test.annotations, signer, test.refresh)
+			actual := needNewTargetCertKeyPairForTime(test.annotations, signer, test.refresh, test.refreshOnlyWhenExpired)
 			if !strings.HasPrefix(actual, test.expected) {
 				t.Errorf("expected %v, got %v", test.expected, actual)
 			}
@@ -147,6 +174,7 @@ func TestEnsureTargetCertKeyPair(t *testing.T) {
 				caBundleSecret := &corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "target-secret"},
 					Data:       map[string][]byte{},
+					Type:       corev1.SecretTypeTLS,
 				}
 				return caBundleSecret
 			},
@@ -329,6 +357,7 @@ func TestEnsureTargetSignerCertKeyPair(t *testing.T) {
 				caBundleSecret := &corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "target-secret"},
 					Data:       map[string][]byte{},
+					Type:       corev1.SecretTypeTLS,
 				}
 				return caBundleSecret
 			},
