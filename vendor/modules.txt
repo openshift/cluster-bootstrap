@@ -35,6 +35,15 @@ github.com/json-iterator/go
 github.com/modern-go/concurrent
 # github.com/modern-go/reflect2 v1.0.1
 github.com/modern-go/reflect2
+# github.com/openshift/build-machinery-go v0.0.0-20200713135615-1f43d26dccc7
+github.com/openshift/build-machinery-go
+github.com/openshift/build-machinery-go/make
+github.com/openshift/build-machinery-go/make/lib
+github.com/openshift/build-machinery-go/make/targets
+github.com/openshift/build-machinery-go/make/targets/golang
+github.com/openshift/build-machinery-go/make/targets/openshift
+github.com/openshift/build-machinery-go/make/targets/openshift/operator
+github.com/openshift/build-machinery-go/scripts
 # github.com/openshift/library-go v0.0.0-20190731171257-950af653b51a
 github.com/openshift/library-go/pkg/assets
 github.com/openshift/library-go/pkg/assets/create

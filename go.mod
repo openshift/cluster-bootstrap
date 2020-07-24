@@ -13,6 +13,7 @@ require (
 	github.com/hashicorp/golang-lru v0.0.0-20160207214719-a0d98a5f2880 // indirect
 	github.com/imdario/mergo v0.3.5 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/openshift/build-machinery-go v0.0.0-20200713135615-1f43d26dccc7
 	github.com/openshift/library-go v0.0.0-20190731171257-950af653b51a
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
