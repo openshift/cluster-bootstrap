@@ -9,6 +9,7 @@ require (
 	github.com/gogo/protobuf v0.0.0-20171007142547-342cbe0a0415 // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/google/btree v0.0.0-20160524151835-7d79101e329e // indirect
+	github.com/googleapis/gnostic v0.5.1 // indirect
 	github.com/gregjones/httpcache v0.0.0-20170728041850-787624de3eb7 // indirect
 	github.com/hashicorp/golang-lru v0.0.0-20160207214719-a0d98a5f2880 // indirect
 	github.com/imdario/mergo v0.3.5 // indirect
