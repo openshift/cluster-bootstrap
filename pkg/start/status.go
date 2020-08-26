@@ -7,14 +7,14 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 func waitUntilPodsRunning(ctx context.Context, c kubernetes.Interface, pods map[string][]string) error {
@@ -52,10 +52,10 @@ func (s *statusController) Run() {
 	podStore, podController := cache.NewInformer(
 		&cache.ListWatch{
 			ListFunc: func(lo metav1.ListOptions) (runtime.Object, error) {
-				return s.client.Core().Pods("").List(options)
+				return s.client.CoreV1().Pods("").List(context.TODO(), options)
 			},
 			WatchFunc: func(lo metav1.ListOptions) (watch.Interface, error) {
-				return s.client.Core().Pods("").Watch(options)
+				return s.client.CoreV1().Pods("").Watch(context.TODO(), options)
 			},
 		},
 		&v1.Pod{},
@@ -69,7 +69,7 @@ func (s *statusController) Run() {
 func (s *statusController) AllRunningAndReady() (bool, error) {
 	ps, err := s.podStatus()
 	if err != nil {
-		klog.Infof("Error retriving pod statuses: %v", err)
+		klog.Infof("Error retrieving pod statuses: %v", err)
 		return false, nil
 	}
 
