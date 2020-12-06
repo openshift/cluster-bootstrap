@@ -26,6 +26,7 @@ const (
 	bootstrapPodsRunningTimeout = 20 * time.Minute
 	// how long we wait until the assets must all be created
 	assetsCreatedTimeout = 60 * time.Minute
+	SingleNodeProductionEdge = "single-node-production-edge"
 )
 
 type Config struct {
@@ -35,6 +36,7 @@ type Config struct {
 	RequiredPodPrefixes  map[string][]string
 	WaitForTearDownEvent string
 	EarlyTearDown        bool
+	ClusterProfile		string
 }
 
 type startCommand struct {
@@ -44,6 +46,7 @@ type startCommand struct {
 	requiredPodPrefixes  map[string][]string
 	waitForTearDownEvent string
 	earlyTearDown        bool
+	clusterProfile		string
 }
 
 func NewStartCommand(config Config) (*startCommand, error) {
@@ -54,6 +57,7 @@ func NewStartCommand(config Config) (*startCommand, error) {
 		requiredPodPrefixes:  config.RequiredPodPrefixes,
 		waitForTearDownEvent: config.WaitForTearDownEvent,
 		earlyTearDown:        config.EarlyTearDown,
+		clusterProfile:       config.ClusterProfile,
 	}, nil
 }
 
@@ -127,7 +131,9 @@ func (b *startCommand) Run() error {
 	if err = waitUntilPodsRunning(ctx, client, b.requiredPodPrefixes); err != nil {
 		return err
 	}
-	cancel()
+	if b.clusterProfile != SingleNodeProductionEdge {
+		cancel()
+	}
 	assetsDone.Wait()
 
 	// notify installer that we are ready to tear down the temporary bootstrap control plane
