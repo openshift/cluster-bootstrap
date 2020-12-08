@@ -2,6 +2,7 @@ package start
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -25,7 +26,7 @@ const (
 	// how long we wait until the bootstrap pods to be running
 	bootstrapPodsRunningTimeout = 20 * time.Minute
 	// how long we wait until the assets must all be created
-	assetsCreatedTimeout = 60 * time.Minute
+	assetsCreatedTimeout     = 60 * time.Minute
 	SingleNodeProductionEdge = "single-node-production-edge"
 )
 
@@ -36,7 +37,7 @@ type Config struct {
 	RequiredPodPrefixes  map[string][]string
 	WaitForTearDownEvent string
 	EarlyTearDown        bool
-	ClusterProfile		string
+	ClusterProfile       string
 }
 
 type startCommand struct {
@@ -46,7 +47,7 @@ type startCommand struct {
 	requiredPodPrefixes  map[string][]string
 	waitForTearDownEvent string
 	earlyTearDown        bool
-	clusterProfile		string
+	clusterProfile       string
 }
 
 func NewStartCommand(config Config) (*startCommand, error) {
@@ -131,10 +132,17 @@ func (b *startCommand) Run() error {
 	if err = waitUntilPodsRunning(ctx, client, b.requiredPodPrefixes); err != nil {
 		return err
 	}
-	if b.clusterProfile != SingleNodeProductionEdge {
+	if b.clusterProfile == SingleNodeProductionEdge {
+		// We don't want to cancel bcp since we are need it for applying the manifests
+		assetsDone.Wait()
+		// We want to fail fast in case we failed to apply some manifests
+		if ctx.Err() == context.DeadlineExceeded {
+			return errors.New("Timed out applying manifests")
+		}
+	} else {
 		cancel()
+		assetsDone.Wait()
 	}
-	assetsDone.Wait()
 
 	// notify installer that we are ready to tear down the temporary bootstrap control plane
 	UserOutput("Sending bootstrap-success event.")
