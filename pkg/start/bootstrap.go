@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/openshift/cluster-bootstrap/pkg/common"
 )
 
 type bootstrapControlPlane struct {
@@ -24,7 +26,7 @@ func newBootstrapControlPlane(assetDir, podManifestPath string) *bootstrapContro
 // Start seeds static manifests to the kubelet to launch the bootstrap control plane.
 // Users should always ensure that Cleanup() is called even in the case of errors.
 func (b *bootstrapControlPlane) Start() error {
-	UserOutput("Starting temporary bootstrap control plane...\n")
+	common.UserOutput("Starting temporary bootstrap control plane...\n")
 	// Make secrets temporarily available to bootstrap cluster.
 	if err := os.RemoveAll(bootstrapSecretsDir); err != nil {
 		return err
@@ -52,7 +54,7 @@ func (b *bootstrapControlPlane) Teardown() error {
 		return nil
 	}
 
-	UserOutput("Tearing down temporary bootstrap control plane...\n")
+	common.UserOutput("Tearing down temporary bootstrap control plane...\n")
 	if err := os.RemoveAll(bootstrapSecretsDir); err != nil {
 		return err
 	}
