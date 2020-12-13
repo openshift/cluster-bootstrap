@@ -1,0 +1,9 @@
+FROM golang:latest AS builder
+RUN mkdir /ignition-validate
+COPY . /ignition-validate
+WORKDIR /ignition-validate
+RUN ./build_for_container
+
+FROM scratch
+COPY --from=builder /ignition-validate/bin/container/ignition-validate /usr/local/bin/ignition-validate
+ENTRYPOINT ["/usr/local/bin/ignition-validate"]
