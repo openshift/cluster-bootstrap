@@ -1,23 +1,31 @@
 package start
 
 import (
+	"context"
+	"crypto/tls"
+	"fmt"
 	"io"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type bootstrapControlPlane struct {
 	assetDir        string
 	podManifestPath string
 	ownedManifests  []string
+	kubeApiUrl      string
 }
 
 // newBootstrapControlPlane constructs a new bootstrap control plane object.
-func newBootstrapControlPlane(assetDir, podManifestPath string) *bootstrapControlPlane {
+func newBootstrapControlPlane(assetDir, podManifestPath string, kubeApiUrl string) *bootstrapControlPlane {
 	return &bootstrapControlPlane{
 		assetDir:        assetDir,
 		podManifestPath: podManifestPath,
+		kubeApiUrl:      kubeApiUrl,
 	}
 }
 
@@ -42,7 +50,41 @@ func (b *bootstrapControlPlane) Start() error {
 	manifestsDir := filepath.Join(b.assetDir, assetPathBootstrapManifests)
 	ownedManifests, err := copyDirectory(manifestsDir, b.podManifestPath, false /* overwrite */)
 	b.ownedManifests = ownedManifests // always copy in case of partial failure.
-	return err
+	if err != nil {
+		return err
+	}
+
+	return b.waitForApi()
+}
+
+func (b *bootstrapControlPlane) waitForApi() error {
+	UserOutput("Waiting up to %v for the Kubernetes API\n", bootstrapPodsRunningTimeout)
+	apiContext, cancel := context.WithTimeout(context.Background(), bootstrapPodsRunningTimeout)
+	defer cancel()
+	// Don't print same error
+	customTransport := http.DefaultTransport.(*http.Transport).Clone()
+	customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	client := &http.Client{Transport: customTransport}
+	previousErrorSuffix := ""
+	wait.Until(func() {
+		_, err := client.Get(fmt.Sprintf("https://%s/readyz", b.kubeApiUrl))
+		if err == nil {
+			UserOutput("API is up\n")
+			cancel()
+		} else {
+			chunks := strings.Split(err.Error(), ":")
+			errorSuffix := chunks[len(chunks)-1]
+			if previousErrorSuffix != errorSuffix {
+				UserOutput("Still waiting for the Kubernetes API: %v\n", err)
+				previousErrorSuffix = errorSuffix
+			}
+		}
+	}, time.Second, apiContext.Done())
+	if apiContext.Err() == context.Canceled {
+		return nil
+	} else {
+		return fmt.Errorf("time out waiting for Kubernetes API")
+	}
 }
 
 // Teardown brings down the bootstrap control plane and cleans up the temporary manifests and

@@ -66,8 +66,10 @@ func (b *startCommand) Run() error {
 	if err != nil {
 		return err
 	}
+	localClientConfig := rest.CopyConfig(restConfig)
+	localClientConfig.Host = "localhost:6443"
 
-	bcp := newBootstrapControlPlane(b.assetDir, b.podManifestPath)
+	bcp := newBootstrapControlPlane(b.assetDir, b.podManifestPath, localClientConfig.Host)
 
 	// Always tear down the bootstrap control plane and clean up manifests and secrets.
 	defer func() {
@@ -89,8 +91,7 @@ func (b *startCommand) Run() error {
 
 	// We don't want the client contact the API servers via load-balancer, but only talk to the local API server.
 	// This will speed up the initial "where is working API server" process.
-	localClientConfig := rest.CopyConfig(restConfig)
-	localClientConfig.Host = "localhost:6443"
+
 	// Set the ServerName to original hostname so we pass the certificate check.
 	hostURL, err := url.Parse(restConfig.Host)
 	if err != nil {
