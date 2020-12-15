@@ -1,21 +1,28 @@
 package start
 
 import (
+	"context"
+	"fmt"
 	"io"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type bootstrapControlPlane struct {
+	client          *kubernetes.Clientset
 	assetDir        string
 	podManifestPath string
 	ownedManifests  []string
 }
 
 // newBootstrapControlPlane constructs a new bootstrap control plane object.
-func newBootstrapControlPlane(assetDir, podManifestPath string) *bootstrapControlPlane {
+func newBootstrapControlPlane(client *kubernetes.Clientset, assetDir, podManifestPath string) *bootstrapControlPlane {
 	return &bootstrapControlPlane{
+		client:          client,
 		assetDir:        assetDir,
 		podManifestPath: podManifestPath,
 	}
@@ -42,7 +49,41 @@ func (b *bootstrapControlPlane) Start() error {
 	manifestsDir := filepath.Join(b.assetDir, assetPathBootstrapManifests)
 	ownedManifests, err := copyDirectory(manifestsDir, b.podManifestPath, false /* overwrite */)
 	b.ownedManifests = ownedManifests // always copy in case of partial failure.
-	return err
+	if err != nil {
+		return err
+	}
+
+	return b.waitForApi()
+}
+
+func (b *bootstrapControlPlane) waitForApi() (error) {
+	UserOutput("Waiting up to %v for the Kubernetes API\n", bootstrapPodsRunningTimeout)
+	discovery := b.client.Discovery()
+	apiContext, cancel := context.WithTimeout(context.Background(), bootstrapPodsRunningTimeout)
+	defer cancel()
+	// Don't print same error
+	previousErrorSuffix := ""
+	var lastErr error
+	wait.Until(func() {
+		version, err := discovery.ServerVersion()
+		if err == nil {
+			UserOutput("API %s up\n", version)
+			cancel()
+		} else {
+			lastErr = err
+			chunks := strings.Split(err.Error(), ":")
+			errorSuffix := chunks[len(chunks)-1]
+			if previousErrorSuffix != errorSuffix {
+				UserOutput("Still waiting for the Kubernetes API: %v\n", err)
+				previousErrorSuffix = errorSuffix
+			}
+		}
+	}, time.Second, apiContext.Done())
+	if apiContext.Err() == context.Canceled{
+			return nil
+		} else {
+			return fmt.Errorf("time out waiting for Kubernetes API")
+		}
 }
 
 // Teardown brings down the bootstrap control plane and cleans up the temporary manifests and

@@ -67,7 +67,7 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
-	bcp := newBootstrapControlPlane(b.assetDir, b.podManifestPath)
+	bcp := newBootstrapControlPlane(client, b.assetDir, b.podManifestPath)
 
 	// Always tear down the bootstrap control plane and clean up manifests and secrets.
 	defer func() {
