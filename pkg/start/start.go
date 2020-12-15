@@ -175,6 +175,10 @@ func (b *startCommand) Run() error {
 	UserOutput("Waiting for remaining assets to be created.\n")
 	assetsDone.Wait()
 
+	// We want to fail in case we failed to create some manifests
+	if ctx.Err() == context.DeadlineExceeded {
+		return fmt.Errorf("timed out creating manifests")
+	}
 	UserOutput("Sending bootstrap-finished event.")
 	if _, err := client.CoreV1().Events("kube-system").Create(context.Background(), makeBootstrapSuccessEvent("kube-system", "bootstrap-finished"), metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
