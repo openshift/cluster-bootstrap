@@ -24,8 +24,6 @@ import (
 const (
 	// how long we wait until the bootstrap pods to be running
 	bootstrapPodsRunningTimeout = 20 * time.Minute
-	// how long we wait until the assets must all be created
-	assetsCreatedTimeout = 60 * time.Minute
 )
 
 type Config struct {
@@ -35,6 +33,7 @@ type Config struct {
 	RequiredPodPrefixes  map[string][]string
 	WaitForTearDownEvent string
 	EarlyTearDown        bool
+	AssetsCreatedTimeout time.Duration
 }
 
 type startCommand struct {
@@ -44,6 +43,7 @@ type startCommand struct {
 	requiredPodPrefixes  map[string][]string
 	waitForTearDownEvent string
 	earlyTearDown        bool
+	assetsCreatedTimeout time.Duration
 }
 
 func NewStartCommand(config Config) (*startCommand, error) {
@@ -54,6 +54,7 @@ func NewStartCommand(config Config) (*startCommand, error) {
 		requiredPodPrefixes:  config.RequiredPodPrefixes,
 		waitForTearDownEvent: config.WaitForTearDownEvent,
 		earlyTearDown:        config.EarlyTearDown,
+		assetsCreatedTimeout: config.AssetsCreatedTimeout,
 	}, nil
 }
 
@@ -138,7 +139,7 @@ func (b *startCommand) Run() error {
 	}
 
 	// continue with assets
-	ctx, cancel = context.WithTimeout(context.Background(), assetsCreatedTimeout)
+	ctx, cancel = context.WithTimeout(context.Background(), b.assetsCreatedTimeout)
 	defer cancel()
 	if b.earlyTearDown {
 		// switch over to ELB client and continue with the assets
