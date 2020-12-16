@@ -1,10 +1,14 @@
 package start
 
 import (
+	"fmt"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -12,6 +16,13 @@ var (
 	secrets   = []string{"secret-1.yaml", "secret-2.yaml", "secret-3.yaml"}
 	manifests = []string{"pod-1.yaml", "pod-2.yaml"}
 )
+
+func createTestServer() (*httptest.Server, string){
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "ok")
+	}))
+	return ts, strings.Replace(ts.URL, "https://", "", 1)
+}
 
 func setUp(t *testing.T) (assetDir, podManifestPath string) {
 	// Create source directories.
@@ -71,8 +82,11 @@ func TestBootstrapControlPlane(t *testing.T) {
 	assetDir, podManifestPath := setUp(t)
 	defer tearDown(assetDir, podManifestPath, t)
 
+	ts, url := createTestServer()
+	defer ts.Close()
+
 	// Create and start bootstrap control plane.
-	bcp := newBootstrapControlPlane(assetDir, podManifestPath)
+	bcp := newBootstrapControlPlane(assetDir, podManifestPath, url)
 	if err := bcp.Start(); err != nil {
 		t.Errorf("bcp.Start() = %v, want: nil", err)
 	}
@@ -117,7 +131,7 @@ func TestBootstrapControlPlaneNoOverwrite(t *testing.T) {
 	}
 
 	// Create and start bootstrap control plane.
-	bcp := newBootstrapControlPlane(assetDir, podManifestPath)
+	bcp := newBootstrapControlPlane(assetDir, podManifestPath, "")
 	if err := bcp.Start(); err == nil {
 		t.Errorf("bcp.Start() = %v, want: non-nil", err)
 	}

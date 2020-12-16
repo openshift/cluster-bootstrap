@@ -2,10 +2,11 @@ package start
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,18 +14,18 @@ import (
 )
 
 type bootstrapControlPlane struct {
-	client          *kubernetes.Clientset
 	assetDir        string
 	podManifestPath string
 	ownedManifests  []string
+	kubeApiUrl string
 }
 
 // newBootstrapControlPlane constructs a new bootstrap control plane object.
-func newBootstrapControlPlane(client *kubernetes.Clientset, assetDir, podManifestPath string) *bootstrapControlPlane {
+func newBootstrapControlPlane(assetDir, podManifestPath string, kubeApiUrl string) *bootstrapControlPlane {
 	return &bootstrapControlPlane{
-		client:          client,
 		assetDir:        assetDir,
 		podManifestPath: podManifestPath,
+		kubeApiUrl: kubeApiUrl,
 	}
 }
 
@@ -58,15 +59,17 @@ func (b *bootstrapControlPlane) Start() error {
 
 func (b *bootstrapControlPlane) waitForApi() error {
 	UserOutput("Waiting up to %v for the Kubernetes API\n", bootstrapPodsRunningTimeout)
-	discovery := b.client.Discovery()
 	apiContext, cancel := context.WithTimeout(context.Background(), bootstrapPodsRunningTimeout)
 	defer cancel()
 	// Don't print same error
+	customTransport := http.DefaultTransport.(*http.Transport).Clone()
+	customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	client := &http.Client{Transport: customTransport}
 	previousErrorSuffix := ""
 	wait.Until(func() {
-		version, err := discovery.ServerVersion()
+		_, err := client.Get(fmt.Sprintf("https://%s/readyz", b.kubeApiUrl))
 		if err == nil {
-			UserOutput("API %s up\n", version)
+			UserOutput("API is up\n")
 			cancel()
 		} else {
 			chunks := strings.Split(err.Error(), ":")
