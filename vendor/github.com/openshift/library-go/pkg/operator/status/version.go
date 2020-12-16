@@ -1,6 +1,7 @@
 package status
 
 import (
+	"context"
 	"os"
 	"sync"
 
@@ -18,6 +19,7 @@ type versionGetter struct {
 }
 
 const (
+	operandImageEnvVarName         = "IMAGE"
 	operandImageVersionEnvVarName  = "OPERAND_IMAGE_VERSION"
 	operatorImageVersionEnvVarName = "OPERATOR_IMAGE_VERSION"
 )
@@ -63,6 +65,10 @@ func (v *versionGetter) VersionChangedChannel() <-chan struct{} {
 	return channel
 }
 
+func ImageForOperandFromEnv() string {
+	return os.Getenv(operandImageEnvVarName)
+}
+
 func VersionForOperandFromEnv() string {
 	return os.Getenv(operandImageVersionEnvVarName)
 }
@@ -73,7 +79,7 @@ func VersionForOperatorFromEnv() string {
 
 func VersionForOperand(namespace, imagePullSpec string, configMapGetter corev1client.ConfigMapsGetter, eventRecorder events.Recorder) string {
 	versionMap := map[string]string{}
-	versionMapping, err := configMapGetter.ConfigMaps(namespace).Get("version-mapping", metav1.GetOptions{})
+	versionMapping, err := configMapGetter.ConfigMaps(namespace).Get(context.TODO(), "version-mapping", metav1.GetOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		eventRecorder.Warningf("VersionMappingFailure", "unable to get version mapping: %v", err)
 		return ""

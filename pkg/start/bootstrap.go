@@ -12,15 +12,17 @@ import (
 	"time"
 )
 
+
+
 type bootstrapControlPlane struct {
-	client          *kubernetes.Clientset
+	client			kubernetes.Interface
 	assetDir        string
 	podManifestPath string
 	ownedManifests  []string
 }
 
 // newBootstrapControlPlane constructs a new bootstrap control plane object.
-func newBootstrapControlPlane(client *kubernetes.Clientset, assetDir, podManifestPath string) *bootstrapControlPlane {
+func newBootstrapControlPlane(client kubernetes.Interface, assetDir, podManifestPath string) *bootstrapControlPlane {
 	return &bootstrapControlPlane{
 		client:          client,
 		assetDir:        assetDir,
@@ -56,21 +58,19 @@ func (b *bootstrapControlPlane) Start() error {
 	return b.waitForApi()
 }
 
-func (b *bootstrapControlPlane) waitForApi() (error) {
+func (b *bootstrapControlPlane) waitForApi() error {
 	UserOutput("Waiting up to %v for the Kubernetes API\n", bootstrapPodsRunningTimeout)
 	discovery := b.client.Discovery()
 	apiContext, cancel := context.WithTimeout(context.Background(), bootstrapPodsRunningTimeout)
 	defer cancel()
 	// Don't print same error
 	previousErrorSuffix := ""
-	var lastErr error
 	wait.Until(func() {
 		version, err := discovery.ServerVersion()
 		if err == nil {
 			UserOutput("API %s up\n", version)
 			cancel()
 		} else {
-			lastErr = err
 			chunks := strings.Split(err.Error(), ":")
 			errorSuffix := chunks[len(chunks)-1]
 			if previousErrorSuffix != errorSuffix {

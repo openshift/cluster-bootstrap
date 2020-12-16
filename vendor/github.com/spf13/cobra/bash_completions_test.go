@@ -22,6 +22,13 @@ func check(t *testing.T, found, expected string) {
 	}
 }
 
+func checkNumOccurrences(t *testing.T, found, expected string, expectedOccurrences int) {
+	numOccurrences := strings.Count(found, expected)
+	if numOccurrences != expectedOccurrences {
+		t.Errorf("Expecting to contain %d occurrences of: \n %q\nGot %d:\n %q\n", expectedOccurrences, expected, numOccurrences, found)
+	}
+}
+
 func checkRegex(t *testing.T, found, pattern string) {
 	matched, err := regexp.MatchString(pattern, found)
 	if err != nil {
@@ -53,7 +60,7 @@ func runShellCheck(s string) error {
 }
 
 // World worst custom function, just keep telling you to enter hello!
-const bashCompletionFunc = `__custom_func() {
+const bashCompletionFunc = `__root_custom_func() {
 	COMPREPLY=( "hello" )
 }
 `
@@ -64,7 +71,7 @@ func TestBashCompletions(t *testing.T) {
 		ArgAliases:             []string{"pods", "nodes", "services", "replicationcontrollers", "po", "no", "svc", "rc"},
 		ValidArgs:              []string{"pod", "node", "service", "replicationcontroller"},
 		BashCompletionFunction: bashCompletionFunc,
-		Run: emptyRun,
+		Run:                    emptyRun,
 	}
 	rootCmd.Flags().IntP("introot", "i", -1, "help message for flag introot")
 	rootCmd.MarkFlagRequired("introot")
@@ -87,6 +94,10 @@ func TestBashCompletions(t *testing.T) {
 	// Subdirectories in a given directory.
 	rootCmd.Flags().String("theme", "", "theme to use (located in /themes/THEMENAME/)")
 	rootCmd.Flags().SetAnnotation("theme", BashCompSubdirsInDir, []string{"themes"})
+
+	// For two word flags check
+	rootCmd.Flags().StringP("two", "t", "", "this is two word flags")
+	rootCmd.Flags().BoolP("two-w-default", "T", false, "this is not two word flags")
 
 	echoCmd := &Command{
 		Use:     "echo [string to echo]",
@@ -150,7 +161,10 @@ func TestBashCompletions(t *testing.T) {
 	// check for required flags
 	check(t, output, `must_have_one_flag+=("--introot=")`)
 	check(t, output, `must_have_one_flag+=("--persistent-filename=")`)
-	// check for custom completion function
+	// check for custom completion function with both qualified and unqualified name
+	checkNumOccurrences(t, output, `__custom_func`, 2)      // 1. check existence, 2. invoke
+	checkNumOccurrences(t, output, `__root_custom_func`, 3) // 1. check existence, 2. invoke, 3. actual definition
+	// check for custom completion function body
 	check(t, output, `COMPREPLY=( "hello" )`)
 	// check for required nouns
 	check(t, output, `must_have_one_noun+=("pod")`)
@@ -172,6 +186,19 @@ func TestBashCompletions(t *testing.T) {
 	check(t, output, fmt.Sprintf(`flags_completion+=("__%s_handle_subdirs_in_dir_flag themes")`, rootCmd.Name()))
 	// check for subdirs_in_dir flags in a subcommand
 	checkRegex(t, output, fmt.Sprintf(`_root_echo\(\)\n{[^}]*flags_completion\+=\("__%s_handle_subdirs_in_dir_flag config"\)`, rootCmd.Name()))
+
+	// check two word flags
+	check(t, output, `two_word_flags+=("--two")`)
+	check(t, output, `two_word_flags+=("-t")`)
+	checkOmit(t, output, `two_word_flags+=("--two-w-default")`)
+	checkOmit(t, output, `two_word_flags+=("-T")`)
+
+	// check local nonpersistent flag
+	check(t, output, `local_nonpersistent_flags+=("--two")`)
+	check(t, output, `local_nonpersistent_flags+=("--two=")`)
+	check(t, output, `local_nonpersistent_flags+=("-t")`)
+	check(t, output, `local_nonpersistent_flags+=("--two-w-default")`)
+	check(t, output, `local_nonpersistent_flags+=("-T")`)
 
 	checkOmit(t, output, deprecatedCmd.Name())
 
@@ -214,4 +241,22 @@ func TestBashCompletionDeprecatedFlag(t *testing.T) {
 	if strings.Contains(output, flagName) {
 		t.Errorf("expected completion to not include %q flag: Got %v", flagName, output)
 	}
+}
+
+func TestBashCompletionTraverseChildren(t *testing.T) {
+	c := &Command{Use: "c", Run: emptyRun, TraverseChildren: true}
+
+	c.Flags().StringP("string-flag", "s", "", "string flag")
+	c.Flags().BoolP("bool-flag", "b", false, "bool flag")
+
+	buf := new(bytes.Buffer)
+	c.GenBashCompletion(buf)
+	output := buf.String()
+
+	// check that local nonpersistent flag are not set since we have TraverseChildren set to true
+	checkOmit(t, output, `local_nonpersistent_flags+=("--string-flag")`)
+	checkOmit(t, output, `local_nonpersistent_flags+=("--string-flag=")`)
+	checkOmit(t, output, `local_nonpersistent_flags+=("-s")`)
+	checkOmit(t, output, `local_nonpersistent_flags+=("--bool-flag")`)
+	checkOmit(t, output, `local_nonpersistent_flags+=("-b")`)
 }

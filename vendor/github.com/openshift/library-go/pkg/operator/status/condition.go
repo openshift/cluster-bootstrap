@@ -2,6 +2,7 @@ package status
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -11,24 +12,13 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 )
 
-// unionCondition returns a single cluster operator condition that is the union of multiple operator conditions.
-func unionCondition(conditionType string, defaultConditionStatus operatorv1.ConditionStatus, allConditions ...operatorv1.OperatorCondition) configv1.ClusterOperatorStatusCondition {
-	return internalUnionCondition(conditionType, defaultConditionStatus, false, allConditions...)
-}
-
-// unionInertialCondition returns a single cluster operator condition that is the union of multiple operator conditions,
-// but resists returning a condition with a status opposite the defaultConditionStatus.
-func unionInertialCondition(conditionType string, defaultConditionStatus operatorv1.ConditionStatus, allConditions ...operatorv1.OperatorCondition) configv1.ClusterOperatorStatusCondition {
-	return internalUnionCondition(conditionType, defaultConditionStatus, true, allConditions...)
-}
-
-// internalUnionCondition returns a single cluster operator condition that is the union of multiple operator conditions.
+// UnionCondition returns a single operator condition that is the union of multiple operator conditions.
 //
 // defaultConditionStatus indicates whether you want to merge all Falses or merge all Trues.  For instance, Failures merge
 // on true, but Available merges on false.  Thing of it like an anti-default.
 //
-// If hasInertia, then resist returning a condition with a status opposite the defaultConditionStatus.
-func internalUnionCondition(conditionType string, defaultConditionStatus operatorv1.ConditionStatus, hasInertia bool, allConditions ...operatorv1.OperatorCondition) configv1.ClusterOperatorStatusCondition {
+// If inertia is non-nil, then resist returning a condition with a status opposite the defaultConditionStatus.
+func UnionCondition(conditionType string, defaultConditionStatus operatorv1.ConditionStatus, inertia Inertia, allConditions ...operatorv1.OperatorCondition) operatorv1.OperatorCondition {
 	var oppositeConditionStatus operatorv1.ConditionStatus
 	if defaultConditionStatus == operatorv1.ConditionTrue {
 		oppositeConditionStatus = operatorv1.ConditionFalse
@@ -38,12 +28,16 @@ func internalUnionCondition(conditionType string, defaultConditionStatus operato
 
 	interestingConditions := []operatorv1.OperatorCondition{}
 	badConditions := []operatorv1.OperatorCondition{}
+	badConditionStatus := operatorv1.ConditionUnknown
 	for _, condition := range allConditions {
 		if strings.HasSuffix(condition.Type, conditionType) {
 			interestingConditions = append(interestingConditions, condition)
 
-			if condition.Status == oppositeConditionStatus {
+			if condition.Status != defaultConditionStatus {
 				badConditions = append(badConditions, condition)
+				if condition.Status == oppositeConditionStatus {
+					badConditionStatus = oppositeConditionStatus
+				}
 			}
 		}
 	}
@@ -52,31 +46,62 @@ func internalUnionCondition(conditionType string, defaultConditionStatus operato
 	if len(interestingConditions) == 0 {
 		unionedCondition.Status = operatorv1.ConditionUnknown
 		unionedCondition.Reason = "NoData"
-		return OperatorConditionToClusterOperatorCondition(unionedCondition)
+		return unionedCondition
 	}
 
-	// This timeout needs to be longer than the delay in kube-apiserver after setting not ready and before we stop serving.
-	// That delay use to be 30 seconds, but we switched it to 70 seconds to reflect the reality on AWS.
-	twoMinutesAgo := time.Now().Add(-2 * time.Minute)
-	earliestBadConditionNotOldEnough := earliestTransitionTime(badConditions).Time.After(twoMinutesAgo)
-	if len(badConditions) == 0 || (hasInertia && earliestBadConditionNotOldEnough) {
+	var elderBadConditions []operatorv1.OperatorCondition
+	if inertia == nil {
+		elderBadConditions = badConditions
+	} else {
+		now := time.Now()
+		for _, condition := range badConditions {
+			if condition.LastTransitionTime.Time.Before(now.Add(-inertia(condition))) {
+				elderBadConditions = append(elderBadConditions, condition)
+			}
+		}
+	}
+
+	if len(elderBadConditions) == 0 {
 		unionedCondition.Status = defaultConditionStatus
 		unionedCondition.Message = unionMessage(interestingConditions)
+		if unionedCondition.Message == "" {
+			unionedCondition.Message = "All is well"
+		}
 		unionedCondition.Reason = "AsExpected"
 		unionedCondition.LastTransitionTime = latestTransitionTime(interestingConditions)
 
-		return OperatorConditionToClusterOperatorCondition(unionedCondition)
+		return unionedCondition
 	}
 
 	// at this point we have bad conditions
-	unionedCondition.Status = oppositeConditionStatus
+	unionedCondition.Status = badConditionStatus
 	unionedCondition.Message = unionMessage(badConditions)
-	unionedCondition.Reason = unionReason(badConditions)
+	unionedCondition.Reason = unionReason(conditionType, badConditions)
 	unionedCondition.LastTransitionTime = latestTransitionTime(badConditions)
 
-	return OperatorConditionToClusterOperatorCondition(unionedCondition)
+	return unionedCondition
 }
 
+// UnionClusterCondition returns a single cluster operator condition that is the union of multiple operator conditions.
+//
+// defaultConditionStatus indicates whether you want to merge all Falses or merge all Trues.  For instance, Failures merge
+// on true, but Available merges on false.  Thing of it like an anti-default.
+//
+// If inertia is non-nil, then resist returning a condition with a status opposite the defaultConditionStatus.
+func UnionClusterCondition(conditionType string, defaultConditionStatus operatorv1.ConditionStatus, inertia Inertia, allConditions ...operatorv1.OperatorCondition) configv1.ClusterOperatorStatusCondition {
+	cnd := UnionCondition(conditionType, defaultConditionStatus, inertia, allConditions...)
+	return OperatorConditionToClusterOperatorCondition(cnd)
+}
+
+func OperatorConditionToClusterOperatorCondition(condition operatorv1.OperatorCondition) configv1.ClusterOperatorStatusCondition {
+	return configv1.ClusterOperatorStatusCondition{
+		Type:               configv1.ClusterStatusConditionType(condition.Type),
+		Status:             configv1.ConditionStatus(condition.Status),
+		LastTransitionTime: condition.LastTransitionTime,
+		Reason:             condition.Reason,
+		Message:            condition.Message,
+	}
+}
 func latestTransitionTime(conditions []operatorv1.OperatorCondition) metav1.Time {
 	latestTransitionTime := metav1.Time{}
 	for _, condition := range conditions {
@@ -85,16 +110,6 @@ func latestTransitionTime(conditions []operatorv1.OperatorCondition) metav1.Time
 		}
 	}
 	return latestTransitionTime
-}
-
-func earliestTransitionTime(conditions []operatorv1.OperatorCondition) metav1.Time {
-	earliestTransitionTime := metav1.Now()
-	for _, condition := range conditions {
-		if !earliestTransitionTime.Before(&condition.LastTransitionTime) {
-			earliestTransitionTime = condition.LastTransitionTime
-		}
-	}
-	return earliestTransitionTime
 }
 
 func uniq(s []string) []string {
@@ -124,13 +139,16 @@ func unionMessage(conditions []operatorv1.OperatorCondition) string {
 	return strings.Join(messages, "\n")
 }
 
-func unionReason(conditions []operatorv1.OperatorCondition) string {
-	if len(conditions) == 1 {
-		if len(conditions[0].Reason) != 0 {
-			return conditions[0].Type + conditions[0].Reason
+func unionReason(unionConditionType string, conditions []operatorv1.OperatorCondition) string {
+	typeReasons := []string{}
+	for _, curr := range conditions {
+		currType := curr.Type[:len(curr.Type)-len(unionConditionType)]
+		if len(curr.Reason) > 0 {
+			typeReasons = append(typeReasons, currType+"_"+curr.Reason)
+		} else {
+			typeReasons = append(typeReasons, currType)
 		}
-		return conditions[0].Type
-	} else {
-		return "MultipleConditionsMatching"
 	}
+	sort.Strings(typeReasons)
+	return strings.Join(typeReasons, "::")
 }

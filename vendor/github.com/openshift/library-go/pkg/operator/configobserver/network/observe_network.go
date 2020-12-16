@@ -6,9 +6,9 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-
 	"github.com/openshift/library-go/pkg/operator/events"
+	"k8s.io/apimachinery/pkg/api/errors"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 )
 
 // GetClusterCIDRs reads the cluster CIDRs from the global network configuration resource. Emits events if CIDRs are not found.
@@ -40,24 +40,24 @@ func GetClusterCIDRs(lister configlistersv1.NetworkLister, recorder events.Recor
 	return clusterCIDRs, nil
 }
 
-// GetServiceCIDR reads the service IP range from the global network configuration resource. Emits events if CIDRs are not found.
-func GetServiceCIDR(lister configlistersv1.NetworkLister, recorder events.Recorder) (string, error) {
+// GetServiceCIDRs reads the service IP ranges from the global network configuration resource. Emits events if CIDRs are not found.
+func GetServiceCIDRs(lister configlistersv1.NetworkLister, recorder events.Recorder) ([]string, error) {
 	network, err := lister.Get("cluster")
 	if errors.IsNotFound(err) {
 		recorder.Warningf("GetServiceCIDRFailed", "Required networks.%s/cluster not found", configv1.GroupName)
-		return "", nil
+		return nil, nil
 	}
 	if err != nil {
 		recorder.Warningf("GetServiceCIDRFailed", "error getting networks.%s/cluster: %v", configv1.GroupName, err)
-		return "", err
+		return nil, err
 	}
 
 	if len(network.Status.ServiceNetwork) == 0 || len(network.Status.ServiceNetwork[0]) == 0 {
 		recorder.Warningf("GetServiceCIDRFailed", "Required status.serviceNetwork field is not set in networks.%s/cluster", configv1.GroupName)
-		return "", fmt.Errorf("networks.%s/cluster: status.serviceNetwork not found", configv1.GroupName)
+		return nil, fmt.Errorf("networks.%s/cluster: status.serviceNetwork not found", configv1.GroupName)
 	}
 
-	return network.Status.ServiceNetwork[0], nil
+	return network.Status.ServiceNetwork, nil
 }
 
 // GetExternalIPPolicy retrieves the ExternalIPPolicy for the cluster.
@@ -126,4 +126,27 @@ func validateCIDRs(in []string) error {
 		}
 	}
 	return nil
+}
+
+// GetServiceNodePortRange retrieves the ServiceNodePortRange for the cluster.
+func GetServiceNodePortRange(lister configlistersv1.NetworkLister, recorder events.Recorder) (string, error) {
+	network, err := lister.Get("cluster")
+	if errors.IsNotFound(err) {
+		recorder.Warningf("GetServiceNodePortRangeFailed", "Required networks.%s/cluster not found", configv1.GroupName)
+		return "", nil
+	}
+	if err != nil {
+		recorder.Warningf("GetServiceNodePortRangeFailed", "error getting networks.%s/cluster: %v", configv1.GroupName, err)
+		return "", err
+	}
+
+	if network.Spec.ServiceNodePortRange == "" {
+		return "", nil
+	}
+
+	if _, err = utilnet.ParsePortRange(network.Spec.ServiceNodePortRange); err != nil {
+		return "", err
+	}
+
+	return network.Spec.ServiceNodePortRange, nil
 }

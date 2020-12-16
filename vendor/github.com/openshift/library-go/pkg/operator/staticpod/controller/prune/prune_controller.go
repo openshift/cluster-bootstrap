@@ -1,26 +1,23 @@
 package prune
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/util/wait"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
@@ -45,16 +42,15 @@ type PruneController struct {
 	configMapGetter corev1client.ConfigMapsGetter
 	secretGetter    corev1client.SecretsGetter
 	podGetter       corev1client.PodsGetter
-
-	cachesToSync  []cache.InformerSynced
-	queue         workqueue.RateLimitingInterface
-	eventRecorder events.Recorder
 }
 
 const (
 	pruneControllerWorkQueueKey = "key"
 	statusConfigMapName         = "revision-status-"
 	defaultRevisionLimit        = int32(5)
+
+	StatusInProgress = "InProgress"
+	StatusAbandoned  = "Abandoned"
 )
 
 // NewPruneController creates a new pruning controller
@@ -67,30 +63,22 @@ func NewPruneController(
 	podGetter corev1client.PodsGetter,
 	operatorClient v1helpers.StaticPodOperatorClient,
 	eventRecorder events.Recorder,
-) *PruneController {
+) factory.Controller {
 	c := &PruneController{
 		targetNamespace:   targetNamespace,
 		podResourcePrefix: podResourcePrefix,
 		command:           command,
 
-		operatorClient: operatorClient,
-
+		operatorClient:  operatorClient,
 		configMapGetter: configMapGetter,
 		secretGetter:    secretGetter,
 		podGetter:       podGetter,
-		eventRecorder:   eventRecorder.WithComponentSuffix("prune-controller"),
 
-		queue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "PruneController"),
 		prunerPodImageFn: getPrunerPodImageFromEnv,
 	}
-
 	c.ownerRefsFn = c.setOwnerRefs
 
-	operatorClient.Informer().AddEventHandler(c.eventHandler())
-
-	c.cachesToSync = append(c.cachesToSync, operatorClient.Informer().HasSynced)
-
-	return c
+	return factory.New().WithInformers(operatorClient.Informer()).WithSync(c.sync).ToController("PruneController", eventRecorder)
 }
 
 func getRevisionLimits(operatorSpec *operatorv1.StaticPodOperatorSpec) (int32, int32) {
@@ -105,10 +93,10 @@ func getRevisionLimits(operatorSpec *operatorv1.StaticPodOperatorSpec) (int32, i
 	return failedRevisionLimit, succeededRevisionLimit
 }
 
-func (c *PruneController) excludedRevisionHistory(operatorStatus *operatorv1.StaticPodOperatorStatus, failedRevisionLimit, succeededRevisionLimit int32) ([]int, error) {
-	var succeededRevisions, failedRevisions, inProgressRevisions, unknownStatusRevisions []int
+func (c *PruneController) excludedRevisionHistory(ctx context.Context, recorder events.Recorder, failedRevisionLimit, succeededRevisionLimit, abandonedRevisionLimit int32) ([]int, error) {
+	var succeededRevisions, failedRevisions, inProgressRevisions, unknownStatusRevisions, abandonedRevisions []int
 
-	configMaps, err := c.configMapGetter.ConfigMaps(c.targetNamespace).List(metav1.ListOptions{})
+	configMaps, err := c.configMapGetter.ConfigMaps(c.targetNamespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return []int{}, err
 	}
@@ -127,21 +115,22 @@ func (c *PruneController) excludedRevisionHistory(operatorStatus *operatorv1.Sta
 				succeededRevisions = append(succeededRevisions, revisionNumber)
 			case string(corev1.PodFailed):
 				failedRevisions = append(failedRevisions, revisionNumber)
-
-			case "InProgress":
+			case StatusAbandoned:
+				abandonedRevisions = append(abandonedRevisions, revisionNumber)
+			case StatusInProgress:
 				// we always protect inprogress
 				inProgressRevisions = append(inProgressRevisions, revisionNumber)
 
 			default:
 				// protect things you don't understand
 				unknownStatusRevisions = append(unknownStatusRevisions, revisionNumber)
-				c.eventRecorder.Event("UnknownRevisionStatus", fmt.Sprintf("unknown status for revision %d: %v", revisionNumber, configMap.Data["status"]))
+				recorder.Event("UnknownRevisionStatus", fmt.Sprintf("unknown status for revision %d: %v", revisionNumber, configMap.Data["status"]))
 			}
 		}
 	}
 
 	// Return early if nothing to prune
-	if len(succeededRevisions)+len(failedRevisions) == 0 {
+	if len(succeededRevisions)+len(failedRevisions)+len(abandonedRevisions) == 0 {
 		klog.V(2).Info("no revision IDs currently eligible to prune")
 		return []int{}, nil
 	}
@@ -149,12 +138,14 @@ func (c *PruneController) excludedRevisionHistory(operatorStatus *operatorv1.Sta
 	// Get list of protected IDs
 	protectedSucceededRevisions := protectedRevisions(succeededRevisions, int(succeededRevisionLimit))
 	protectedFailedRevisions := protectedRevisions(failedRevisions, int(failedRevisionLimit))
+	protectedAbandonedRevisions := protectedRevisions(abandonedRevisions, int(abandonedRevisionLimit))
 
-	excludedRevisions := make([]int, 0, len(protectedSucceededRevisions)+len(protectedFailedRevisions)+len(inProgressRevisions)+len(unknownStatusRevisions))
+	excludedRevisions := make([]int, 0, len(protectedSucceededRevisions)+len(protectedFailedRevisions)+len(inProgressRevisions)+len(unknownStatusRevisions)+len(protectedAbandonedRevisions))
 	excludedRevisions = append(excludedRevisions, protectedSucceededRevisions...)
 	excludedRevisions = append(excludedRevisions, protectedFailedRevisions...)
 	excludedRevisions = append(excludedRevisions, inProgressRevisions...)
 	excludedRevisions = append(excludedRevisions, unknownStatusRevisions...)
+	excludedRevisions = append(excludedRevisions, protectedAbandonedRevisions...)
 	sort.Ints(excludedRevisions)
 
 	// There should always be at least 1 excluded ID, otherwise we'll delete the current revision
@@ -164,21 +155,21 @@ func (c *PruneController) excludedRevisionHistory(operatorStatus *operatorv1.Sta
 	return excludedRevisions, nil
 }
 
-func (c *PruneController) pruneDiskResources(operatorStatus *operatorv1.StaticPodOperatorStatus, excludedRevisions []int, maxEligibleRevision int) error {
+func (c *PruneController) pruneDiskResources(recorder events.Recorder, operatorStatus *operatorv1.StaticPodOperatorStatus, excludedRevisions []int, maxEligibleRevision int) error {
 	// Run pruning pod on each node and pin it to that node
 	for _, nodeStatus := range operatorStatus.NodeStatuses {
 		// Use the highest value between CurrentRevision and LastFailedRevision
 		// Because CurrentRevision only updates on successful installs and we still prune on an unsuccessful install
-		if err := c.ensurePrunePod(nodeStatus.NodeName, maxEligibleRevision, excludedRevisions, max(nodeStatus.LastFailedRevision, nodeStatus.CurrentRevision)); err != nil {
+		if err := c.ensurePrunePod(recorder, nodeStatus.NodeName, maxEligibleRevision, excludedRevisions, max(nodeStatus.LastFailedRevision, nodeStatus.CurrentRevision)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (c *PruneController) pruneAPIResources(excludedRevisions []int, maxEligibleRevision int) error {
+func (c *PruneController) pruneAPIResources(ctx context.Context, excludedRevisions []int, maxEligibleRevision int) error {
 	protectedRevisions := sets.NewInt(excludedRevisions...)
-	statusConfigMaps, err := c.configMapGetter.ConfigMaps(c.targetNamespace).List(metav1.ListOptions{})
+	statusConfigMaps, err := c.configMapGetter.ConfigMaps(c.targetNamespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -198,7 +189,7 @@ func (c *PruneController) pruneAPIResources(excludedRevisions []int, maxEligible
 		if revision > maxEligibleRevision {
 			continue
 		}
-		if err := c.configMapGetter.ConfigMaps(c.targetNamespace).Delete(cm.Name, &metav1.DeleteOptions{}); err != nil {
+		if err := c.configMapGetter.ConfigMaps(c.targetNamespace).Delete(ctx, cm.Name, metav1.DeleteOptions{}); err != nil {
 			return err
 		}
 	}
@@ -218,7 +209,7 @@ func protectedRevisions(revisions []int, revisionLimit int) []int {
 	return revisions[startKey:]
 }
 
-func (c *PruneController) ensurePrunePod(nodeName string, maxEligibleRevision int, protectedRevisions []int, revision int32) error {
+func (c *PruneController) ensurePrunePod(recorder events.Recorder, nodeName string, maxEligibleRevision int, protectedRevisions []int, revision int32) error {
 	if revision == 0 {
 		return nil
 	}
@@ -243,13 +234,13 @@ func (c *PruneController) ensurePrunePod(nodeName string, maxEligibleRevision in
 	}
 	pod.OwnerReferences = ownerRefs
 
-	_, _, err = resourceapply.ApplyPod(c.podGetter, c.eventRecorder, pod)
+	_, _, err = resourceapply.ApplyPod(c.podGetter, recorder, pod)
 	return err
 }
 
 func (c *PruneController) setOwnerRefs(revision int32) ([]metav1.OwnerReference, error) {
 	ownerReferences := []metav1.OwnerReference{}
-	statusConfigMap, err := c.configMapGetter.ConfigMaps(c.targetNamespace).Get(fmt.Sprintf("revision-status-%d", revision), metav1.GetOptions{})
+	statusConfigMap, err := c.configMapGetter.ConfigMaps(c.targetNamespace).Get(context.TODO(), fmt.Sprintf("revision-status-%d", revision), metav1.GetOptions{})
 	if err == nil {
 		ownerReferences = append(ownerReferences, metav1.OwnerReference{
 			APIVersion: "v1",
@@ -278,47 +269,7 @@ func getPrunerPodImageFromEnv() string {
 	return os.Getenv("OPERATOR_IMAGE")
 }
 
-func (c *PruneController) Run(workers int, stopCh <-chan struct{}) {
-	defer utilruntime.HandleCrash()
-	defer c.queue.ShutDown()
-
-	klog.Infof("Starting PruneController")
-	defer klog.Infof("Shutting down PruneController")
-	if !cache.WaitForCacheSync(stopCh, c.cachesToSync...) {
-		return
-	}
-
-	// doesn't matter what workers say, only start one.
-	go wait.Until(c.runWorker, time.Second, stopCh)
-
-	<-stopCh
-}
-
-func (c *PruneController) runWorker() {
-	for c.processNextWorkItem() {
-	}
-}
-
-func (c *PruneController) processNextWorkItem() bool {
-	dsKey, quit := c.queue.Get()
-	if quit {
-		return false
-	}
-	defer c.queue.Done(dsKey)
-
-	err := c.sync()
-	if err == nil {
-		c.queue.Forget(dsKey)
-		return true
-	}
-
-	utilruntime.HandleError(fmt.Errorf("%v failed with : %v", dsKey, err))
-	c.queue.AddRateLimited(dsKey)
-
-	return true
-}
-
-func (c *PruneController) sync() error {
+func (c *PruneController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
 	klog.V(5).Info("Syncing revision pruner")
 	operatorSpec, operatorStatus, _, err := c.operatorClient.GetStaticPodOperatorState()
 	if err != nil {
@@ -326,7 +277,7 @@ func (c *PruneController) sync() error {
 	}
 	failedLimit, succeededLimit := getRevisionLimits(operatorSpec)
 
-	excludedRevisions, err := c.excludedRevisionHistory(operatorStatus, failedLimit, succeededLimit)
+	excludedRevisions, err := c.excludedRevisionHistory(ctx, syncCtx.Recorder(), failedLimit, succeededLimit, defaultRevisionLimit)
 	if err != nil {
 		return err
 	}
@@ -337,22 +288,13 @@ func (c *PruneController) sync() error {
 	}
 
 	errs := []error{}
-	if diskErr := c.pruneDiskResources(operatorStatus, excludedRevisions, excludedRevisions[len(excludedRevisions)-1]); diskErr != nil {
+	if diskErr := c.pruneDiskResources(syncCtx.Recorder(), operatorStatus, excludedRevisions, excludedRevisions[len(excludedRevisions)-1]); diskErr != nil {
 		errs = append(errs, diskErr)
 	}
-	if apiErr := c.pruneAPIResources(excludedRevisions, excludedRevisions[len(excludedRevisions)-1]); apiErr != nil {
+	if apiErr := c.pruneAPIResources(ctx, excludedRevisions, excludedRevisions[len(excludedRevisions)-1]); apiErr != nil {
 		errs = append(errs, apiErr)
 	}
 	return v1helpers.NewMultiLineAggregate(errs)
-}
-
-// eventHandler queues the operator to check spec and status
-func (c *PruneController) eventHandler() cache.ResourceEventHandler {
-	return cache.ResourceEventHandlerFuncs{
-		AddFunc:    func(obj interface{}) { c.queue.Add(pruneControllerWorkQueueKey) },
-		UpdateFunc: func(old, new interface{}) { c.queue.Add(pruneControllerWorkQueueKey) },
-		DeleteFunc: func(obj interface{}) { c.queue.Add(pruneControllerWorkQueueKey) },
-	}
 }
 
 func max(a, b int32) int32 {

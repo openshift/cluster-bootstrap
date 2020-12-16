@@ -25,6 +25,44 @@ func TestGenMdDoc(t *testing.T) {
 	checkStringContains(t, output, rootCmd.Short)
 	checkStringContains(t, output, echoSubCmd.Short)
 	checkStringOmits(t, output, deprecatedCmd.Short)
+	checkStringContains(t, output, "Options inherited from parent commands")
+}
+
+func TestGenMdDocWithNoLongOrSynopsis(t *testing.T) {
+	// We generate on subcommand so we have both subcommands and parents.
+	buf := new(bytes.Buffer)
+	if err := GenMarkdown(dummyCmd, buf); err != nil {
+		t.Fatal(err)
+	}
+	output := buf.String()
+
+	checkStringContains(t, output, dummyCmd.Example)
+	checkStringContains(t, output, dummyCmd.Short)
+	checkStringContains(t, output, "Options inherited from parent commands")
+	checkStringOmits(t, output, "### Synopsis")
+}
+
+func TestGenMdNoHiddenParents(t *testing.T) {
+	// We generate on subcommand so we have both subcommands and parents.
+	for _, name := range []string{"rootflag", "strtwo"} {
+		f := rootCmd.PersistentFlags().Lookup(name)
+		f.Hidden = true
+		defer func() { f.Hidden = false }()
+	}
+	buf := new(bytes.Buffer)
+	if err := GenMarkdown(echoCmd, buf); err != nil {
+		t.Fatal(err)
+	}
+	output := buf.String()
+
+	checkStringContains(t, output, echoCmd.Long)
+	checkStringContains(t, output, echoCmd.Example)
+	checkStringContains(t, output, "boolone")
+	checkStringOmits(t, output, "rootflag")
+	checkStringContains(t, output, rootCmd.Short)
+	checkStringContains(t, output, echoSubCmd.Short)
+	checkStringOmits(t, output, deprecatedCmd.Short)
+	checkStringOmits(t, output, "Options inherited from parent commands")
 }
 
 func TestGenMdNoTag(t *testing.T) {

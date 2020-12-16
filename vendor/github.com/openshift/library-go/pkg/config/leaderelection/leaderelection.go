@@ -3,10 +3,11 @@ package leaderelection
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"strings"
 	"time"
 
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -29,7 +30,13 @@ func ToConfigMapLeaderElection(clientConfig *rest.Config, config configv1.Leader
 	}
 
 	if len(identity) == 0 {
-		identity = string(uuid.NewUUID())
+		if hostname, err := os.Hostname(); err != nil {
+			// on errors, make sure we're unique
+			identity = string(uuid.NewUUID())
+		} else {
+			// add a uniquifier so that two processes on the same host don't accidentally both become active
+			identity = hostname + "_" + string(uuid.NewUUID())
+		}
 	}
 	if len(config.Namespace) == 0 {
 		return leaderelection.LeaderElectionConfig{}, fmt.Errorf("namespace may not be empty")
@@ -57,13 +64,15 @@ func ToConfigMapLeaderElection(clientConfig *rest.Config, config configv1.Leader
 	}
 
 	return leaderelection.LeaderElectionConfig{
-		Lock:          rl,
-		LeaseDuration: config.LeaseDuration.Duration,
-		RenewDeadline: config.RenewDeadline.Duration,
-		RetryPeriod:   config.RetryPeriod.Duration,
+		Lock:            rl,
+		ReleaseOnCancel: true,
+		LeaseDuration:   config.LeaseDuration.Duration,
+		RenewDeadline:   config.RenewDeadline.Duration,
+		RetryPeriod:     config.RetryPeriod.Duration,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStoppedLeading: func() {
-				klog.Fatalf("leaderelection lost")
+				defer os.Exit(0)
+				klog.Warningf("leader election lost")
 			},
 		},
 	}, nil

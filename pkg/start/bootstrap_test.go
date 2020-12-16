@@ -2,6 +2,7 @@ package start
 
 import (
 	"io/ioutil"
+	"k8s.io/client-go/kubernetes/fake"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -12,6 +13,7 @@ var (
 	secrets   = []string{"secret-1.yaml", "secret-2.yaml", "secret-3.yaml"}
 	manifests = []string{"pod-1.yaml", "pod-2.yaml"}
 )
+
 
 func setUp(t *testing.T) (assetDir, podManifestPath string) {
 	// Create source directories.
@@ -72,7 +74,7 @@ func TestBootstrapControlPlane(t *testing.T) {
 	defer tearDown(assetDir, podManifestPath, t)
 
 	// Create and start bootstrap control plane.
-	bcp := newBootstrapControlPlane(assetDir, podManifestPath)
+	bcp := newBootstrapControlPlane(fake.NewSimpleClientset(), assetDir, podManifestPath)
 	if err := bcp.Start(); err != nil {
 		t.Errorf("bcp.Start() = %v, want: nil", err)
 	}
@@ -117,7 +119,7 @@ func TestBootstrapControlPlaneNoOverwrite(t *testing.T) {
 	}
 
 	// Create and start bootstrap control plane.
-	bcp := newBootstrapControlPlane(assetDir, podManifestPath)
+	bcp := newBootstrapControlPlane(fake.NewSimpleClientset(), assetDir, podManifestPath)
 	if err := bcp.Start(); err == nil {
 		t.Errorf("bcp.Start() = %v, want: non-nil", err)
 	}

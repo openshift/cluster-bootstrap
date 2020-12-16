@@ -15,11 +15,12 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/time/rate"
 
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/docker/distribution"
 	"github.com/docker/distribution/manifest/schema1"
 	"github.com/docker/distribution/reference"
+	"github.com/docker/distribution/registry/api/errcode"
 	registryclient "github.com/docker/distribution/registry/client"
 	"github.com/docker/distribution/registry/client/auth"
 	"github.com/docker/distribution/registry/client/auth/challenge"
@@ -37,23 +38,25 @@ type RepositoryRetriever interface {
 // ErrNotV2Registry is returned when the server does not report itself as a V2 Docker registry
 type ErrNotV2Registry struct {
 	Registry string
+	Status   string
 }
 
 func (e *ErrNotV2Registry) Error() string {
-	return fmt.Sprintf("endpoint %q does not support v2 API", e.Registry)
+	return fmt.Sprintf("endpoint %q does not support v2 API (got %s)", e.Registry, e.Status)
 }
 
 type AuthHandlersFunc func(transport http.RoundTripper, registry *url.URL, repoName string) []auth.AuthenticationHandler
 
 // NewContext is capable of creating RepositoryRetrievers.
-func NewContext(transport, insecureTransport http.RoundTripper) *Context {
+func NewContext(transp, insecureTransport http.RoundTripper) *Context {
 	return &Context{
-		Transport:         transport,
+		Transport:         transp,
 		InsecureTransport: insecureTransport,
 		Challenges:        challenge.NewSimpleManager(),
 		Actions:           []string{"pull"},
 		Retries:           2,
 		Credentials:       NoCredentials,
+		RequestModifiers:  make([]transport.RequestModifier, 0),
 
 		pings:    make(map[url.URL]error),
 		redirect: make(map[url.URL]*url.URL),
@@ -74,6 +77,7 @@ type Context struct {
 	Actions           []string
 	Retries           int
 	Credentials       auth.CredentialStore
+	RequestModifiers  []transport.RequestModifier
 	Limiter           *rate.Limiter
 
 	DisableDigestVerification bool
@@ -106,6 +110,11 @@ func (c *Context) Copy() *Context {
 		copied.redirect[k] = v
 	}
 	return copied
+}
+
+func (c *Context) WithRequestModifiers(modifiers ...transport.RequestModifier) *Context {
+	c.RequestModifiers = modifiers
+	return c
 }
 
 func (c *Context) WithRateLimiter(limiter *rate.Limiter) *Context {
@@ -252,7 +261,10 @@ func (c *Context) ping(registry url.URL, insecure bool, transport http.RoundTrip
 		case resp.StatusCode == http.StatusUnauthorized, resp.StatusCode == http.StatusForbidden:
 			// v2
 		default:
-			return nil, &ErrNotV2Registry{Registry: registry.String()}
+			return nil, &ErrNotV2Registry{
+				Registry: registry.String(),
+				Status:   resp.Status,
+			}
 		}
 	}
 
@@ -302,8 +314,7 @@ func (c *Context) cachedTransport(rt http.RoundTripper, scopes []auth.Scope) htt
 		scopes = append(scopes, stringScope(s))
 	}
 
-	t := transport.NewTransport(
-		rt,
+	modifiers := []transport.RequestModifier{
 		// TODO: slightly smarter authorizer that retries unauthenticated requests
 		// TODO: make multiple attempts if the first credential fails
 		auth.NewAuthorizer(
@@ -315,7 +326,9 @@ func (c *Context) cachedTransport(rt http.RoundTripper, scopes []auth.Scope) htt
 			}),
 			auth.NewBasicHandler(c.Credentials),
 		),
-	)
+	}
+	modifiers = append(modifiers, c.RequestModifiers...)
+	t := transport.NewTransport(rt, modifiers...)
 	c.cachedTransports = append(c.cachedTransports, transportCache{
 		rt:        rt,
 		scopes:    scopeNames,
@@ -369,8 +382,20 @@ func isTemporaryHTTPError(err error) (time.Duration, bool) {
 	switch t := err.(type) {
 	case net.Error:
 		return time.Second, t.Temporary() || t.Timeout()
+	case errcode.ErrorCoder:
+		// note: we explicitly do not check errcode.ErrorCodeUnknown because that is used in
+		// a wide range of scenarios to convey "generic error", not "retryable error"
+		switch t.ErrorCode() {
+		case errcode.ErrorCodeUnavailable:
+			return 5 * time.Second, true
+		case errcode.ErrorCodeTooManyRequests:
+			return 2 * time.Second, true
+		}
 	case *registryclient.UnexpectedHTTPResponseError:
-		if t.StatusCode == http.StatusTooManyRequests {
+		switch t.StatusCode {
+		case http.StatusInternalServerError, http.StatusGatewayTimeout, http.StatusServiceUnavailable, http.StatusBadGateway:
+			return 5 * time.Second, true
+		case http.StatusTooManyRequests:
 			return 2 * time.Second, true
 		}
 	}
@@ -574,6 +599,20 @@ func (m manifestServiceVerifier) Get(ctx context.Context, dgst digest.Digest, op
 	return manifest, nil
 }
 
+// Put ensures the manifest is hashable to the returned digest, or returns no digest and an error.
+func (m manifestServiceVerifier) Put(ctx context.Context, manifest distribution.Manifest, options ...distribution.ManifestServiceOption) (digest.Digest, error) {
+	dgst, err := m.ManifestService.Put(ctx, manifest, options...)
+	if err != nil {
+		return "", err
+	}
+	if len(dgst) > 0 {
+		if err := VerifyManifestIntegrity(manifest, dgst); err != nil {
+			return "", err
+		}
+	}
+	return dgst, nil
+}
+
 // VerifyManifestIntegrity checks the provided manifest against the specified digest and returns an error
 // if the manifest does not match that digest.
 func VerifyManifestIntegrity(manifest distribution.Manifest, dgst digest.Digest) error {
@@ -582,7 +621,7 @@ func VerifyManifestIntegrity(manifest distribution.Manifest, dgst digest.Digest)
 		return err
 	}
 	if contentDigest != dgst {
-		if klog.V(4) {
+		if klog.V(4).Enabled() {
 			_, payload, _ := manifest.Payload()
 			klog.Infof("Mismatched content: %s\n%s", contentDigest, string(payload))
 		}

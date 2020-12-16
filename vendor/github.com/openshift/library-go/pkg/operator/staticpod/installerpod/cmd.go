@@ -12,11 +12,12 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -32,6 +33,7 @@ type InstallOptions struct {
 	KubeClient kubernetes.Interface
 
 	Revision  string
+	NodeName  string
 	Namespace string
 
 	PodConfigMapNamePrefix        string
@@ -77,16 +79,16 @@ func NewInstaller() *cobra.Command {
 			klog.V(1).Info(spew.Sdump(o))
 
 			if err := o.Complete(); err != nil {
-				klog.Fatal(err)
+				klog.Exit(err)
 			}
 			if err := o.Validate(); err != nil {
-				klog.Fatal(err)
+				klog.Exit(err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.TODO(), o.Timeout)
 			defer cancel()
 			if err := o.Run(ctx); err != nil {
-				klog.Fatal(err)
+				klog.Exit(err)
 			}
 		},
 	}
@@ -131,12 +133,19 @@ func (o *InstallOptions) Complete() error {
 	if err != nil {
 		return err
 	}
+
+	// set via downward API
+	o.NodeName = os.Getenv("NODE_NAME")
+
 	return nil
 }
 
 func (o *InstallOptions) Validate() error {
 	if len(o.Revision) == 0 {
 		return fmt.Errorf("--revision is required")
+	}
+	if len(o.NodeName) == 0 {
+		return fmt.Errorf("env var NODE_NAME is required")
 	}
 	if len(o.Namespace) == 0 {
 		return fmt.Errorf("--namespace is required")
@@ -185,7 +194,7 @@ func (o *InstallOptions) copySecretsAndConfigMaps(ctx context.Context, resourceD
 		}
 		// secret is nil means the secret was optional and we failed to get it.
 		if secret != nil {
-			secrets = append(secrets, secret)
+			secrets = append(secrets, o.substituteSecret(secret))
 		}
 	}
 
@@ -198,7 +207,7 @@ func (o *InstallOptions) copySecretsAndConfigMaps(ctx context.Context, resourceD
 		}
 		// config is nil means the config was optional and we failed to get it.
 		if config != nil {
-			configs = append(configs, config)
+			configs = append(configs, o.substituteConfigMap(config))
 		}
 	}
 
@@ -213,9 +222,12 @@ func (o *InstallOptions) copySecretsAndConfigMaps(ctx context.Context, resourceD
 			return err
 		}
 		for filename, content := range secret.Data {
-			// TODO fix permissions
 			klog.Infof("Writing secret manifest %q ...", path.Join(contentDir, filename))
-			if err := ioutil.WriteFile(path.Join(contentDir, filename), content, 0600); err != nil {
+			filePerms := os.FileMode(0600)
+			if strings.HasSuffix(filename, ".sh") {
+				filePerms = 0700
+			}
+			if err := ioutil.WriteFile(path.Join(contentDir, filename), content, filePerms); err != nil {
 				return err
 			}
 		}
@@ -232,9 +244,14 @@ func (o *InstallOptions) copySecretsAndConfigMaps(ctx context.Context, resourceD
 		}
 		for filename, content := range configmap.Data {
 			klog.Infof("Writing config file %q ...", path.Join(contentDir, filename))
-			if err := ioutil.WriteFile(path.Join(contentDir, filename), []byte(content), 0644); err != nil {
+			filePerms := os.FileMode(0644)
+			if strings.HasSuffix(filename, ".sh") {
+				filePerms = 0755
+			}
+			if err := ioutil.WriteFile(path.Join(contentDir, filename), []byte(content), filePerms); err != nil {
 				return err
 			}
+
 		}
 	}
 
@@ -282,31 +299,46 @@ func (o *InstallOptions) copyContent(ctx context.Context) error {
 	}
 
 	// Gather pod yaml from config map
-	var podContent string
+	var rawPodBytes string
 
 	err := retry.RetryOnConnectionErrors(ctx, func(ctx context.Context) (bool, error) {
 		klog.Infof("Getting pod configmaps/%s -n %s", o.nameFor(o.PodConfigMapNamePrefix), o.Namespace)
-		podConfigMap, err := o.KubeClient.CoreV1().ConfigMaps(o.Namespace).Get(o.nameFor(o.PodConfigMapNamePrefix), metav1.GetOptions{})
+		podConfigMap, err := o.KubeClient.CoreV1().ConfigMaps(o.Namespace).Get(ctx, o.nameFor(o.PodConfigMapNamePrefix), metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
-		podData, exists := podConfigMap.Data["pod.yaml"]
-		if !exists {
+		if _, exists := podConfigMap.Data["pod.yaml"]; !exists {
 			return true, fmt.Errorf("required 'pod.yaml' key does not exist in configmap")
 		}
-		podContent = strings.Replace(podData, "REVISION", o.Revision, -1)
+		podConfigMap = o.substituteConfigMap(podConfigMap)
+		rawPodBytes = podConfigMap.Data["pod.yaml"]
 		return true, nil
 	})
 	if err != nil {
 		return err
 	}
+	// the kubelet has a bug that prevents graceful termination from working on static pods with the same name, filename
+	// and uuid.  By setting the pod UID we can work around the kubelet bug and get our graceful termination honored.
+	// Per the node team, this is hard to fix in the kubelet, though it will affect all static pods.
+	pod, err := resourceread.ReadPodV1([]byte(rawPodBytes))
+	if err != nil {
+		return err
+	}
+	pod.UID = uuid.NewUUID()
+	for _, fn := range o.PodMutationFns {
+		klog.V(2).Infof("Customizing static pod ...")
+		pod = pod.DeepCopy()
+		if err := fn(pod); err != nil {
+			return err
+		}
+	}
+	finalPodBytes := resourceread.WritePodV1OrDie(pod)
 
 	// Write secrets, config maps and pod to disk
 	// This does not need timeout, instead we should fail hard when we are not able to write.
-
 	podFileName := o.PodConfigMapNamePrefix + ".yaml"
 	klog.Infof("Writing pod manifest %q ...", path.Join(resourceDir, podFileName))
-	if err := ioutil.WriteFile(path.Join(resourceDir, podFileName), []byte(podContent), 0644); err != nil {
+	if err := ioutil.WriteFile(path.Join(resourceDir, podFileName), []byte(finalPodBytes), 0644); err != nil {
 		return err
 	}
 
@@ -316,21 +348,34 @@ func (o *InstallOptions) copyContent(ctx context.Context) error {
 		return err
 	}
 
-	for _, fn := range o.PodMutationFns {
-		klog.V(2).Infof("Customizing static pod ...")
-		pod := resourceread.ReadPodV1OrDie([]byte(podContent))
-		if err := fn(pod); err != nil {
-			return err
-		}
-		podContent = resourceread.WritePodV1OrDie(pod)
-	}
-
-	klog.Infof("Writing static pod manifest %q ...\n%s", path.Join(o.PodManifestDir, podFileName), podContent)
-	if err := ioutil.WriteFile(path.Join(o.PodManifestDir, podFileName), []byte(podContent), 0644); err != nil {
+	klog.Infof("Writing static pod manifest %q ...\n%s", path.Join(o.PodManifestDir, podFileName), finalPodBytes)
+	if err := ioutil.WriteFile(path.Join(o.PodManifestDir, podFileName), []byte(finalPodBytes), 0644); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (o *InstallOptions) substituteConfigMap(obj *corev1.ConfigMap) *corev1.ConfigMap {
+	ret := obj.DeepCopy()
+	for k, oldContent := range obj.Data {
+		newContent := strings.ReplaceAll(oldContent, "REVISION", o.Revision)
+		newContent = strings.ReplaceAll(newContent, "NODE_NAME", o.NodeName)
+		newContent = strings.ReplaceAll(newContent, "NODE_ENVVAR_NAME", strings.ReplaceAll(strings.ReplaceAll(o.NodeName, "-", "_"), ".", "_"))
+		ret.Data[k] = newContent
+	}
+	return ret
+}
+
+func (o *InstallOptions) substituteSecret(obj *corev1.Secret) *corev1.Secret {
+	ret := obj.DeepCopy()
+	for k, oldContent := range obj.Data {
+		newContent := strings.ReplaceAll(string(oldContent), "REVISION", o.Revision)
+		newContent = strings.ReplaceAll(newContent, "NODE_NAME", o.NodeName)
+		newContent = strings.ReplaceAll(newContent, "NODE_ENVVAR_NAME", strings.ReplaceAll(strings.ReplaceAll(o.NodeName, "-", "_"), ".", "_"))
+		ret.Data[k] = []byte(newContent)
+	}
+	return ret
 }
 
 func (o *InstallOptions) Run(ctx context.Context) error {
