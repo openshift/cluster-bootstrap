@@ -46,7 +46,7 @@ func init() {
 	cmdStart.Flags().StringSliceVar(&startOpts.requiredPodClauses, "required-pods", defaultRequiredPods, "List of pods name prefixes with their namespace (written as <namespace>/<pod-prefix>) that are required to be running and ready before the start command does the pivot, or alternatively a list of or'ed pod prefixes with a description (written as <desc>:<namespace>/<pod-prefix>|<namespace>/<pod-prefix>|...).")
 	cmdStart.Flags().StringVar(&startOpts.waitForTearDownEvent, "tear-down-event", "", "if this optional event name of the form <ns>/<event-name> is given, the event is waited for before tearing down the bootstrap control plane")
 	cmdStart.Flags().BoolVar(&startOpts.earlyTearDown, "tear-down-early", true, "tear down immediate after the non-bootstrap control plane is up and bootstrap-success event is created.")
-	cmdStart.Flags().DurationVar(&startOpts.assetsCreatedTimeout, "assets-create-timeout-in-minutes", 60, "how long we wait (in minutes) until the assets must all be created.")
+	cmdStart.Flags().DurationVar(&startOpts.assetsCreatedTimeout, "assets-create-timeout", time.Duration(60) * time.Minute, "how long we wait (in minutes) until the assets must all be created.")
 }
 
 func runCmdStart(cmd *cobra.Command, args []string) error {
@@ -62,7 +62,7 @@ func runCmdStart(cmd *cobra.Command, args []string) error {
 		RequiredPodPrefixes:  podPrefixes,
 		WaitForTearDownEvent: startOpts.waitForTearDownEvent,
 		EarlyTearDown:        startOpts.earlyTearDown,
-		AssetsCreatedTimeout: startOpts.assetsCreatedTimeout * time.Minute,
+		AssetsCreatedTimeout: startOpts.assetsCreatedTimeout,
 	})
 	if err != nil {
 		return err
