@@ -1,5 +1,5 @@
-hash: 82980e0e06db282da4275faa0b1f1f3f4dfa1d07e511d6133fb2889d4123a0be
-updated: 2020-12-16T13:47:42.746302435+02:00
+hash: 134e8c0f8b117ae6afdbc18be10fe4d16e4a4ca217337adf63abd4b8edff939c
+updated: 2020-12-16T14:26:54.332635708+02:00
 imports:
 - name: github.com/davecgh/go-spew
   version: 782f4967f2dc4564575ca782fe2d04090b5faca8
@@ -50,6 +50,8 @@ imports:
   version: bacd9c7ef1dd9b15be4a9909b8ac7a4e313eec94
 - name: github.com/modern-go/reflect2
   version: 94122c33edd36123c84d5368cfb2b69df93a0ec8
+- name: github.com/openshift/build-machinery-go
+  version: f171684f77aba7906ef984d0a33162cb4544b4a3
 - name: github.com/openshift/library-go
   version: 4ee79b1caed50aaf45fe6ea5d50df9a5334ab751
   subpackages:

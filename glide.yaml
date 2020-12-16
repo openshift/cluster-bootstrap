@@ -6,7 +6,7 @@ import:
   version: kubernetes-1.13.4
 - package: k8s.io/client-go
   version: kubernetes-1.13.4
-- package: github.com/openshift/library-go
+- package: github.com/openshift/build-machinery-go
   version: master
 - package: github.com/json-iterator/go
   version: f2b4162afba35581b6d4a50d3b8f34e33c144682
