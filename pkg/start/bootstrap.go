@@ -17,7 +17,7 @@ type bootstrapControlPlane struct {
 	assetDir        string
 	podManifestPath string
 	ownedManifests  []string
-	kubeApiUrl string
+	kubeApiUrl      string
 }
 
 // newBootstrapControlPlane constructs a new bootstrap control plane object.
@@ -25,7 +25,7 @@ func newBootstrapControlPlane(assetDir, podManifestPath string, kubeApiUrl strin
 	return &bootstrapControlPlane{
 		assetDir:        assetDir,
 		podManifestPath: podManifestPath,
-		kubeApiUrl: kubeApiUrl,
+		kubeApiUrl:      kubeApiUrl,
 	}
 }
 

@@ -17,7 +17,7 @@ var (
 	manifests = []string{"pod-1.yaml", "pod-2.yaml"}
 )
 
-func createTestServer() (*httptest.Server, string){
+func createTestServer() (*httptest.Server, string) {
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "ok")
 	}))
