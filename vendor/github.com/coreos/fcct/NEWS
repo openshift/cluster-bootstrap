@@ -1,0 +1,158 @@
+2020-12-04 FCCT 0.8.0
+
+  Breaking Changes:
+
+    - Restructure Go API
+
+  Features:
+
+    - Stabilize Fedora CoreOS spec 1.3.0, targeting Ignition spec 3.2.0
+    - Add Fedora CoreOS spec 1.4.0-experimental, targeting Ignition spec
+      3.3.0-experimental
+    - Add RHEL CoreOS spec 0.1.0, targeting Ignition spec 3.2.0
+    - Add RHEL CoreOS spec 0.2.0-experimental, targeting Ignition spec
+      3.3.0-experimental
+    - Add boot_device section for configuring boot device LUKS and mirroring
+      (fcos 1.3.0, rhcos 0.1.0)
+
+  Bug Fixes:
+
+    - Fix systemd-fsck@.service dependencies in generated mount units
+
+  Misc Changes:
+
+    - Warn if file/dir modes appear to have been specified in decimal
+    - Validate input in translation functions taking Go structs (Go API)
+    - Allow registering external translators (Go API)
+    - Allow specs to derive from other specs (Go API)
+
+  Docs Changes:
+
+    - Document Clevis custom and LUKS wipe_volume fields
+    - Add LUKS and mirroring examples
+    - Add password authentication example
+
+2020-10-23 FCCT 0.7.0
+
+  Features:
+
+    - Stabilize FCC spec 1.2.0, targeting Ignition spec 3.2.0
+    - Add FCC spec 1.3.0-experimental, targeting Ignition spec
+      3.3.0-experimental
+    - Add storage.luks section for creating LUKS2 encrypted volumes
+      (1.2.0)
+    - Add resize field for modifying partition size (1.2.0)
+    - Add should_exist field for deleting users & groups (1.2.0)
+    - Add NoResourceAutoCompression translate option to skip
+      automatic compression (Go API)
+
+  Docs Changes:
+
+    - Switch to GitHub Pages
+
+
+2020-05-28 FCCT 0.6.0
+
+  Features:
+
+    - Stabilize FCC spec 1.1.0, targeting Ignition spec 3.1.0
+    - Add FCC spec 1.2.0-experimental, targeting Ignition spec
+      3.2.0-experimental
+    - Add inline field to TLS certificate authorities and config merge and
+      replace (1.1.0)
+    - Add local field for embedding contents from local file (1.1.0)
+    - Add storage.trees section for embedding local directory trees (1.1.0)
+    - Auto-select smallest encoding for inline or local contents (1.1.0)
+    - Add http_headers field for specifying HTTP headers on fetch (1.1.0)
+
+  Bug Fixes:
+
+    - Include mount options in generated mount units (1.1.0)
+    - Validate uniqueness constraints within FCC sections
+    - Omit empty values from output JSON
+    - Append newline to output
+
+  Docs Changes:
+
+    - Document support for CA bundles in Ignition >= 2.3.0
+    - Document support for sha256 resource verification (1.1.0)
+    - Clarify semantics of overwrite and mode fields
+
+
+2020-03-23 FCCT 0.5.0
+
+  Breaking Changes:
+
+    - Previously, command-line options could be preceded by a single dash
+      (-strict) or double dash (--strict).  Accept only the double-dash form.
+
+  Features:
+
+    - Accept input filename directly on command line, without --input
+    - Add short equivalents of command-line options
+
+  Bug Fixes:
+
+    - Fail if unexpected non-option arguments are specified
+
+  Misc Changes:
+
+    - Deprecate --input and hide it from --help
+    - Document files[].append[].inline property
+    - Update docs for switch to Fedora signing keys
+
+
+2020-01-24 FCCT 0.4.0
+
+  Features:
+
+    - Add mount_options field to filesystem entry
+
+  Misc Changes:
+
+    - Add "release" tag to container of latest release
+    - Vendor dependencies
+
+
+2020-01-23 FCCT 0.3.0
+
+  Features:
+
+    - Add v1.1.0-experimental spec
+    - Add with_mount_unit field to generate mount unit from filesystem entry
+
+  Bug Fixes:
+
+    - Report warnings and errors to stderr, not stdout
+    - Truncate output file before writing
+    - Fix line and column reporting
+
+  Misc Changes:
+
+    - Document syntax of inline file contents
+    - Document usage of published container image
+
+
+2019-07-24 FCCT 0.2.0
+
+  Features:
+
+    - Add --version flag
+    - Add Dockerfile and build containers automatically on quay.io
+
+  Bug Fixes:
+
+    - Fix validation of paths for files and directories
+    - Fix --output flag handling
+
+  Misc Changes:
+
+    - Add tests for the examples in the docs
+    - Add travis integration
+
+
+2019-07-10 FCCT 0.1.0
+
+Initial Release of FCCT. While the golang API is not stable, the Fedora CoreOS
+Configuration language is. Configs written with version 1.0.0 will continue to
+work with future releases of FCCT.
