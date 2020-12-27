@@ -1,0 +1,12 @@
+language: go
+go:
+  - "1.12.x"
+
+services:
+  - docker
+
+install: echo nop
+
+script:
+  - ./test
+  - docker build .
