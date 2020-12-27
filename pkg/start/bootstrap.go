@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/openshift/cluster-bootstrap/pkg/common"
 	"io"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"net/http"
@@ -11,7 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"github.com/openshift/cluster-bootstrap/pkg/common"
 )
 
 type bootstrapControlPlane struct {
