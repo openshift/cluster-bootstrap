@@ -33,6 +33,11 @@ func NewBootstrapInPlaceCommand(config BootstrapInPlaceConfig) (*BootstrapInPlac
 	}, nil
 }
 
+// Creating master ignition that will be used by node after reboot
+// Using fcct tool (tool that takes yaml and according to it creates ignition):
+// 1. Read actions yaml that has all the data needed by fcct to create master.ign
+// 2. Create ignition data
+// 3. Write created data to file
 func (i *BootstrapInPlaceCommand) Create() error {
 	infile, err := os.Open(i.config.Input)
 	if err != nil {
