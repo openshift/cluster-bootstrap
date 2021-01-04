@@ -34,11 +34,9 @@ func init() {
 	CmdBootstrapInPlace.Flags().StringVar(&bootstrapInPlaceOpts.input, "input", "", "fcc input file path")
 	CmdBootstrapInPlace.Flags().StringVar(&bootstrapInPlaceOpts.ignitionPath, "output", "o", "Ignition output file path")
 	CmdBootstrapInPlace.Flags().StringVarP(&bootstrapInPlaceOpts.assetDir, "asset-dir", "d", "", "allow embedding local files from this directory")
-
 }
 
 func runCmdBootstrapInPlace(cmd *cobra.Command, args []string) error {
-
 	bip, err := bootstrapinplace.NewBootstrapInPlaceCommand(bootstrapinplace.BootstrapInPlaceConfig{
 		AssetDir:     bootstrapInPlaceOpts.assetDir,
 		IgnitionPath: bootstrapInPlaceOpts.ignitionPath,
@@ -46,7 +44,6 @@ func runCmdBootstrapInPlace(cmd *cobra.Command, args []string) error {
 		Strict:       bootstrapInPlaceOpts.Strict,
 		Pretty:       bootstrapInPlaceOpts.Pretty,
 	})
-
 	if err != nil {
 		return err
 	}

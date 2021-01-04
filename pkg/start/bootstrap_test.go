@@ -3,6 +3,7 @@ package start
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,6 +20,10 @@ var (
 
 func createTestServer() (*httptest.Server, string) {
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		if rand.Intn(2) == 1 {
+			panic("Randomly created error")
+		}
 		fmt.Fprintln(w, "ok")
 	}))
 	return ts, strings.Replace(ts.URL, "https://", "", 1)

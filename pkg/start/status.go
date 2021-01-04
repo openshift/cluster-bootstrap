@@ -3,7 +3,6 @@ package start
 import (
 	"context"
 	"fmt"
-	"github.com/openshift/cluster-bootstrap/pkg/common"
 	"reflect"
 	"strings"
 	"time"
@@ -29,7 +28,7 @@ func waitUntilPodsRunning(ctx context.Context, c kubernetes.Interface, pods map[
 		return fmt.Errorf("error while checking pod status: %v", err)
 	}
 
-	common.UserOutput("All self-hosted control plane components successfully started\n")
+	UserOutput("All self-hosted control plane components successfully started\n")
 	return nil
 }
 
@@ -97,7 +96,7 @@ func (s *statusController) AllRunningAndReady() (bool, error) {
 				status = string(s.Phase)
 			}
 
-			common.UserOutput("\tPod Status:%24s\t%s\n", p, status)
+			UserOutput("\tPod Status:%24s\t%s\n", p, status)
 		}
 		if s == nil || s.Phase != v1.PodRunning || !s.IsReady {
 			runningAndReady = false

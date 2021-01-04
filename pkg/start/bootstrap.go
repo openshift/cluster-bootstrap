@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/openshift/cluster-bootstrap/pkg/common"
 	"io"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"net/http"
@@ -33,7 +32,7 @@ func newBootstrapControlPlane(assetDir, podManifestPath string, kubeApiHost stri
 // Start seeds static manifests to the kubelet to launch the bootstrap control plane.
 // Users should always ensure that Cleanup() is called even in the case of errors.
 func (b *bootstrapControlPlane) Start() error {
-	common.UserOutput("Starting temporary bootstrap control plane...\n")
+	UserOutput("Starting temporary bootstrap control plane...\n")
 	// Make secrets temporarily available to bootstrap cluster.
 	if err := os.RemoveAll(bootstrapSecretsDir); err != nil {
 		return err
@@ -61,32 +60,29 @@ func (b *bootstrapControlPlane) Start() error {
 
 // waitForApi will wait until kube-apiserver readyz endpoint is available
 func (b *bootstrapControlPlane) waitForApi() error {
-	common.UserOutput("Waiting up to %v for the Kubernetes API\n", bootstrapPodsRunningTimeout)
+	UserOutput("Waiting up to %v for the Kubernetes API\n", bootstrapPodsRunningTimeout)
 	apiContext, cancel := context.WithTimeout(context.Background(), bootstrapPodsRunningTimeout)
 	defer cancel()
 	customTransport := http.DefaultTransport.(*http.Transport).Clone()
 	customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	client := &http.Client{Transport: customTransport}
-	previousErrorSuffix := ""
-	wait.Until(func() {
-		_, err := client.Get(fmt.Sprintf("https://%s/readyz", b.kubeApiHost))
-		if err == nil {
-			common.UserOutput("API is up\n")
-			cancel()
-		} else {
-			chunks := strings.Split(err.Error(), ":")
-			errorSuffix := chunks[len(chunks)-1]
-			if previousErrorSuffix != errorSuffix {
-				common.UserOutput("Still waiting for the Kubernetes API: %v\n", err)
-				previousErrorSuffix = errorSuffix
-			}
+	previousError := ""
+	err := wait.PollUntil(time.Second, func() (bool, error) {
+		if _, err := client.Get(fmt.Sprintf("https://%s/readyz", b.kubeApiHost)); err == nil {
+			UserOutput("API is up\n")
+			return true, nil
+		} else if previousError != err.Error() {
+			UserOutput("Still waiting for the Kubernetes API: %v \n", err)
+			previousError = err.Error()
 		}
-	}, time.Second, apiContext.Done())
-	if apiContext.Err() == context.Canceled {
-		return nil
-	} else {
+
+		return false, nil
+	}, apiContext.Done())
+	if err != nil {
 		return fmt.Errorf("time out waiting for Kubernetes API")
 	}
+
+	return nil
 }
 
 // Teardown brings down the bootstrap control plane and cleans up the temporary manifests and
@@ -96,7 +92,7 @@ func (b *bootstrapControlPlane) Teardown() error {
 		return nil
 	}
 
-	common.UserOutput("Tearing down temporary bootstrap control plane...\n")
+	UserOutput("Tearing down temporary bootstrap control plane...\n")
 	if err := os.RemoveAll(bootstrapSecretsDir); err != nil {
 		return err
 	}

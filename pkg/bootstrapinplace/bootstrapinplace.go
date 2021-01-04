@@ -3,16 +3,16 @@
 package bootstrapinplace
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 
 	"github.com/coreos/fcct/config"
 	fcctCommon "github.com/coreos/fcct/config/common"
-	"github.com/openshift/cluster-bootstrap/pkg/common"
 )
 
 func fail(format string, args ...interface{}) {
-	common.UserOutput(format, args...)
+	fmt.Printf(format, args...)
 	os.Exit(1)
 }
 
@@ -34,7 +34,6 @@ func NewBootstrapInPlaceCommand(config BootstrapInPlaceConfig) (*BootstrapInPlac
 }
 
 func (i *BootstrapInPlaceCommand) Create() error {
-
 	infile, err := os.Open(i.config.Input)
 	if err != nil {
 		fail("Error occurred while trying to open %s: %v\n", i.config.Input, err)
@@ -51,7 +50,7 @@ func (i *BootstrapInPlaceCommand) Create() error {
 		Pretty:           i.config.Pretty,
 		Strict:           i.config.Strict},
 	)
-	common.UserOutput("%s", r.String())
+	fmt.Println(r.String())
 	if err != nil {
 		fail("Error translating config: %v\n", err)
 	}
