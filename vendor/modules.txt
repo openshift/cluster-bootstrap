@@ -1,3 +1,47 @@
+# github.com/clarketm/json v1.14.1
+github.com/clarketm/json
+# github.com/coreos/fcct v0.9.0
+github.com/coreos/fcct/base/util
+github.com/coreos/fcct/base/v0_1
+github.com/coreos/fcct/base/v0_2
+github.com/coreos/fcct/base/v0_3
+github.com/coreos/fcct/base/v0_4_exp
+github.com/coreos/fcct/config
+github.com/coreos/fcct/config/common
+github.com/coreos/fcct/config/fcos/v1_0
+github.com/coreos/fcct/config/fcos/v1_1
+github.com/coreos/fcct/config/fcos/v1_2
+github.com/coreos/fcct/config/fcos/v1_3
+github.com/coreos/fcct/config/fcos/v1_4_exp
+github.com/coreos/fcct/config/rhcos/v0_1
+github.com/coreos/fcct/config/rhcos/v0_2_exp
+github.com/coreos/fcct/config/util
+github.com/coreos/fcct/translate
+# github.com/coreos/go-json v0.0.0-20170920214419-6a2fe990e083
+github.com/coreos/go-json
+# github.com/coreos/go-semver v0.3.0
+github.com/coreos/go-semver/semver
+# github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e
+github.com/coreos/go-systemd/unit
+# github.com/coreos/go-systemd/v22 v22.0.0
+github.com/coreos/go-systemd/v22/unit
+# github.com/coreos/ignition/v2 v2.8.1
+github.com/coreos/ignition/v2/config/merge
+github.com/coreos/ignition/v2/config/shared/errors
+github.com/coreos/ignition/v2/config/shared/validations
+github.com/coreos/ignition/v2/config/util
+github.com/coreos/ignition/v2/config/v3_0/types
+github.com/coreos/ignition/v2/config/v3_1/types
+github.com/coreos/ignition/v2/config/v3_2/types
+github.com/coreos/ignition/v2/config/v3_3_experimental/types
+github.com/coreos/ignition/v2/config/validate
+# github.com/coreos/vcontext v0.0.0-20201120045928-b0e13dab675c
+github.com/coreos/vcontext/json
+github.com/coreos/vcontext/path
+github.com/coreos/vcontext/report
+github.com/coreos/vcontext/tree
+github.com/coreos/vcontext/validate
+github.com/coreos/vcontext/yaml
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
 # github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
@@ -13,7 +57,7 @@ github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
-# github.com/google/go-cmp v0.4.0
+# github.com/google/go-cmp v0.4.1
 github.com/google/go-cmp/cmp
 github.com/google/go-cmp/cmp/internal/diff
 github.com/google/go-cmp/cmp/internal/flags
@@ -51,10 +95,16 @@ github.com/openshift/build-machinery-go/scripts
 # github.com/openshift/library-go v0.0.0-20200930190915-f7cb85f605db
 github.com/openshift/library-go/pkg/assets
 github.com/openshift/library-go/pkg/assets/create
+# github.com/pmezard/go-difflib v1.0.0
+github.com/pmezard/go-difflib/difflib
 # github.com/spf13/cobra v1.0.0
 github.com/spf13/cobra
 # github.com/spf13/pflag v1.0.5
 github.com/spf13/pflag
+# github.com/stretchr/testify v1.6.1
+github.com/stretchr/testify/assert
+# github.com/vincent-petithory/dataurl v0.0.0-20160330182126-9a301d65acbb
+github.com/vincent-petithory/dataurl
 # golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 golang.org/x/crypto/ssh/terminal
 # golang.org/x/net v0.0.0-20200707034311-ab3426394381
@@ -64,7 +114,7 @@ golang.org/x/net/http/httpguts
 golang.org/x/net/http2
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
-# golang.org/x/oauth2 v0.0.0-20191202225959-858c2ad4c8b6
+# golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
 # golang.org/x/sys v0.0.0-20200622214017-ed371f2e16b4
@@ -78,7 +128,7 @@ golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
 # golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 golang.org/x/time/rate
-# google.golang.org/appengine v1.6.5
+# google.golang.org/appengine v1.6.6
 google.golang.org/appengine/internal
 google.golang.org/appengine/internal/base
 google.golang.org/appengine/internal/datastore
