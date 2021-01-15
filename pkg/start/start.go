@@ -132,7 +132,7 @@ func (b *startCommand) Run() error {
 
 	// notify installer that we are ready to tear down the temporary bootstrap control plane
 	UserOutput("Sending bootstrap-success event.")
-	if _, err := client.CoreV1().Events("kube-system").Create(makeBootstrapSuccessEvent("kube-system", "bootstrap-success")); err != nil && !apierrors.IsAlreadyExists(err) {
+	if _, err := client.CoreV1().Events("kube-system").Create(context.Background(), makeBootstrapSuccessEvent("kube-system", "bootstrap-success"), metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
 
@@ -175,7 +175,7 @@ func (b *startCommand) Run() error {
 	assetsDone.Wait()
 
 	UserOutput("Sending bootstrap-finished event.")
-	if _, err := client.CoreV1().Events("kube-system").Create(makeBootstrapSuccessEvent("kube-system", "bootstrap-finished")); err != nil && !apierrors.IsAlreadyExists(err) {
+	if _, err := client.CoreV1().Events("kube-system").Create(context.Background(), makeBootstrapSuccessEvent("kube-system", "bootstrap-finished"), metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
 
@@ -192,7 +192,7 @@ func UserOutput(format string, a ...interface{}) {
 
 func waitForEvent(ctx context.Context, client kubernetes.Interface, ns, name string) error {
 	return wait.PollImmediateUntil(time.Second, func() (done bool, err error) {
-		if _, err := client.CoreV1().Events(ns).Get(name, metav1.GetOptions{}); err != nil && apierrors.IsNotFound(err) {
+		if _, err := client.CoreV1().Events(ns).Get(ctx, name, metav1.GetOptions{}); err != nil && apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
 			UserOutput("Error waiting for %s/%s event: %v", ns, name, err)
