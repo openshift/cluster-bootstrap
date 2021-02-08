@@ -24,8 +24,6 @@ import (
 const (
 	// how long we wait until the bootstrap pods to be running
 	bootstrapPodsRunningTimeout = 20 * time.Minute
-	// how long we wait until the assets must all be created
-	assetsCreatedTimeout = 60 * time.Minute
 )
 
 type Config struct {
@@ -35,6 +33,7 @@ type Config struct {
 	RequiredPodPrefixes  map[string][]string
 	WaitForTearDownEvent string
 	EarlyTearDown        bool
+	AssetsCreatedTimeout time.Duration
 }
 
 type startCommand struct {
@@ -44,6 +43,7 @@ type startCommand struct {
 	requiredPodPrefixes  map[string][]string
 	waitForTearDownEvent string
 	earlyTearDown        bool
+	assetsCreatedTimeout time.Duration
 }
 
 func NewStartCommand(config Config) (*startCommand, error) {
@@ -54,6 +54,7 @@ func NewStartCommand(config Config) (*startCommand, error) {
 		requiredPodPrefixes:  config.RequiredPodPrefixes,
 		waitForTearDownEvent: config.WaitForTearDownEvent,
 		earlyTearDown:        config.EarlyTearDown,
+		assetsCreatedTimeout: config.AssetsCreatedTimeout,
 	}, nil
 }
 
@@ -67,7 +68,12 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
-	bcp := newBootstrapControlPlane(b.assetDir, b.podManifestPath)
+	// We don't want the client contact the API servers via load-balancer, but only talk to the local API server.
+	// This will speed up the initial "where is working API server" process.
+	localClientConfig := rest.CopyConfig(restConfig)
+	localClientConfig.Host = "localhost:6443"
+
+	bcp := newBootstrapControlPlane(b.assetDir, b.podManifestPath, localClientConfig.Host)
 
 	// Always tear down the bootstrap control plane and clean up manifests and secrets.
 	defer func() {
@@ -87,10 +93,6 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
-	// We don't want the client contact the API servers via load-balancer, but only talk to the local API server.
-	// This will speed up the initial "where is working API server" process.
-	localClientConfig := rest.CopyConfig(restConfig)
-	localClientConfig.Host = "localhost:6443"
 	// Set the ServerName to original hostname so we pass the certificate check.
 	hostURL, err := url.Parse(restConfig.Host)
 	if err != nil {
@@ -137,7 +139,7 @@ func (b *startCommand) Run() error {
 	}
 
 	// continue with assets
-	ctx, cancel = context.WithTimeout(context.Background(), assetsCreatedTimeout)
+	ctx, cancel = context.WithTimeout(context.Background(), b.assetsCreatedTimeout)
 	defer cancel()
 	if b.earlyTearDown {
 		// switch over to ELB client and continue with the assets
@@ -174,6 +176,10 @@ func (b *startCommand) Run() error {
 	UserOutput("Waiting for remaining assets to be created.\n")
 	assetsDone.Wait()
 
+	// We want to fail in case we failed to create some manifests
+	if ctx.Err() == context.DeadlineExceeded {
+		return fmt.Errorf("timed out creating manifests")
+	}
 	UserOutput("Sending bootstrap-finished event.")
 	if _, err := client.CoreV1().Events("kube-system").Create(context.Background(), makeBootstrapSuccessEvent("kube-system", "bootstrap-finished"), metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
