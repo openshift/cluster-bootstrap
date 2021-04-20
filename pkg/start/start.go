@@ -33,6 +33,7 @@ type Config struct {
 	RequiredPodPrefixes  map[string][]string
 	WaitForTearDownEvent string
 	EarlyTearDown        bool
+	TearDownDelay        time.Duration
 	AssetsCreatedTimeout time.Duration
 }
 
@@ -43,6 +44,7 @@ type startCommand struct {
 	requiredPodPrefixes  map[string][]string
 	waitForTearDownEvent string
 	earlyTearDown        bool
+	tearDownDelay        time.Duration
 	assetsCreatedTimeout time.Duration
 }
 
@@ -54,6 +56,7 @@ func NewStartCommand(config Config) (*startCommand, error) {
 		requiredPodPrefixes:  config.RequiredPodPrefixes,
 		waitForTearDownEvent: config.WaitForTearDownEvent,
 		earlyTearDown:        config.EarlyTearDown,
+		tearDownDelay:        config.TearDownDelay,
 		assetsCreatedTimeout: config.AssetsCreatedTimeout,
 	}, nil
 }
@@ -128,6 +131,10 @@ func (b *startCommand) Run() error {
 	assetsDone := createAssetsInBackground(ctx, cancel, localClientConfig)
 	if err = waitUntilPodsRunning(ctx, client, b.requiredPodPrefixes); err != nil {
 		return err
+	}
+	if b.tearDownDelay > 0 {
+		UserOutput("Waiting %v to give load-balancers time to observe the self-hosted control-plane\n", b.tearDownDelay)
+		time.Sleep(b.tearDownDelay)
 	}
 	cancel()
 	assetsDone.Wait()
