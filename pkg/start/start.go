@@ -33,6 +33,7 @@ type Config struct {
 	RequiredPodPrefixes  map[string][]string
 	WaitForTearDownEvent string
 	EarlyTearDown        bool
+	TerminationTimeout   time.Duration
 	TearDownDelay        time.Duration
 	AssetsCreatedTimeout time.Duration
 }
@@ -44,6 +45,7 @@ type startCommand struct {
 	requiredPodPrefixes  map[string][]string
 	waitForTearDownEvent string
 	earlyTearDown        bool
+	terminationTimeout   time.Duration
 	tearDownDelay        time.Duration
 	assetsCreatedTimeout time.Duration
 }
@@ -56,6 +58,7 @@ func NewStartCommand(config Config) (*startCommand, error) {
 		requiredPodPrefixes:  config.RequiredPodPrefixes,
 		waitForTearDownEvent: config.WaitForTearDownEvent,
 		earlyTearDown:        config.EarlyTearDown,
+		terminationTimeout:   config.TerminationTimeout,
 		tearDownDelay:        config.TearDownDelay,
 		assetsCreatedTimeout: config.AssetsCreatedTimeout,
 	}, nil
@@ -80,7 +83,7 @@ func (b *startCommand) Run() error {
 
 	// Always tear down the bootstrap control plane and clean up manifests and secrets.
 	defer func() {
-		if err := bcp.Teardown(); err != nil {
+		if err := bcp.Teardown(b.terminationTimeout); err != nil {
 			UserOutput("Error tearing down temporary bootstrap control plane: %v\n", err)
 		}
 	}()
@@ -170,9 +173,9 @@ func (b *startCommand) Run() error {
 		UserOutput("Got %s event.", b.waitForTearDownEvent)
 	}
 
-	// tear down the bootstrap control plane. Set bcp to nil to avoid a second tear down in the defer func.
+	// tear down the bootstrap control plane early. Set bcp to nil to avoid a second tear down in the defer func.
 	if b.earlyTearDown {
-		err = bcp.Teardown()
+		err = bcp.Teardown(b.terminationTimeout)
 		bcp = nil
 		if err != nil {
 			UserOutput("Error tearing down temporary bootstrap control plane: %v\n", err)
@@ -182,6 +185,15 @@ func (b *startCommand) Run() error {
 	// wait for the tail of assets to be created after tear down
 	UserOutput("Waiting for remaining assets to be created.\n")
 	assetsDone.Wait()
+
+	// tear down the bootstrap control plane late after asset creation. Set bcp to nil to avoid a second tear down in the defer func.
+	if !b.earlyTearDown {
+		err = bcp.Teardown(b.terminationTimeout)
+		bcp = nil
+		if err != nil {
+			UserOutput("Error tearing down temporary bootstrap control plane: %v\n", err)
+		}
+	}
 
 	// We want to fail in case we failed to create some manifests
 	if ctx.Err() == context.DeadlineExceeded {

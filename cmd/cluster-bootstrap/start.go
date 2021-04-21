@@ -27,6 +27,7 @@ var (
 		requiredPodClauses   []string
 		waitForTearDownEvent string
 		earlyTearDown        bool
+		terminationTimeout   time.Duration
 		tearDownDelay        time.Duration
 		assetsCreatedTimeout time.Duration
 	}
@@ -47,6 +48,7 @@ func init() {
 	cmdStart.Flags().StringSliceVar(&startOpts.requiredPodClauses, "required-pods", defaultRequiredPods, "List of pods name prefixes with their namespace (written as <namespace>/<pod-prefix>) that are required to be running and ready before the start command does the pivot, or alternatively a list of or'ed pod prefixes with a description (written as <desc>:<namespace>/<pod-prefix>|<namespace>/<pod-prefix>|...).")
 	cmdStart.Flags().StringVar(&startOpts.waitForTearDownEvent, "tear-down-event", "", "if this optional event name of the form <ns>/<event-name> is given, the event is waited for before tearing down the bootstrap control plane")
 	cmdStart.Flags().BoolVar(&startOpts.earlyTearDown, "tear-down-early", true, "tear down immediately after the non-bootstrap control plane is up and bootstrap-success event is created.")
+	cmdStart.Flags().DurationVar(&startOpts.terminationTimeout, "tear-down-termination-timeout", 0, "wait of (graceful) termination of the bootstrap control-plane before reporting success. Set to zero to disable.")
 	cmdStart.Flags().DurationVar(&startOpts.tearDownDelay, "tear-down-delay", 0, "duration to delay the bootstrap control-plane tear-down before bootstrap-success event is created, in order to give load-balancers time to observe the self-hosted control-plane. This even applies in case of --tear-down-early.")
 	cmdStart.Flags().DurationVar(&startOpts.assetsCreatedTimeout, "assets-create-timeout", time.Duration(60)*time.Minute, "how long to wait for all the assets be created.")
 }
@@ -64,6 +66,7 @@ func runCmdStart(cmd *cobra.Command, args []string) error {
 		RequiredPodPrefixes:  podPrefixes,
 		WaitForTearDownEvent: startOpts.waitForTearDownEvent,
 		EarlyTearDown:        startOpts.earlyTearDown,
+		TerminationTimeout:   startOpts.terminationTimeout,
 		TearDownDelay:        startOpts.tearDownDelay,
 		AssetsCreatedTimeout: startOpts.assetsCreatedTimeout,
 	})
