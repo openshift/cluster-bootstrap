@@ -5,12 +5,14 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 type bootstrapControlPlane struct {
@@ -85,9 +87,41 @@ func (b *bootstrapControlPlane) waitForApi() error {
 	return nil
 }
 
+// waitForTermination will wait until kube-apiserver /version endpoint returns an error.
+func (b *bootstrapControlPlane) waitForTermination(timeout time.Duration) error {
+	if timeout == 0 {
+		return nil
+	}
+	UserOutput("Waiting up to %v for the Kubernetes API to terminate\n", timeout)
+	apiContext, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	customTransport := http.DefaultTransport.(*http.Transport).Clone()
+	customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	client := &http.Client{Transport: customTransport}
+	previousError := ""
+	err := wait.PollUntil(time.Second, func() (bool, error) {
+		if _, err := client.Get(fmt.Sprintf("https://%s/version", b.kubeApiHost)); err == nil {
+			return false, nil
+		} else if net.IsConnectionRefused(err) {
+			UserOutput("Kubernetes API has terminated.")
+			return true, nil
+		} else if previousError != err.Error() {
+			UserOutput("Still waiting for the Kubernetes API to terminate: %v \n", err)
+			previousError = err.Error()
+		}
+
+		return false, nil
+	}, apiContext.Done())
+	if err != nil {
+		return fmt.Errorf("time out waiting for Kubernetes API to terminate")
+	}
+
+	return nil
+}
+
 // Teardown brings down the bootstrap control plane and cleans up the temporary manifests and
 // secrets. This function is idempotent.
-func (b *bootstrapControlPlane) Teardown() error {
+func (b *bootstrapControlPlane) Teardown(terminationTimeout time.Duration) error {
 	if b == nil {
 		return nil
 	}
@@ -102,7 +136,8 @@ func (b *bootstrapControlPlane) Teardown() error {
 		}
 	}
 	b.ownedManifests = nil
-	return nil
+
+	return b.waitForTermination(terminationTimeout)
 }
 
 // copyFile copies a single file from src to dst. Returns an error if overwrite is true and dst

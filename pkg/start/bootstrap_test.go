@@ -109,7 +109,7 @@ func TestBootstrapControlPlane(t *testing.T) {
 	}
 
 	// Tear down control plane.
-	if err := bcp.Teardown(); err != nil {
+	if err := bcp.Teardown(0); err != nil {
 		t.Errorf("bcp.Teardown() = %v, want: nil", err)
 	}
 
@@ -163,7 +163,7 @@ func TestBootstrapControlPlaneNoOverwrite(t *testing.T) {
 	}
 
 	// Tear down control plane.
-	if err := bcp.Teardown(); err != nil {
+	if err := bcp.Teardown(0); err != nil {
 		t.Errorf("bcp.Start() = %v, want: nil", err)
 	}
 
