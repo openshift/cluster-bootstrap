@@ -1,6 +1,6 @@
 module github.com/openshift/cluster-bootstrap
 
-go 1.13
+go 1.16
 
 require (
 	github.com/coreos/fcct v0.9.0
