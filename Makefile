@@ -17,6 +17,8 @@ $(call build-image,origin-$(GO_PACKAGE),./Dockerfile,.)
 # $4 - context directory for image build
 $(call build-image,ocp-cluster-bootstrap,$(IMAGE_REGISTRY)/ocp/4.2:cluster-bootstrap,./Dockerfile.rhel7,.)
 
+$(call verify-golang-versions,Dockerfile)
+
 clean:
 	$(RM) ./cluster-bootstrap
 .PHONY: clean
