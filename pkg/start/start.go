@@ -2,11 +2,14 @@ package start
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"net"
 	"net/url"
 	"os"
 	"path/filepath"
+	"sigs.k8s.io/yaml"
 	"strings"
 	"sync"
 	"time"
@@ -27,40 +30,43 @@ const (
 )
 
 type Config struct {
-	AssetDir             string
-	PodManifestPath      string
-	Strict               bool
-	RequiredPodPrefixes  map[string][]string
-	WaitForTearDownEvent string
-	EarlyTearDown        bool
-	TerminationTimeout   time.Duration
-	TearDownDelay        time.Duration
-	AssetsCreatedTimeout time.Duration
+	AssetDir                     string
+	PodManifestPath              string
+	Strict                       bool
+	RequiredPodPrefixes          map[string][]string
+	WaitForTearDownEvent         string
+	EarlyTearDown                bool
+	TerminationTimeout           time.Duration
+	TearDownDelay                time.Duration
+	AssetsCreatedTimeout         time.Duration
+	RequiredNumberOfJoinedMaster int
 }
 
 type startCommand struct {
-	podManifestPath      string
-	assetDir             string
-	strict               bool
-	requiredPodPrefixes  map[string][]string
-	waitForTearDownEvent string
-	earlyTearDown        bool
-	terminationTimeout   time.Duration
-	tearDownDelay        time.Duration
-	assetsCreatedTimeout time.Duration
+	podManifestPath              string
+	assetDir                     string
+	strict                       bool
+	requiredPodPrefixes          map[string][]string
+	waitForTearDownEvent         string
+	earlyTearDown                bool
+	terminationTimeout           time.Duration
+	tearDownDelay                time.Duration
+	assetsCreatedTimeout         time.Duration
+	requiredNumberOfJoinedMaster int
 }
 
 func NewStartCommand(config Config) (*startCommand, error) {
 	return &startCommand{
-		assetDir:             config.AssetDir,
-		podManifestPath:      config.PodManifestPath,
-		strict:               config.Strict,
-		requiredPodPrefixes:  config.RequiredPodPrefixes,
-		waitForTearDownEvent: config.WaitForTearDownEvent,
-		earlyTearDown:        config.EarlyTearDown,
-		terminationTimeout:   config.TerminationTimeout,
-		tearDownDelay:        config.TearDownDelay,
-		assetsCreatedTimeout: config.AssetsCreatedTimeout,
+		assetDir:                     config.AssetDir,
+		podManifestPath:              config.PodManifestPath,
+		strict:                       config.Strict,
+		requiredPodPrefixes:          config.RequiredPodPrefixes,
+		waitForTearDownEvent:         config.WaitForTearDownEvent,
+		earlyTearDown:                config.EarlyTearDown,
+		terminationTimeout:           config.TerminationTimeout,
+		tearDownDelay:                config.TearDownDelay,
+		assetsCreatedTimeout:         config.AssetsCreatedTimeout,
+		requiredNumberOfJoinedMaster: config.RequiredNumberOfJoinedMaster,
 	}, nil
 }
 
@@ -135,6 +141,19 @@ func (b *startCommand) Run() error {
 	if err = waitUntilPodsRunning(ctx, client, b.requiredPodPrefixes); err != nil {
 		return err
 	}
+
+	sno, err := isSingleNodeControlPlane(b.assetDir)
+	if err != nil {
+		UserOutput(err.Error())
+		return err
+	}
+	if !sno {
+		UserOutput("Waiting for 2 masters to join")
+		if err = waitUntilMastersJoined(ctx, client, 2); err != nil {
+			return err
+		}
+	}
+
 	if b.tearDownDelay > 0 {
 		UserOutput("Waiting %v to give load-balancers time to observe the self-hosted control-plane\n", b.tearDownDelay)
 		time.Sleep(b.tearDownDelay)
@@ -243,4 +262,44 @@ func makeBootstrapSuccessEvent(ns, name string) *corev1.Event {
 		LastTimestamp:  currentTime,
 	}
 	return event
+}
+
+func isSingleNodeControlPlane(assetDir string) (bool, error) {
+	clusterConfigMap, err := getUnstructured(filepath.Join(assetDir, assetPathClusterConfig))
+	if err != nil {
+		return false, fmt.Errorf("failed to get cluster configmap: %w", err)
+	}
+	installConfig, err := getInstallConfig(clusterConfigMap)
+	if err != nil {
+		return false, fmt.Errorf("failed to get install config from cluster configmap: %w", err)
+	}
+
+	controlPlane, found := installConfig["controlPlane"].(map[string]interface{})
+	if !found {
+		return false, fmt.Errorf("unrecognized data structure in controlPlane field")
+	}
+	replicaCount, found := controlPlane["replicas"].(float64)
+	if !found {
+		return false, fmt.Errorf("unrecognized data structure in controlPlane replica field")
+	}
+
+	return replicaCount == 1, nil
+}
+
+func getInstallConfig(clusterConfigMap *unstructured.Unstructured) (map[string]interface{}, error) {
+	installConfigYaml, found, err := unstructured.NestedString(clusterConfigMap.Object, "data", "install-config")
+	if err != nil {
+		return nil, err
+	}
+	var installConfig map[string]interface{}
+	if found {
+		installConfigJson, err := yaml.YAMLToJSON([]byte(installConfigYaml))
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(installConfigJson, &installConfig); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal install config json %w", err)
+		}
+	}
+	return installConfig, nil
 }

@@ -21,15 +21,16 @@ var (
 	}
 
 	startOpts struct {
-		assetDir             string
-		podManifestPath      string
-		strict               bool
-		requiredPodClauses   []string
-		waitForTearDownEvent string
-		earlyTearDown        bool
-		terminationTimeout   time.Duration
-		tearDownDelay        time.Duration
-		assetsCreatedTimeout time.Duration
+		assetDir                     string
+		podManifestPath              string
+		strict                       bool
+		requiredPodClauses           []string
+		waitForTearDownEvent         string
+		earlyTearDown                bool
+		terminationTimeout           time.Duration
+		tearDownDelay                time.Duration
+		assetsCreatedTimeout         time.Duration
+		requiredNumberOfJoinedMaster int
 	}
 )
 
@@ -51,6 +52,7 @@ func init() {
 	cmdStart.Flags().DurationVar(&startOpts.terminationTimeout, "tear-down-termination-timeout", 0, "wait of (graceful) termination of the bootstrap control-plane before reporting success. Set to zero to disable.")
 	cmdStart.Flags().DurationVar(&startOpts.tearDownDelay, "tear-down-delay", 0, "duration to delay the bootstrap control-plane tear-down before bootstrap-success event is created, in order to give load-balancers time to observe the self-hosted control-plane. This even applies in case of --tear-down-early.")
 	cmdStart.Flags().DurationVar(&startOpts.assetsCreatedTimeout, "assets-create-timeout", time.Duration(60)*time.Minute, "how long to wait for all the assets be created.")
+	cmdStart.Flags().IntVar(&startOpts.requiredNumberOfJoinedMaster, "required-num-masters-joined", 2, "how many masters should join before the start command does the pivot, used only for ha installation")
 }
 
 func runCmdStart(cmd *cobra.Command, args []string) error {
