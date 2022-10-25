@@ -3,6 +3,7 @@ package start
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/types"
 	"net"
 	"net/url"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/library-go/pkg/assets/create"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -19,6 +21,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	runtimeClient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -135,6 +138,19 @@ func (b *startCommand) Run() error {
 	if err = waitUntilPodsRunning(ctx, client, b.requiredPodPrefixes); err != nil {
 		return err
 	}
+
+	sno, err := isSingleNodeTopology(ctx, restConfig)
+	if err != nil {
+		UserOutput(err.Error())
+		return err
+	}
+	if !sno {
+		UserOutput("Waiting for 2 ready masters")
+		if err = waitUntilMastersAreReady(ctx, client, 2); err != nil {
+			return err
+		}
+	}
+
 	if b.tearDownDelay > 0 {
 		UserOutput("Waiting %v to give load-balancers time to observe the self-hosted control-plane\n", b.tearDownDelay)
 		time.Sleep(b.tearDownDelay)
@@ -244,3 +260,21 @@ func makeBootstrapSuccessEvent(ns, name string) *corev1.Event {
 	}
 	return event
 }
+
+
+func isSingleNodeTopology(ctx context.Context, restConfig *rest.Config) (bool, error) {
+	dynamicClient, err := runtimeClient.New(restConfig, runtimeClient.Options{})
+	if err != nil {
+		return false, fmt.Errorf("failed to create client to get infrastructure 'cluster': %v", err)
+	}
+	infraConfig := &configv1.Infrastructure{}
+	if err := dynamicClient.Get(ctx, types.NamespacedName{Name: "cluster"}, infraConfig); err != nil {
+		return false, fmt.Errorf("failed to get infrastructure 'cluster': %v", err)
+	}
+	if infraConfig.Status.ControlPlaneTopology == "" {
+		return false, fmt.Errorf("ControlPlaneTopology was not set")
+	}
+
+	return infraConfig.Status.ControlPlaneTopology == configv1.SingleReplicaTopologyMode, nil
+}
+

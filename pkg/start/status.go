@@ -32,6 +32,67 @@ func waitUntilPodsRunning(ctx context.Context, c kubernetes.Interface, pods map[
 	return nil
 }
 
+func waitUntilMastersAreReady(ctx context.Context, c kubernetes.Interface, requireNumOfMasters int) error {
+	sc, err := newNodeStatusController(c, requireNumOfMasters)
+	if err != nil {
+		return err
+	}
+	sc.Run()
+
+	if err := wait.PollImmediateUntil(5*time.Second, sc.RequiredNumberOfMastersAreReady, ctx.Done()); err != nil {
+		return fmt.Errorf("error while checking for nodes status: %v", err)
+	}
+
+	UserOutput("All self-hosted control plane components successfully started\n")
+	return nil
+}
+
+type nodesStatusController struct {
+	client           kubernetes.Interface
+	store 			 cache.Store
+	requireNumOfMasters int
+}
+
+func newNodeStatusController(client kubernetes.Interface, requireNumOfMasters int) (*nodesStatusController, error) {
+	return &nodesStatusController{client: client, requireNumOfMasters: requireNumOfMasters}, nil
+}
+
+func (s *nodesStatusController) Run() {
+	options := metav1.ListOptions{LabelSelector: "node-role.kubernetes.io/master"}
+	nodeStore, nodeController := cache.NewInformer(
+		&cache.ListWatch{
+			ListFunc: func(lo metav1.ListOptions) (runtime.Object, error) {
+				return s.client.CoreV1().Nodes().List(context.TODO(), options)
+			},
+			WatchFunc: func(lo metav1.ListOptions) (watch.Interface, error) {
+				return s.client.CoreV1().Nodes().Watch(context.TODO(), options)
+			},
+		},
+		&v1.Node{},
+		30*time.Minute,
+		cache.ResourceEventHandlerFuncs{},
+	)
+	s.store = nodeStore
+	go nodeController.Run(wait.NeverStop)
+}
+
+func (s *nodesStatusController) RequiredNumberOfMastersAreReady() (bool, error) {
+	readyNodes := 0
+	for _, nn := range s.store.List() {
+		if n, ok := nn.(*v1.Node); ok {
+			for _, cond := range n.Status.Conditions {
+				if cond.Type == v1.NodeReady && cond.Status == v1.ConditionTrue {
+					readyNodes += 1
+				}
+				UserOutput("\tMaster Status:%24s\t%s\n", n.Name, n.Status.Phase)
+
+			}
+		}
+	}
+	return s.requireNumOfMasters <= readyNodes, nil
+}
+
+
 type statusController struct {
 	client           kubernetes.Interface
 	podStore         cache.Store
