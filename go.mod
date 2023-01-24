@@ -3,7 +3,7 @@ module github.com/openshift/cluster-bootstrap
 go 1.19
 
 require (
-	github.com/coreos/fcct v0.9.0
+	github.com/coreos/butane v0.17.0
 	github.com/openshift/build-machinery-go v0.0.0-20210806203541-4ea9b6da3a37
 	github.com/openshift/library-go v0.0.0-20210923111424-158c870b7cc3
 	github.com/spf13/cobra v1.1.3
@@ -16,13 +16,13 @@ require (
 require (
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
-	github.com/clarketm/json v1.14.1 // indirect
-	github.com/coreos/go-json v0.0.0-20170920214419-6a2fe990e083 // indirect
+	github.com/aws/aws-sdk-go v1.30.28 // indirect
+	github.com/clarketm/json v1.17.1 // indirect
+	github.com/coreos/go-json v0.0.0-20220810161552-7cce03887f34 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
-	github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e // indirect
-	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
-	github.com/coreos/ignition/v2 v2.8.1 // indirect
-	github.com/coreos/vcontext v0.0.0-20201120045928-b0e13dab675c // indirect
+	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
+	github.com/coreos/ignition/v2 v2.14.0 // indirect
+	github.com/coreos/vcontext v0.0.0-20220810162454-88bd546c634c // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.8.0 // indirect
 	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32 // indirect
@@ -44,9 +44,9 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stretchr/testify v1.8.0 // indirect
-	github.com/vincent-petithory/dataurl v0.0.0-20160330182126-9a301d65acbb // indirect
+	github.com/spf13/pflag v1.0.6-0.20210604193023-d5e0c0615ace // indirect
+	github.com/stretchr/testify v1.8.1 // indirect
+	github.com/vincent-petithory/dataurl v1.0.0 // indirect
 	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect
 	golang.org/x/sys v0.6.0 // indirect
