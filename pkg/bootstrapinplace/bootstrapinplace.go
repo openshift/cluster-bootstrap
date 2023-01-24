@@ -7,8 +7,8 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/coreos/fcct/config"
-	fcctCommon "github.com/coreos/fcct/config/common"
+	"github.com/coreos/butane/config"
+	butaneCommon "github.com/coreos/butane/config/common"
 )
 
 func fail(format string, args ...interface{}) {
@@ -34,8 +34,8 @@ func NewBootstrapInPlaceCommand(config BootstrapInPlaceConfig) (*BootstrapInPlac
 }
 
 // Creating master ignition that will be used by node after reboot
-// Using fcct tool (tool that takes yaml and according to it creates ignition):
-// 1. Read actions yaml that has all the data needed by fcct to create master.ign
+// Using butane tool (tool that takes yaml and according to it creates ignition):
+// 1. Read actions yaml that has all the data needed by butane to create master.ign
 // 2. Create ignition data
 // 3. Write created data to file
 func (i *BootstrapInPlaceCommand) Create() error {
@@ -50,8 +50,8 @@ func (i *BootstrapInPlaceCommand) Create() error {
 		fail("Error occurred while trying to read %s: %v\n", infile.Name(), err)
 	}
 
-	dataOut, r, err := config.TranslateBytes(dataIn, fcctCommon.TranslateBytesOptions{
-		TranslateOptions: fcctCommon.TranslateOptions{FilesDir: i.config.AssetDir},
+	dataOut, r, err := config.TranslateBytes(dataIn, butaneCommon.TranslateBytesOptions{
+		TranslateOptions: butaneCommon.TranslateOptions{FilesDir: i.config.AssetDir},
 		Pretty:           i.config.Pretty,
 		Strict:           i.config.Strict},
 	)
