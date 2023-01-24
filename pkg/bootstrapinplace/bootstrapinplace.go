@@ -20,7 +20,6 @@ type BootstrapInPlaceConfig struct {
 	AssetDir     string
 	IgnitionPath string
 	Input        string
-	Strict       bool
 	Pretty       bool
 }
 type BootstrapInPlaceCommand struct {
@@ -52,8 +51,7 @@ func (i *BootstrapInPlaceCommand) Create() error {
 
 	dataOut, r, err := config.TranslateBytes(dataIn, butaneCommon.TranslateBytesOptions{
 		TranslateOptions: butaneCommon.TranslateOptions{FilesDir: i.config.AssetDir},
-		Pretty:           i.config.Pretty,
-		Strict:           i.config.Strict},
+		Pretty:           i.config.Pretty},
 	)
 	fmt.Println(r.String())
 	if err != nil {
