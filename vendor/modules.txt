@@ -4,41 +4,58 @@ github.com/PuerkitoBio/purell
 # github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578
 ## explicit
 github.com/PuerkitoBio/urlesc
-# github.com/clarketm/json v1.14.1
+# github.com/aws/aws-sdk-go v1.30.28
+## explicit; go 1.11
+github.com/aws/aws-sdk-go/aws/arn
+# github.com/clarketm/json v1.17.1
 ## explicit
 github.com/clarketm/json
-# github.com/coreos/fcct v0.9.0
-## explicit; go 1.12
-github.com/coreos/fcct/base/util
-github.com/coreos/fcct/base/v0_1
-github.com/coreos/fcct/base/v0_2
-github.com/coreos/fcct/base/v0_3
-github.com/coreos/fcct/base/v0_4_exp
-github.com/coreos/fcct/config
-github.com/coreos/fcct/config/common
-github.com/coreos/fcct/config/fcos/v1_0
-github.com/coreos/fcct/config/fcos/v1_1
-github.com/coreos/fcct/config/fcos/v1_2
-github.com/coreos/fcct/config/fcos/v1_3
-github.com/coreos/fcct/config/fcos/v1_4_exp
-github.com/coreos/fcct/config/rhcos/v0_1
-github.com/coreos/fcct/config/rhcos/v0_2_exp
-github.com/coreos/fcct/config/util
-github.com/coreos/fcct/translate
-# github.com/coreos/go-json v0.0.0-20170920214419-6a2fe990e083
-## explicit
+# github.com/coreos/butane v0.17.0
+## explicit; go 1.17
+github.com/coreos/butane/base/util
+github.com/coreos/butane/base/v0_1
+github.com/coreos/butane/base/v0_2
+github.com/coreos/butane/base/v0_3
+github.com/coreos/butane/base/v0_4
+github.com/coreos/butane/base/v0_5_exp
+github.com/coreos/butane/config
+github.com/coreos/butane/config/common
+github.com/coreos/butane/config/fcos/v1_0
+github.com/coreos/butane/config/fcos/v1_1
+github.com/coreos/butane/config/fcos/v1_2
+github.com/coreos/butane/config/fcos/v1_3
+github.com/coreos/butane/config/fcos/v1_4
+github.com/coreos/butane/config/fcos/v1_5_exp
+github.com/coreos/butane/config/flatcar/v1_0
+github.com/coreos/butane/config/flatcar/v1_1_exp
+github.com/coreos/butane/config/openshift/v4_10
+github.com/coreos/butane/config/openshift/v4_10/result
+github.com/coreos/butane/config/openshift/v4_11
+github.com/coreos/butane/config/openshift/v4_11/result
+github.com/coreos/butane/config/openshift/v4_12
+github.com/coreos/butane/config/openshift/v4_12/result
+github.com/coreos/butane/config/openshift/v4_13_exp
+github.com/coreos/butane/config/openshift/v4_13_exp/result
+github.com/coreos/butane/config/openshift/v4_8
+github.com/coreos/butane/config/openshift/v4_8/result
+github.com/coreos/butane/config/openshift/v4_9
+github.com/coreos/butane/config/openshift/v4_9/result
+github.com/coreos/butane/config/r4e/v1_0
+github.com/coreos/butane/config/r4e/v1_1_exp
+github.com/coreos/butane/config/rhcos/v0_1
+github.com/coreos/butane/config/util
+github.com/coreos/butane/translate
+# github.com/coreos/go-json v0.0.0-20220810161552-7cce03887f34
+## explicit; go 1.17
 github.com/coreos/go-json
 # github.com/coreos/go-semver v0.3.0
 ## explicit
 github.com/coreos/go-semver/semver
-# github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e
-## explicit
-github.com/coreos/go-systemd/unit
-# github.com/coreos/go-systemd/v22 v22.3.2
+# github.com/coreos/go-systemd/v22 v22.5.0
 ## explicit; go 1.12
 github.com/coreos/go-systemd/v22/unit
-# github.com/coreos/ignition/v2 v2.8.1
-## explicit; go 1.11
+# github.com/coreos/ignition/v2 v2.14.0
+## explicit; go 1.15
 github.com/coreos/ignition/v2/config/merge
 github.com/coreos/ignition/v2/config/shared/errors
 github.com/coreos/ignition/v2/config/shared/validations
@@ -46,10 +63,11 @@ github.com/coreos/ignition/v2/config/util
 github.com/coreos/ignition/v2/config/v3_0/types
 github.com/coreos/ignition/v2/config/v3_1/types
 github.com/coreos/ignition/v2/config/v3_2/types
-github.com/coreos/ignition/v2/config/v3_3_experimental/types
+github.com/coreos/ignition/v2/config/v3_3/types
+github.com/coreos/ignition/v2/config/v3_4_experimental/types
 github.com/coreos/ignition/v2/config/validate
-# github.com/coreos/vcontext v0.0.0-20201120045928-b0e13dab675c
-## explicit; go 1.11
+# github.com/coreos/vcontext v0.0.0-20220810162454-88bd546c634c
+## explicit; go 1.17
 github.com/coreos/vcontext/json
 github.com/coreos/vcontext/path
 github.com/coreos/vcontext/report
@@ -153,13 +171,13 @@ github.com/pmezard/go-difflib/difflib
 # github.com/spf13/cobra v1.1.3
 ## explicit; go 1.12
 github.com/spf13/cobra
-# github.com/spf13/pflag v1.0.5
+# github.com/spf13/pflag v1.0.6-0.20210604193023-d5e0c0615ace
 ## explicit; go 1.12
 github.com/spf13/pflag
-# github.com/stretchr/testify v1.8.0
+# github.com/stretchr/testify v1.8.1
 ## explicit; go 1.13
 github.com/stretchr/testify/assert
-# github.com/vincent-petithory/dataurl v0.0.0-20160330182126-9a301d65acbb
+# github.com/vincent-petithory/dataurl v1.0.0
 ## explicit
 github.com/vincent-petithory/dataurl
 # golang.org/x/net v0.8.0
