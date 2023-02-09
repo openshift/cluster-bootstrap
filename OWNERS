@@ -8,6 +8,13 @@ approvers:
 - sttts
 - tkashem
 
+reviewers:
+- benluddy
+- dgrisonnet
+- dinhxuanvu
+- sanchezl
+- tkashem
+
 # This is a Red Hat extension, mapping the Git repository to an OpenShift Bugzilla component:
 # https://bugzilla.redhat.com/enter_bug.cgi?product=OpenShift%20Container%20Platform
 # 'kube-apiserver' may be wrong, but will be right sometimes, and will
