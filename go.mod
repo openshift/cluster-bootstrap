@@ -5,12 +5,14 @@ go 1.19
 require (
 	github.com/coreos/butane v0.17.0
 	github.com/openshift/build-machinery-go v0.0.0-20220913142420-e25cf57ea46d
+	github.com/openshift/installer v0.16.1
 	github.com/openshift/library-go v0.0.0-20230120214501-9bc305884fcb
 	github.com/spf13/cobra v1.6.0
 	k8s.io/api v0.26.1
 	k8s.io/apimachinery v0.26.1
 	k8s.io/client-go v0.26.1
 	k8s.io/klog/v2 v2.80.1
+	sigs.k8s.io/yaml v1.3.0
 )
 
 require (
@@ -42,6 +44,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/openshift/api v0.0.0-20230120195050-6ba31fa438f2 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.6-0.20210604193023-d5e0c0615ace // indirect
 	github.com/stretchr/testify v1.8.1 // indirect
@@ -63,5 +66,4 @@ require (
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
 	sigs.k8s.io/kube-storage-version-migrator v0.0.4 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
-	sigs.k8s.io/yaml v1.3.0 // indirect
 )

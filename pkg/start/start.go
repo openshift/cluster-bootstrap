@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/installer/pkg/types"
+	"github.com/openshift/installer/pkg/types"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"net"
 	"net/url"

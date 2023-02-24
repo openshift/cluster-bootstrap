@@ -226,12 +226,24 @@ github.com/openshift/build-machinery-go/make/targets/golang
 github.com/openshift/build-machinery-go/make/targets/openshift
 github.com/openshift/build-machinery-go/make/targets/openshift/operator
 github.com/openshift/build-machinery-go/scripts
+# github.com/openshift/installer v0.16.1
+## explicit
+github.com/openshift/installer/pkg/ipnet
+github.com/openshift/installer/pkg/types
+github.com/openshift/installer/pkg/types/aws
+github.com/openshift/installer/pkg/types/libvirt
+github.com/openshift/installer/pkg/types/none
+github.com/openshift/installer/pkg/types/openstack
+github.com/openshift/installer/pkg/types/vsphere
 # github.com/openshift/library-go v0.0.0-20230120214501-9bc305884fcb
 ## explicit; go 1.19
 github.com/openshift/library-go/pkg/assets
 github.com/openshift/library-go/pkg/assets/create
 github.com/openshift/library-go/pkg/client/openshiftrestmapper
 github.com/openshift/library-go/pkg/operator/resource/resourceread
+# github.com/pkg/errors v0.9.1
+## explicit
+github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
 ## explicit
 github.com/pmezard/go-difflib/difflib
