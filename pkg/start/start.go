@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/installer/pkg/types"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"net"
 	"net/url"
@@ -274,32 +275,19 @@ func isSingleNodeControlPlane(assetDir string) (bool, error) {
 		return false, fmt.Errorf("failed to get install config from cluster configmap: %w", err)
 	}
 
-	controlPlane, found := installConfig["controlPlane"].(map[string]interface{})
-	if !found {
-		return false, fmt.Errorf("unrecognized data structure in controlPlane field")
-	}
-	replicaCount, found := controlPlane["replicas"].(float64)
-	if !found {
-		return false, fmt.Errorf("unrecognized data structure in controlPlane replica field")
-	}
-
-	return replicaCount == 1, nil
+	return *installConfig.ControlPlane.Replicas == 1, nil
 }
 
-func getInstallConfig(clusterConfigMap *unstructured.Unstructured) (map[string]interface{}, error) {
+func getInstallConfig(clusterConfigMap *unstructured.Unstructured) (*types.InstallConfig, error) {
 	installConfigYaml, found, err := unstructured.NestedString(clusterConfigMap.Object, "data", "install-config")
 	if err != nil {
 		return nil, err
 	}
-	var installConfig map[string]interface{}
+	installConfig := types.InstallConfig{}
 	if found {
-		installConfigJson, err := yaml.YAMLToJSON([]byte(installConfigYaml))
-		if err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal(installConfigJson, &installConfig); err != nil {
+		if err := yaml.Unmarshal([]byte(installConfigYaml), &installConfig); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal install config json %w", err)
 		}
 	}
-	return installConfig, nil
+	return &installConfig, nil
 }
