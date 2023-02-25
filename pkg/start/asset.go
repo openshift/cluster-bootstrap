@@ -2,9 +2,9 @@ package start
 
 import (
 	"fmt"
+	"github.com/openshift/installer/pkg/types"
 	"io/ioutil"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	apiruntime "k8s.io/apimachinery/pkg/runtime"
+	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/yaml"
 )
 
@@ -20,22 +20,24 @@ var (
 	bootstrapSecretsDir = "/etc/kubernetes/bootstrap-secrets" // Overridden for testing.
 )
 
-func getUnstructured(file string) (*unstructured.Unstructured, error) {
+func getInstallConfig(file string) (*types.InstallConfig, error) {
 	data, err := ioutil.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
-	json, err := yaml.YAMLToJSON(data)
-	if err != nil {
-		return nil, err
+	cm := v1.ConfigMap{}
+	if err := yaml.Unmarshal(data, &cm); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal cluster config cm %w", err)
 	}
-	obj, err := apiruntime.Decode(unstructured.UnstructuredJSONScheme, json)
-	if err != nil {
-		return nil, err
-	}
-	config, ok := obj.(*unstructured.Unstructured)
+	installConfigData, ok := cm.Data["install-config"]
 	if !ok {
-		return nil, fmt.Errorf("unexpected object in %t", obj)
+		return nil, fmt.Errorf("install-config doesn't exist in cluster config cm %w", err)
 	}
-	return config, nil
+
+	installConfig := types.InstallConfig{}
+	if err := yaml.Unmarshal([]byte(installConfigData), &installConfig); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal install config %w", err)
+	}
+
+	return &installConfig, nil
 }

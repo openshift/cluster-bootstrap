@@ -3,13 +3,10 @@ package start
 import (
 	"context"
 	"fmt"
-	"github.com/openshift/installer/pkg/types"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"net"
 	"net/url"
 	"os"
 	"path/filepath"
-	"sigs.k8s.io/yaml"
 	"strings"
 	"sync"
 	"time"
@@ -265,28 +262,10 @@ func makeBootstrapSuccessEvent(ns, name string) *corev1.Event {
 }
 
 func isSingleNodeControlPlane(assetDir string) (bool, error) {
-	clusterConfigMap, err := getUnstructured(filepath.Join(assetDir, assetPathClusterConfig))
-	if err != nil {
-		return false, fmt.Errorf("failed to get cluster configmap: %w", err)
-	}
-	installConfig, err := getInstallConfig(clusterConfigMap)
+	installConfig, err := getInstallConfig(filepath.Join(assetDir, assetPathClusterConfig))
 	if err != nil {
 		return false, fmt.Errorf("failed to get install config from cluster configmap: %w", err)
 	}
 
 	return *installConfig.ControlPlane.Replicas == 1, nil
-}
-
-func getInstallConfig(clusterConfigMap *unstructured.Unstructured) (*types.InstallConfig, error) {
-	installConfigYaml, found, err := unstructured.NestedString(clusterConfigMap.Object, "data", "install-config")
-	if err != nil {
-		return nil, err
-	}
-	installConfig := types.InstallConfig{}
-	if found {
-		if err := yaml.Unmarshal([]byte(installConfigYaml), &installConfig); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal install config json %w", err)
-		}
-	}
-	return &installConfig, nil
 }
