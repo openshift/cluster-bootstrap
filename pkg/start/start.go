@@ -23,7 +23,8 @@ import (
 
 const (
 	// how long we wait until the bootstrap pods to be running
-	bootstrapPodsRunningTimeout = 20 * time.Minute
+	bootstrapPodsRunningTimeout  = 20 * time.Minute
+	requiredNumberOfJoinedMaster = 2
 )
 
 type Config struct {
@@ -135,6 +136,18 @@ func (b *startCommand) Run() error {
 	if err = waitUntilPodsRunning(ctx, client, b.requiredPodPrefixes); err != nil {
 		return err
 	}
+
+	sno, err := isSingleNodeControlPlane(b.assetDir)
+	if err != nil {
+		return err
+	}
+	if !sno {
+		UserOutput("Waiting for %d masters to join", requiredNumberOfJoinedMaster)
+		if err = waitUntilMastersJoined(ctx, client, requiredNumberOfJoinedMaster); err != nil {
+			return err
+		}
+	}
+
 	if b.tearDownDelay > 0 {
 		UserOutput("Waiting %v to give load-balancers time to observe the self-hosted control-plane\n", b.tearDownDelay)
 		time.Sleep(b.tearDownDelay)
@@ -243,4 +256,13 @@ func makeBootstrapSuccessEvent(ns, name string) *corev1.Event {
 		LastTimestamp:  currentTime,
 	}
 	return event
+}
+
+func isSingleNodeControlPlane(assetDir string) (bool, error) {
+	installConfig, err := getInstallConfig(filepath.Join(assetDir, assetPathClusterConfig))
+	if err != nil {
+		return false, fmt.Errorf("failed to get install config from cluster configmap: %w", err)
+	}
+
+	return *installConfig.ControlPlane.Replicas == 1, nil
 }
