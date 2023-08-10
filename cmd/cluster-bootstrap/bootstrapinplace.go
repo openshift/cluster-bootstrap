@@ -22,14 +22,12 @@ var (
 		assetDir     string
 		ignitionPath string
 		input        string
-		Strict       bool
 		Pretty       bool
 	}
 )
 
 func init() {
 	cmdRoot.AddCommand(CmdBootstrapInPlace)
-	CmdBootstrapInPlace.Flags().BoolVarP(&bootstrapInPlaceOpts.Strict, "strict", "s", true, "fail on any warning")
 	CmdBootstrapInPlace.Flags().BoolVarP(&bootstrapInPlaceOpts.Pretty, "pretty", "p", true, "output formatted json")
 	CmdBootstrapInPlace.Flags().StringVar(&bootstrapInPlaceOpts.input, "input", "", "fcc input file path")
 	CmdBootstrapInPlace.Flags().StringVar(&bootstrapInPlaceOpts.ignitionPath, "output", "o", "Ignition output file path")
@@ -41,7 +39,6 @@ func runCmdBootstrapInPlace(cmd *cobra.Command, args []string) error {
 		AssetDir:     bootstrapInPlaceOpts.assetDir,
 		IgnitionPath: bootstrapInPlaceOpts.ignitionPath,
 		Input:        bootstrapInPlaceOpts.input,
-		Strict:       bootstrapInPlaceOpts.Strict,
 		Pretty:       bootstrapInPlaceOpts.Pretty,
 	})
 	if err != nil {
