@@ -1,6 +1,6 @@
 module github.com/openshift/cluster-bootstrap
 
-go 1.19
+go 1.22
 
 require (
 	github.com/coreos/butane v0.17.0
