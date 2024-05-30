@@ -25,6 +25,10 @@ const (
 	// how long we wait until the bootstrap pods to be running
 	bootstrapPodsRunningTimeout  = 20 * time.Minute
 	requiredNumberOfJoinedMaster = 2
+
+	// how long we wait for HA API to be available (for at least two
+	// kube-apiserver instances to be available in default/kubernetes service
+	apiAvailabaleWaitTimeout = 20 * time.Minute
 )
 
 type Config struct {
@@ -75,12 +79,21 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
+	sno, err := isSingleNodeControlPlane(b.assetDir)
+	if err != nil {
+		return err
+	}
+
 	// We don't want the client contact the API servers via load-balancer, but only talk to the local API server.
 	// This will speed up the initial "where is working API server" process.
 	localClientConfig := rest.CopyConfig(restConfig)
 	localClientConfig.Host = "localhost:6443"
+	loopbackClient, err := kubernetes.NewForConfig(localClientConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create local loopback client: %w", err)
+	}
 
-	bcp := newBootstrapControlPlane(b.assetDir, b.podManifestPath, localClientConfig.Host)
+	bcp := newBootstrapControlPlane(loopbackClient, b.assetDir, b.podManifestPath, localClientConfig.Host, sno)
 
 	// Always tear down the bootstrap control plane and clean up manifests and secrets.
 	defer func() {
@@ -137,12 +150,8 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
-	sno, err := isSingleNodeControlPlane(b.assetDir)
-	if err != nil {
-		return err
-	}
 	if !sno {
-		UserOutput("Waiting for %d masters to join", requiredNumberOfJoinedMaster)
+		UserOutput("Waiting for %d masters to join\n", requiredNumberOfJoinedMaster)
 		if err = waitUntilMastersJoined(ctx, client, requiredNumberOfJoinedMaster); err != nil {
 			return err
 		}
@@ -156,7 +165,7 @@ func (b *startCommand) Run() error {
 	assetsDone.Wait()
 
 	// notify installer that we are ready to tear down the temporary bootstrap control plane
-	UserOutput("Sending bootstrap-success event.")
+	UserOutput("Sending bootstrap-success event.\n")
 	if _, err := client.CoreV1().Events("kube-system").Create(context.Background(), makeBootstrapSuccessEvent("kube-system", "bootstrap-success"), metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
@@ -183,7 +192,7 @@ func (b *startCommand) Run() error {
 		if err := waitForEvent(context.TODO(), client, ns, name); err != nil {
 			return err
 		}
-		UserOutput("Got %s event.", b.waitForTearDownEvent)
+		UserOutput("Got %s event.\n", b.waitForTearDownEvent)
 	}
 
 	// tear down the bootstrap control plane early. Set bcp to nil to avoid a second tear down in the defer func.
@@ -212,12 +221,14 @@ func (b *startCommand) Run() error {
 	if ctx.Err() == context.DeadlineExceeded {
 		return fmt.Errorf("timed out creating manifests")
 	}
-	UserOutput("Sending bootstrap-finished event.")
+	UserOutput("Sending bootstrap-finished event.\n")
 	if _, err := client.CoreV1().Events("kube-system").Create(context.Background(), makeBootstrapSuccessEvent("kube-system", "bootstrap-finished"), metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
 
-	return nil
+	// return nil
+	// fixme: fail the teardown so we have a bootstrap log
+	return fmt.Errorf("failing bootstrap teardown")
 }
 
 // All start command printing to stdout should go through this fmt.Printf wrapper.
@@ -233,7 +244,7 @@ func waitForEvent(ctx context.Context, client kubernetes.Interface, ns, name str
 		if _, err := client.CoreV1().Events(ns).Get(ctx, name, metav1.GetOptions{}); err != nil && apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
-			UserOutput("Error waiting for %s/%s event: %v", ns, name, err)
+			UserOutput("Error waiting for %s/%s event: %v\n", ns, name, err)
 			return false, nil
 		}
 		return true, nil
