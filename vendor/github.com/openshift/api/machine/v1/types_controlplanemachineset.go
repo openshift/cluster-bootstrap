@@ -8,10 +8,9 @@ import (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// ControlPlaneMachineSet ensures that a specified number of control plane machine replicas are running at any given time.
 // +k8s:openapi-gen=true
-// +kubebuilder:resource:scope=Namespaced
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:path=controlplanemachinesets,scope=Namespaced
 // +kubebuilder:subresource:status
 // +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas
 // +kubebuilder:printcolumn:name="Desired",type="integer",JSONPath=".spec.replicas",description="Desired Replicas"
@@ -21,6 +20,13 @@ import (
 // +kubebuilder:printcolumn:name="Unavailable",type="integer",JSONPath=".status.unavailableReplicas",description="Observed number of unavailable replicas"
 // +kubebuilder:printcolumn:name="State",type="string",JSONPath=".spec.state",description="ControlPlaneMachineSet state"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="ControlPlaneMachineSet age"
+// +openshift:api-approved.openshift.io=https://github.com/openshift/api/pull/1112
+// +openshift:file-pattern=cvoRunLevel=0000_10,operatorName=control-plane-machine-set,operatorOrdering=01
+// +openshift:capability=MachineAPI
+// +kubebuilder:metadata:annotations="exclude.release.openshift.io/internal-openshift-hosted=true"
+// +kubebuilder:metadata:annotations=include.release.openshift.io/self-managed-high-availability=true
+
+// ControlPlaneMachineSet ensures that a specified number of control plane machine replicas are running at any given time.
 // Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
 // +openshift:compatibility-gen:level=1
 type ControlPlaneMachineSet struct {
@@ -138,7 +144,7 @@ type OpenShiftMachineV1Beta1MachineTemplate struct {
 	// This will be merged into the ProviderSpec given in the template.
 	// This field is optional on platforms that do not require placement information.
 	// +optional
-	FailureDomains FailureDomains `json:"failureDomains,omitempty"`
+	FailureDomains *FailureDomains `json:"failureDomains,omitempty"`
 
 	// ObjectMeta is the standard object metadata
 	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
@@ -231,24 +237,35 @@ const (
 // +kubebuilder:validation:XValidation:rule="has(self.platform) && self.platform == 'Azure' ?  has(self.azure) : !has(self.azure)",message="azure configuration is required when platform is Azure, and forbidden otherwise"
 // +kubebuilder:validation:XValidation:rule="has(self.platform) && self.platform == 'GCP' ?  has(self.gcp) : !has(self.gcp)",message="gcp configuration is required when platform is GCP, and forbidden otherwise"
 // +kubebuilder:validation:XValidation:rule="has(self.platform) && self.platform == 'OpenStack' ?  has(self.openstack) : !has(self.openstack)",message="openstack configuration is required when platform is OpenStack, and forbidden otherwise"
+// +kubebuilder:validation:XValidation:rule="has(self.platform) && self.platform == 'VSphere' ?  has(self.vsphere) : !has(self.vsphere)",message="vsphere configuration is required when platform is VSphere, and forbidden otherwise"
+// +kubebuilder:validation:XValidation:rule="has(self.platform) && self.platform == 'Nutanix' ?  has(self.nutanix) : !has(self.nutanix)",message="nutanix configuration is required when platform is Nutanix, and forbidden otherwise"
 type FailureDomains struct {
 	// Platform identifies the platform for which the FailureDomain represents.
-	// Currently supported values are AWS, Azure, and GCP.
+	// Currently supported values are AWS, Azure, GCP, OpenStack, VSphere and Nutanix.
 	// +unionDiscriminator
 	// +kubebuilder:validation:Required
 	Platform configv1.PlatformType `json:"platform"`
 
 	// AWS configures failure domain information for the AWS platform.
+	// +listType=atomic
 	// +optional
 	AWS *[]AWSFailureDomain `json:"aws,omitempty"`
 
 	// Azure configures failure domain information for the Azure platform.
+	// +listType=atomic
 	// +optional
 	Azure *[]AzureFailureDomain `json:"azure,omitempty"`
 
 	// GCP configures failure domain information for the GCP platform.
+	// +listType=atomic
 	// +optional
 	GCP *[]GCPFailureDomain `json:"gcp,omitempty"`
+
+	// vsphere configures failure domain information for the VSphere platform.
+	// +listType=map
+	// +listMapKey=name
+	// +optional
+	VSphere []VSphereFailureDomain `json:"vsphere,omitempty"`
 
 	// OpenStack configures failure domain information for the OpenStack platform.
 	// +optional
@@ -258,8 +275,15 @@ type FailureDomains struct {
 	// + Some OpenStack deployments may not have availability zones or root volumes.
 	// + Therefore we'll check the length of the list to determine if it's empty instead
 	// + of nil if it would be a pointer.
+	// +listType=atomic
 	// +optional
 	OpenStack []OpenStackFailureDomain `json:"openstack,omitempty"`
+
+	// nutanix configures failure domain information for the Nutanix platform.
+	// +listType=map
+	// +listMapKey=name
+	// +optional
+	Nutanix []NutanixFailureDomainReference `json:"nutanix,omitempty"`
 }
 
 // AWSFailureDomain configures failure domain information for the AWS platform.
@@ -287,6 +311,13 @@ type AzureFailureDomain struct {
 	// If nil, the virtual machine should be deployed to no zone.
 	// +kubebuilder:validation:Required
 	Zone string `json:"zone"`
+
+	// subnet is the name of the network subnet in which the VM will be created.
+	// When omitted, the subnet value from the machine providerSpec template will be used.
+	// +kubebuilder:validation:MaxLength=80
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9_])?$`
+	// +optional
+	Subnet string `json:"subnet,omitempty"`
 }
 
 // GCPFailureDomain configures failure domain information for the GCP platform
@@ -296,8 +327,19 @@ type GCPFailureDomain struct {
 	Zone string `json:"zone"`
 }
 
+// VSphereFailureDomain configures failure domain information for the vSphere platform
+type VSphereFailureDomain struct {
+	// name of the failure domain in which the vSphere machine provider will create the VM.
+	// Failure domains are defined in a cluster's config.openshift.io/Infrastructure resource.
+	// When balancing machines across failure domains, the control plane machine set will inject configuration from the
+	// Infrastructure resource into the machine providerSpec to allocate the machine to a failure domain.
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
+}
+
 // OpenStackFailureDomain configures failure domain information for the OpenStack platform.
 // +kubebuilder:validation:MinProperties:=1
+// +kubebuilder:validation:XValidation:rule="!has(self.availabilityZone) || !has(self.rootVolume) || has(self.rootVolume.availabilityZone)",message="rootVolume.availabilityZone is required when availabilityZone is set"
 type OpenStackFailureDomain struct {
 	// availabilityZone is the nova availability zone in which the OpenStack machine provider will create the VM.
 	// If not specified, the VM will be created in the default availability zone specified in the nova configuration.
@@ -321,10 +363,20 @@ type OpenStackFailureDomain struct {
 	RootVolume *RootVolume `json:"rootVolume,omitempty"`
 }
 
+// NutanixFailureDomainReference refers to the failure domain of the Nutanix platform.
+type NutanixFailureDomainReference struct {
+	// name of the failure domain in which the nutanix machine provider will create the VM.
+	// Failure domains are defined in a cluster's config.openshift.io/Infrastructure resource.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=64
+	// +kubebuilder:validation:Pattern=`[a-z0-9]([-a-z0-9]*[a-z0-9])?`
+	Name string `json:"name"`
+}
+
 // RootVolume represents the volume metadata to boot from.
 // The original RootVolume struct is defined in the v1alpha1 but it's not best practice to use it directly here so we define a new one
 // that should stay in sync with the original one.
-// +kubebuilder:validation:MinProperties:=1
 type RootVolume struct {
 	// availabilityZone specifies the Cinder availability zone where the root volume will be created.
 	// If not specifified, the root volume will be created in the availability zone specified by the volume type in the cinder configuration.
@@ -340,6 +392,18 @@ type RootVolume struct {
 	// +kubebuilder:validation:Pattern=`^[^ ]*$`
 	// +optional
 	AvailabilityZone string `json:"availabilityZone,omitempty"`
+
+	// volumeType specifies the type of the root volume that will be provisioned.
+	// The maximum length of a volume type name is 255 characters, as per the OpenStack limit.
+	// + ---
+	// + Historically, the installer has always required a volume type to be specified when deploying
+	// + the control plane with a root volume. This is because the default volume type in Cinder is not guaranteed
+	// + to be available, therefore we prefer the user to be explicit about the volume type to use.
+	// + We apply the same logic in CPMS: if the failure domain specifies a root volume, we require the user to specify a volume type.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=255
+	VolumeType string `json:"volumeType"`
 }
 
 // ControlPlaneMachineSetStatus represents the status of the ControlPlaneMachineSet CRD.
