@@ -110,6 +110,11 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
+	manifests := filepath.Join(b.assetDir, assetPathManifests)
+	if err := bubbleUpCRDs(manifests); err != nil {
+		return err
+	}
+
 	// create assets against localhost apiserver (in the background) and wait for control plane to be up
 	createAssetsInBackground := func(ctx context.Context, cancel func(), client *rest.Config) *sync.WaitGroup {
 		done := sync.WaitGroup{}
