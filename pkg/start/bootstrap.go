@@ -50,11 +50,14 @@ func (b *bootstrapControlPlane) Start() error {
 
 	// Copy the static manifests to the kubelet's pod manifest path.
 	manifestsDir := filepath.Join(b.assetDir, assetPathBootstrapManifests)
+	UserOutput("Copying static manifests from: %s to: %s\n", manifestsDir, b.podManifestPath)
 	ownedManifests, err := copyDirectory(manifestsDir, b.podManifestPath, false /* overwrite */)
 	b.ownedManifests = ownedManifests // always copy in case of partial failure.
 	if err != nil {
 		return err
 	}
+
+	UserOutput("Successfully copied static pod manifests: %v\n", b.ownedManifests)
 
 	// Wait for kube-apiserver to be available and return.
 	return b.waitForApi()
@@ -103,7 +106,7 @@ func (b *bootstrapControlPlane) waitForTermination(timeout time.Duration) error 
 		if _, err := client.Get(fmt.Sprintf("https://%s/version", b.kubeApiHost)); err == nil {
 			return false, nil
 		} else if net.IsConnectionRefused(err) {
-			UserOutput("Kubernetes API has terminated.")
+			UserOutput("Kubernetes API has terminated.\n")
 			return true, nil
 		} else if previousError != err.Error() {
 			UserOutput("Still waiting for the Kubernetes API to terminate: %v \n", err)
@@ -121,6 +124,8 @@ func (b *bootstrapControlPlane) waitForTermination(timeout time.Duration) error 
 
 // Teardown brings down the bootstrap control plane and cleans up the temporary manifests and
 // secrets. This function is idempotent.
+// NOTE: this should only be invoked once the API is available, and we want API
+// to be available on at least two master nodes before tear down happens
 func (b *bootstrapControlPlane) Teardown(terminationTimeout time.Duration) error {
 	if b == nil {
 		return nil
