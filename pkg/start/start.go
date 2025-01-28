@@ -11,7 +11,9 @@ import (
 	"sync"
 	"time"
 
+	operatorversionedclient "github.com/openshift/client-go/operator/clientset/versioned"
 	"github.com/openshift/library-go/pkg/assets/create"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,6 +27,17 @@ const (
 	// how long we wait until the bootstrap pods to be running
 	bootstrapPodsRunningTimeout  = 20 * time.Minute
 	requiredNumberOfJoinedMaster = 2
+
+	// how long we wait for self hosted control plane to be available.
+	// API, scheduler, and kcm each should be available on at least
+	// two master nodes.
+	controlPlaneAvailabaleWaitTimeout = 30 * time.Minute
+
+	// This is the minimum amount of time cluster bootstrap will wait
+	// after it determines that self hosted control plane is available
+	// so that load balancers have some buffer time to discover
+	// the apiservers on the master nodes
+	minimumTeardownDelay = 30 * time.Second
 )
 
 type Config struct {
@@ -75,10 +88,20 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
+	sno, err := isSingleNodeControlPlane(b.assetDir)
+	if err != nil {
+		return err
+	}
+
 	// We don't want the client contact the API servers via load-balancer, but only talk to the local API server.
 	// This will speed up the initial "where is working API server" process.
+	UserOutput("rest.Config.Host=%s, cloning to create local loopback\n", restConfig.Host)
 	localClientConfig := rest.CopyConfig(restConfig)
 	localClientConfig.Host = "localhost:6443"
+	loopbackOperatorClient, err := operatorversionedclient.NewForConfig(localClientConfig)
+	if err != nil {
+		return fmt.Errorf("error creating operator client config: %w", err)
+	}
 
 	bcp := newBootstrapControlPlane(b.assetDir, b.podManifestPath, localClientConfig.Host)
 
@@ -137,26 +160,33 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
-	sno, err := isSingleNodeControlPlane(b.assetDir)
-	if err != nil {
-		return err
-	}
 	if !sno {
-		UserOutput("Waiting for %d masters to join", requiredNumberOfJoinedMaster)
-		if err = waitUntilMastersJoined(ctx, client, requiredNumberOfJoinedMaster); err != nil {
+		UserOutput("Waiting for self hosted control plane to be available\n")
+		if err = waitForSelfHostedControlPlaneAvailabilityBeforeTearDown(loopbackOperatorClient, controlPlaneAvailabaleWaitTimeout); err != nil {
 			return err
 		}
 	}
 
-	if b.tearDownDelay > 0 {
-		UserOutput("Waiting %v to give load-balancers time to observe the self-hosted control-plane\n", b.tearDownDelay)
-		time.Sleep(b.tearDownDelay)
+	// if we are here, self hosted control plane is available
+	tearDownDelay := b.tearDownDelay
+	// SNO: no behavior change, if the caller passed tearDownDelay through
+	// command line option, then it takes precedence
+	// HA: the load balancer may not have observed the apiserver(s) on the
+	// master nodes yet, there is no API to/ check this.
+	// let's sleep for at least the default minimum duration.
+	if !sno && tearDownDelay <= minimumTeardownDelay {
+		tearDownDelay = minimumTeardownDelay
 	}
+	if tearDownDelay > 0 {
+		UserOutput("Waiting %v to give load-balancers time to observe the self-hosted control-plane\n", tearDownDelay)
+		time.Sleep(tearDownDelay)
+	}
+
 	cancel()
 	assetsDone.Wait()
 
 	// notify installer that we are ready to tear down the temporary bootstrap control plane
-	UserOutput("Sending bootstrap-success event.")
+	UserOutput("Sending bootstrap-success event.\n")
 	if _, err := client.CoreV1().Events("kube-system").Create(context.Background(), makeBootstrapSuccessEvent("kube-system", "bootstrap-success"), metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
@@ -183,10 +213,14 @@ func (b *startCommand) Run() error {
 		if err := waitForEvent(context.TODO(), client, ns, name); err != nil {
 			return err
 		}
-		UserOutput("Got %s event.", b.waitForTearDownEvent)
+		UserOutput("Got %s event.\n", b.waitForTearDownEvent)
 	}
 
 	// tear down the bootstrap control plane early. Set bcp to nil to avoid a second tear down in the defer func.
+	// TODO: tear down early is probably not meaningful, we can tear down
+	// only when the self hosted control plane is available, we should remove
+	// this command line option. Maybe it can only apply to SNO only?
+	// currently it is set to false by bootkube.sh
 	if b.earlyTearDown {
 		err = bcp.Teardown(b.terminationTimeout)
 		bcp = nil
@@ -198,6 +232,18 @@ func (b *startCommand) Run() error {
 	// wait for the tail of assets to be created after tear down
 	UserOutput("Waiting for remaining assets to be created.\n")
 	assetsDone.Wait()
+	// We want to fail in case we failed to create some manifests
+	if ctx.Err() == context.DeadlineExceeded {
+		return fmt.Errorf("timed out creating manifests")
+	}
+
+	UserOutput("Sending bootstrap-finished event.\n")
+	// client actually refers to localhost, so if we want to create
+	// an event, that has to be before the tear down starts.
+	// TODO: this should move to bootkube.sh
+	if _, err := client.CoreV1().Events("kube-system").Create(context.Background(), makeBootstrapSuccessEvent("kube-system", "bootstrap-finished"), metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
+		return err
+	}
 
 	// tear down the bootstrap control plane late after asset creation. Set bcp to nil to avoid a second tear down in the defer func.
 	if !b.earlyTearDown {
@@ -206,15 +252,6 @@ func (b *startCommand) Run() error {
 		if err != nil {
 			UserOutput("Error tearing down temporary bootstrap control plane: %v\n", err)
 		}
-	}
-
-	// We want to fail in case we failed to create some manifests
-	if ctx.Err() == context.DeadlineExceeded {
-		return fmt.Errorf("timed out creating manifests")
-	}
-	UserOutput("Sending bootstrap-finished event.")
-	if _, err := client.CoreV1().Events("kube-system").Create(context.Background(), makeBootstrapSuccessEvent("kube-system", "bootstrap-finished"), metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
-		return err
 	}
 
 	return nil
@@ -233,7 +270,7 @@ func waitForEvent(ctx context.Context, client kubernetes.Interface, ns, name str
 		if _, err := client.CoreV1().Events(ns).Get(ctx, name, metav1.GetOptions{}); err != nil && apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
-			UserOutput("Error waiting for %s/%s event: %v", ns, name, err)
+			UserOutput("Error waiting for %s/%s event: %v\n", ns, name, err)
 			return false, nil
 		}
 		return true, nil
