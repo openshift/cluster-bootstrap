@@ -135,9 +135,18 @@ func (b *bootstrapControlPlane) Teardown(terminationTimeout time.Duration) error
 	if err := os.RemoveAll(bootstrapSecretsDir); err != nil {
 		return err
 	}
-	for _, manifest := range b.ownedManifests {
-		if err := os.Remove(manifest); err != nil && !os.IsNotExist(err) {
-			return err
+
+	manifests := make([]string, 0)
+	manifests = append(manifests, b.ownedManifests...)
+	// etcd static pod is not included in b.ownedManifests
+	manifests = append(manifests, filepath.Join(b.podManifestPath, "etcd-member-pod.yaml"))
+
+	for _, manifest := range manifests {
+		if err := os.Remove(manifest); err != nil {
+			UserOutput("Error removing static manifest: %s %v\n", manifest, err)
+			if !os.IsNotExist(err) {
+				return err
+			}
 		}
 	}
 	b.ownedManifests = nil

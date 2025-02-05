@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	operatorversionedclient "github.com/openshift/client-go/operator/clientset/versioned"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,6 +24,7 @@ func waitForSelfHostedControlPlaneAvailabilityBeforeTearDown(loopbackOperatorCli
 		newAPIAvailabilityPoller(loopbackOperatorClient, timeout),
 		newSchedulerAvailabilityPoller(loopbackOperatorClient, timeout),
 		newKCMAvailabilityPoller(loopbackOperatorClient, timeout),
+		newETCDClusterAvailabilityPoller(loopbackOperatorClient, timeout),
 	})
 }
 
@@ -175,6 +177,32 @@ func newKCMAvailabilityPoller(loopbackOperatorClient operatorversionedclient.Int
 				}
 			}
 			return fmt.Sprintf("kubecontrollermanagers/cluster NodeStatuses: %s", msg), available >= 2
+		},
+	}
+}
+
+func newETCDClusterAvailabilityPoller(loopbackOperatorClient operatorversionedclient.Interface, timeout time.Duration) *poller {
+	return &poller{
+		timeout: timeout,
+		what:    "etcd running in cluster",
+		condition: func(ctx context.Context) (string, bool) {
+			client := loopbackOperatorClient.OperatorV1().Etcds()
+			config, err := client.Get(ctx, "cluster", metav1.GetOptions{})
+			if err != nil {
+				return fmt.Sprintf("error getting etcds/cluster - %v", err), false
+			}
+
+			var running *operatorv1.OperatorCondition
+			for i := range config.Status.Conditions {
+				cond := &config.Status.Conditions[i]
+				if cond.Type == "EtcdRunningInCluster" {
+					running = cond
+					break
+				}
+			}
+
+			return fmt.Sprintf("etcds/cluster Conditions.EtcdRunningInCluster: %#v", running),
+				running != nil && running.Status == operatorv1.ConditionTrue
 		},
 	}
 }

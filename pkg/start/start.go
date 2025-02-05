@@ -254,7 +254,9 @@ func (b *startCommand) Run() error {
 		}
 	}
 
-	return nil
+	// fail bootstrap to get logs
+	return fmt.Errorf("failing bootstrap")
+	// return nil
 }
 
 // All start command printing to stdout should go through this fmt.Printf wrapper.
