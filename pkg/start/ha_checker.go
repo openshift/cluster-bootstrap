@@ -16,8 +16,8 @@ import (
 // waitForSelfHostedControlPlaneAvailabilityBeforeTearDown will wait until the
 // following conditions are true:
 // a) at least two master nodes have API available
-// b) at least one master node has scheduler installed
-// c) at least one master node has kcm installed
+// b) at least two master node has scheduler installed
+// c) at least two master node has kcm installed
 func waitForSelfHostedControlPlaneAvailabilityBeforeTearDown(loopbackOperatorClient operatorversionedclient.Interface, timeout time.Duration) error {
 	return waitFor([]*poller{
 		newAPIAvailabilityPoller(loopbackOperatorClient, timeout),
