@@ -88,7 +88,7 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
-	sno, err := isSingleNodeControlPlane(b.assetDir)
+	isHAControlPlane, err := isHAControlPlane(b.assetDir)
 	if err != nil {
 		return err
 	}
@@ -160,7 +160,7 @@ func (b *startCommand) Run() error {
 		return err
 	}
 
-	if !sno {
+	if isHAControlPlane {
 		UserOutput("Waiting for self hosted control plane to be available\n")
 		if err = waitForSelfHostedControlPlaneAvailabilityBeforeTearDown(loopbackOperatorClient, controlPlaneAvailabaleWaitTimeout); err != nil {
 			return err
@@ -171,10 +171,11 @@ func (b *startCommand) Run() error {
 	tearDownDelay := b.tearDownDelay
 	// SNO: no behavior change, if the caller passed tearDownDelay through
 	// command line option, then it takes precedence
+	// Arbiter/TwoNode: is treated similar to SNO unless the behavior profile needs to change
 	// HA: the load balancer may not have observed the apiserver(s) on the
 	// master nodes yet, there is no API to/ check this.
 	// let's sleep for at least the default minimum duration.
-	if !sno && tearDownDelay <= minimumTeardownDelay {
+	if isHAControlPlane && tearDownDelay <= minimumTeardownDelay {
 		tearDownDelay = minimumTeardownDelay
 	}
 	if tearDownDelay > 0 {
@@ -295,11 +296,13 @@ func makeBootstrapSuccessEvent(ns, name string) *corev1.Event {
 	return event
 }
 
-func isSingleNodeControlPlane(assetDir string) (bool, error) {
+// isHAControlPlane HA is currently defined as 3 full control plane for this calculation.
+// TODO: Revaluate later if we need to re-address for HighlyAvailableArbiter.
+func isHAControlPlane(assetDir string) (bool, error) {
 	installConfig, err := getInstallConfig(filepath.Join(assetDir, assetPathClusterConfig))
 	if err != nil {
 		return false, fmt.Errorf("failed to get install config from cluster configmap: %w", err)
 	}
 
-	return *installConfig.ControlPlane.Replicas == 1, nil
+	return *installConfig.ControlPlane.Replicas >= 3, nil
 }
