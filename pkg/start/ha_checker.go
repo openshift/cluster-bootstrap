@@ -109,7 +109,7 @@ func newAPIAvailabilityPoller(loopbackOperatorClient operatorversionedclient.Int
 			available := 0
 			msg := ""
 			for _, status := range statuses {
-				msg = fmt.Sprintf("%s [%s at Current: %d, Traget: %d]", msg, status.NodeName, status.CurrentRevision, status.TargetRevision)
+				msg = fmt.Sprintf("%s [%s at Current: %d, Target: %d]", msg, status.NodeName, status.CurrentRevision, status.TargetRevision)
 				if status.CurrentRevision >= 1 {
 					available++
 				}
