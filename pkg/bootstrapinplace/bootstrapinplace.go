@@ -4,7 +4,7 @@ package bootstrapinplace
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 
 	"github.com/coreos/butane/config"
@@ -44,7 +44,7 @@ func (i *BootstrapInPlaceCommand) Create() error {
 	}
 	defer infile.Close()
 
-	dataIn, err := ioutil.ReadAll(infile)
+	dataIn, err := io.ReadAll(infile)
 	if err != nil {
 		fail("Error occurred while trying to read %s: %v\n", infile.Name(), err)
 	}

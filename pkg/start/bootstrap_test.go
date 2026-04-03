@@ -2,7 +2,6 @@ package start
 
 import (
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -32,15 +31,15 @@ func createTestServer() (*httptest.Server, string) {
 func setUp(t *testing.T) (assetDir, podManifestPath string) {
 	// Create source directories.
 	var err error
-	assetDir, err = ioutil.TempDir("", "assets")
+	assetDir, err = os.MkdirTemp("", "assets")
 	if err != nil {
 		t.Fatal(err)
 	}
-	podManifestPath, err = ioutil.TempDir("", "manifests")
+	podManifestPath, err = os.MkdirTemp("", "manifests")
 	if err != nil {
 		t.Fatal(err)
 	}
-	bootstrapSecretsDir, err = ioutil.TempDir("", "bootstrap-secrets")
+	bootstrapSecretsDir, err = os.MkdirTemp("", "bootstrap-secrets")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,14 +48,14 @@ func setUp(t *testing.T) (assetDir, podManifestPath string) {
 	if err := os.Mkdir(filepath.Join(assetDir, filepath.Dir(assetPathAdminKubeConfig)), os.FileMode(0755)); err != nil {
 		t.Fatal(err)
 	}
-	if err := ioutil.WriteFile(filepath.Join(assetDir, assetPathAdminKubeConfig), []byte("kubeconfig data"), os.FileMode(0644)); err != nil {
+	if err := os.WriteFile(filepath.Join(assetDir, assetPathAdminKubeConfig), []byte("kubeconfig data"), os.FileMode(0644)); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Mkdir(filepath.Join(assetDir, assetPathSecrets), os.FileMode(0755)); err != nil {
 		t.Fatal(err)
 	}
 	for _, secret := range secrets {
-		if err := ioutil.WriteFile(filepath.Join(assetDir, assetPathSecrets, secret), []byte("secret data"), os.FileMode(0644)); err != nil {
+		if err := os.WriteFile(filepath.Join(assetDir, assetPathSecrets, secret), []byte("secret data"), os.FileMode(0644)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -64,7 +63,7 @@ func setUp(t *testing.T) (assetDir, podManifestPath string) {
 		t.Fatal(err)
 	}
 	for _, manifest := range manifests {
-		if err := ioutil.WriteFile(filepath.Join(assetDir, assetPathBootstrapManifests, manifest), []byte("manifest data"), os.FileMode(0644)); err != nil {
+		if err := os.WriteFile(filepath.Join(assetDir, assetPathBootstrapManifests, manifest), []byte("manifest data"), os.FileMode(0644)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -131,7 +130,7 @@ func TestBootstrapControlPlaneNoOverwrite(t *testing.T) {
 	existingData := []byte("existing data")
 
 	// Create a manifest in the destination already.
-	if err := ioutil.WriteFile(filepath.Join(podManifestPath, existingManifest), existingData, os.FileMode(0644)); err != nil {
+	if err := os.WriteFile(filepath.Join(podManifestPath, existingManifest), existingData, os.FileMode(0644)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -152,7 +151,7 @@ func TestBootstrapControlPlaneNoOverwrite(t *testing.T) {
 			t.Errorf("bcp.Start() failed to copy manifest: %v", manifest)
 		}
 		if manifest == existingManifest {
-			data, err := ioutil.ReadFile(filepath.Join(podManifestPath, manifest))
+			data, err := os.ReadFile(filepath.Join(podManifestPath, manifest))
 			if err != nil {
 				t.Fatal(err)
 			}

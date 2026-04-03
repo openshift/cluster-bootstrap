@@ -2,8 +2,9 @@ package start
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/openshift/installer/pkg/types"
-	"io/ioutil"
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/yaml"
 )
@@ -21,7 +22,7 @@ var (
 )
 
 func getInstallConfig(file string) (*types.InstallConfig, error) {
-	data, err := ioutil.ReadFile(file)
+	data, err := os.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
