@@ -1,19 +1,10 @@
 approvers:
-- benluddy
-- deads2k
-- dgrisonnet
-- dinhxuanvu
-- mfojtik
+- control-plane-approvers
 - sanchezl
-- sttts
-- tkashem
 
 reviewers:
-- benluddy
-- dgrisonnet
-- dinhxuanvu
+- control-plane-approvers
 - sanchezl
-- tkashem
 
 # This is a Red Hat extension, mapping the Git repository to an OpenShift Bugzilla component:
 # https://bugzilla.redhat.com/enter_bug.cgi?product=OpenShift%20Container%20Platform
