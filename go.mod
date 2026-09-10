@@ -1,10 +1,10 @@
 module github.com/openshift/cluster-bootstrap
 
-go 1.19
+go 1.22.0
 
 require (
 	github.com/coreos/butane v0.17.0
-	github.com/openshift/build-machinery-go v0.0.0-20220913142420-e25cf57ea46d
+	github.com/openshift/build-machinery-go v0.0.0-20260902143904-520f675c892b
 	github.com/openshift/client-go v0.0.0-20230503144108-75015d2347cb
 	github.com/openshift/installer v0.16.1
 	github.com/openshift/library-go v0.0.0-20230724150037-c515269de16e
