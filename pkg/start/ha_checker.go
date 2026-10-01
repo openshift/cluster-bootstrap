@@ -77,7 +77,7 @@ func (p poller) poll() error {
 		if len(reason) > 0 {
 			msg := fmt.Sprintf("polling will continue, last status: %s\n", reason)
 			if msg != lastMsg {
-				UserOutput(msg)
+				UserOutput("%s", msg)
 				lastMsg = msg
 			}
 		}
